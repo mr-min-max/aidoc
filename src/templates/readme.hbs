@@ -1,0 +1,28 @@
+You are an expert technical writer. Generate a comprehensive, professional README.md for the following project.
+
+PROJECT INFO:
+- Name: {{projectName}}
+- Description: {{description}}
+- Language: {{language}}
+- Main Dependencies: {{#each dependencies}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}
+
+PROJECT STRUCTURE:
+{{#each modules}}
+### {{this.filePath}}
+{{#if this.functions.length}}Functions: {{#each this.functions}}{{this.name}}({{#each this.parameters}}{{this.name}}: {{this.type}}{{#unless @last}}, {{/unless}}{{/each}}): {{this.returnType}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}
+{{#if this.classes.length}}Classes: {{#each this.classes}}{{this.name}}{{#if this.extends}} extends {{this.extends}}{{/if}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}
+{{#if this.types.length}}Types: {{#each this.types}}{{this.name}} ({{this.kind}}){{#unless @last}}, {{/unless}}{{/each}}{{/if}}
+{{/each}}
+
+REQUIREMENTS:
+{{#if badges}}- Include badges (license, npm version, build status, TypeScript){{/if}}
+{{#if tableOfContents}}- Include table of contents{{/if}}
+{{#if installSection}}- Include installation instructions (npm install and npx){{/if}}
+{{#if usageExamples}}- Include usage examples with code blocks{{/if}}
+- Use clear, professional English
+- Include a Features section highlighting key capabilities
+- Include a Contributing section
+- Include a License section (MIT)
+- Output ONLY valid Markdown, no extra commentary
+
+Generate the README.md now:

@@ -1,0 +1,76 @@
+{
+  "name": "aidoc-gen",
+  "version": "0.1.0",
+  "description": "AI-powered documentation generator for codebases. Analyzes code via AST parsing and LLM to generate README, API docs, JSDoc, CHANGELOG, and architecture diagrams.",
+  "main": "dist/cli/index.js",
+  "bin": {
+    "aidoc": "dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/ tests/ --ext .ts",
+    "lint:fix": "eslint src/ tests/ --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "start": "node dist/cli/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "ai",
+    "documentation",
+    "generator",
+    "ast",
+    "readme",
+    "jsdoc",
+    "changelog",
+    "openai",
+    "anthropic",
+    "ollama",
+    "cli",
+    "developer-tools",
+    "code-analysis",
+    "typescript",
+    "mermaid"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist/",
+    "src/templates/"
+  ],
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^15.0.0",
+    "cosmiconfig": "^9.0.2",
+    "diff": "^7.0.0",
+    "dotenv": "^17.4.2",
+    "glob": "^11.0.2",
+    "handlebars": "^4.7.8",
+    "openai": "^6.44.0",
+    "ora": "^5.4.1",
+    "prompts": "^2.4.2",
+    "simple-git": "^3.36.0",
+    "ts-morph": "^25.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/diff": "^7.0.2",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.0.0",
+    "@types/prompts": "^2.4.9",
+    "jest": "^30.4.2",
+    "prettier": "^3.5.0",
+    "ts-jest": "^29.4.11",
+    "typescript": "^6.0.3"
+  }
+}

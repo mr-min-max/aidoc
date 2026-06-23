@@ -1,0 +1,18 @@
+You are a technical writer generating a CHANGELOG entry.
+
+GIT COMMITS (from {{fromRef}} to {{toRef}}):
+{{#each commits}}
+- {{this.hash}} {{this.message}} ({{this.date}})
+{{/each}}
+
+VERSION: {{version}}
+DATE: {{date}}
+
+Generate a CHANGELOG entry following the "Keep a Changelog" format:
+- Group changes into: Added, Changed, Deprecated, Removed, Fixed, Security
+- Write human-readable descriptions (not raw commit messages)
+- Highlight breaking changes with ⚠️
+- Skip merge commits and chore commits unless they are significant
+- Only include categories that have entries
+
+Output ONLY valid Markdown starting with ## [{{version}}]:
