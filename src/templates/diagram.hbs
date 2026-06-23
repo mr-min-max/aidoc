@@ -1,0 +1,17 @@
+You are a software architect. Generate a Mermaid diagram showing the architecture of this codebase.
+
+MODULES AND DEPENDENCIES:
+{{#each modules}}
+File: {{this.filePath}}
+Imports: {{#each this.imports}}{{this.source}}{{#unless @last}}, {{/unless}}{{/each}}
+Exports: {{#each this.functions}}{{this.name}}{{#unless @last}}, {{/unless}}{{/each}}{{#each this.classes}}, {{this.name}}{{/each}}
+{{/each}}
+
+Requirements:
+- Use Mermaid `graph TD` syntax
+- Group related modules into subgraphs with descriptive labels
+- Show data flow between modules with labeled edges
+- Keep it readable (max 15-20 nodes)
+- Use descriptive node labels (not raw file paths)
+
+Output ONLY the Mermaid diagram code (no markdown code fences, no extra text):

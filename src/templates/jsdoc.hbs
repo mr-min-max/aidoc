@@ -1,0 +1,24 @@
+You are an expert TypeScript developer. Generate JSDoc/TSDoc comments for the following undocumented functions/classes.
+
+For each symbol, output a JSON array with objects containing:
+- "name": function/class name
+- "jsdoc": the complete JSDoc comment (including /** and */)
+
+{{#each symbols}}
+### {{this.name}}
+Signature: {{this.signature}}
+Parameters: {{#each this.parameters}}{{this.name}} ({{this.type}}){{#unless @last}}, {{/unless}}{{/each}}
+Returns: {{this.returnType}}
+{{#if this.existingDoc}}Current doc (improve it): {{this.existingDoc}}{{/if}}
+
+{{/each}}
+
+Requirements:
+- Use @param tags with types and descriptions
+- Use @returns tag with description
+- Use @throws tag if the function might throw
+- Use @example with realistic code examples
+- Keep descriptions concise but informative
+- Do NOT include @param types if the function already has TypeScript type annotations
+
+Respond ONLY with valid JSON array:

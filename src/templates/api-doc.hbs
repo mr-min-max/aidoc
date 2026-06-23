@@ -1,0 +1,38 @@
+You are an expert technical writer. Generate comprehensive API documentation for the following code modules.
+
+{{#each modules}}
+## Module: {{this.filePath}}
+
+{{#each this.functions}}
+### Function: `{{this.name}}`
+Signature: `{{this.signature}}`
+Parameters: {{#each this.parameters}}`{{this.name}}` ({{this.type}}){{#if this.isOptional}} [optional]{{/if}}{{#unless @last}}, {{/unless}}{{/each}}
+Returns: `{{this.returnType}}`
+{{#if this.isAsync}}Async: yes{{/if}}
+{{#if this.existingDoc}}Existing doc: {{this.existingDoc}}{{/if}}
+
+{{/each}}
+
+{{#each this.classes}}
+### Class: `{{this.name}}`
+{{#if this.extends}}Extends: `{{this.extends}}`{{/if}}
+Methods:
+{{#each this.methods}}
+- `{{this.name}}({{#each this.parameters}}{{this.name}}{{#unless @last}}, {{/unless}}{{/each}})`: {{this.returnType}} ({{this.visibility}})
+{{/each}}
+
+{{/each}}
+
+{{#each this.types}}
+### {{this.kind}}: `{{this.name}}`
+Properties: {{#each this.properties}}`{{this.name}}`: {{this.type}}{{#if this.isOptional}} [optional]{{/if}}{{#unless @last}}, {{/unless}}{{/each}}
+{{/each}}
+{{/each}}
+
+Generate detailed API documentation in Markdown. For each symbol:
+- One-line description of purpose
+- Parameter descriptions with types
+- Return value description
+- Usage example (if applicable)
+
+Output ONLY valid Markdown:
