@@ -19,12 +19,12 @@
 
 import { analyzeCodebase } from "../core/analyzer";
 import { Generator } from "../core/generator";
-import { createProvider } from "../providers/factory";
+import { createProvider } from "../providers/registry";
 import { loadConfig } from "../config/loader";
 import { getChangedFiles } from "../git/history";
 import { readExistingMarkdown } from "../output/markdown";
+import { readProjectInfo } from "../cli/context";
 import * as path from "path";
-import * as fs from "fs";
 
 /** MCP Tool Definition */
 interface MCPTool {
@@ -217,17 +217,8 @@ async function handleToolCall(
       const templatesDir = path.resolve(__dirname, "../templates");
       const generator = new Generator(provider, templatesDir);
 
-      const pkgPath = path.join(dir, "package.json");
-      let projectName = path.basename(dir);
-      let description = "";
-      let dependencies: string[] = [];
-
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-        projectName = pkg.name || projectName;
-        description = pkg.description || "";
-        dependencies = Object.keys(pkg.dependencies || {});
-      }
+      const { name: projectName, description, dependencies } =
+        readProjectInfo(dir);
 
       const readme = await generator.generateReadme({
         projectName,
