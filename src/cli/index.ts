@@ -7,6 +7,8 @@ import { annotateCommand } from './commands/annotate';
 import { changelogCommand } from './commands/changelog';
 import { diagramCommand } from './commands/diagram';
 import { updateCommand } from './commands/update';
+import { scoreCommand } from './commands/score';
+import { setLogLevel } from '../core/logger';
 
 dotenv.config();
 
@@ -15,7 +17,15 @@ const program = new Command();
 program
   .name('aidoc')
   .description('🤖 AI-powered documentation generator for codebases. Analyzes your code via AST parsing and generates professional documentation using LLM.')
-  .version('0.1.0');
+  .version('0.1.0')
+  .option('--verbose', 'Enable verbose debug logging')
+  .option('--mcp', 'Start as MCP (Model Context Protocol) server for AI assistant integration')
+  .hook('preAction', (thisCommand) => {
+    const opts = thisCommand.opts();
+    if (opts.verbose) {
+      setLogLevel('debug');
+    }
+  });
 
 program.addCommand(readmeCommand);
 program.addCommand(apiCommand);
@@ -23,5 +33,15 @@ program.addCommand(annotateCommand);
 program.addCommand(changelogCommand);
 program.addCommand(diagramCommand);
 program.addCommand(updateCommand);
+program.addCommand(scoreCommand);
 
-program.parse();
+// Handle --mcp flag before parsing commands
+const args = process.argv.slice(2);
+if (args.includes('--mcp')) {
+  import('../mcp/server').then(({ startMCPServer }) => {
+    startMCPServer().catch(console.error);
+  });
+} else {
+  program.parse();
+}
+
