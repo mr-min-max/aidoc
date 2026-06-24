@@ -1,18 +1,34 @@
-import { Project, SourceFile, Scope } from 'ts-morph';
+import { Project, SourceFile, Scope, MethodDeclaration, ParameterDeclaration } from 'ts-morph';
 import {
   LanguageParser, ParsedModule, FunctionInfo, ClassInfo,
   TypeInfo, MethodInfo, ImportStatement, ParameterInfo
 } from './types';
 
+// One shared Project for the whole process — avoids re-booting the
+// TypeScript compiler for every file (was a major perf bottleneck:
+// 100 files meant 100 compiler initializations).
+let sharedProject: Project | null = null;
+
 export class TypeScriptParser implements LanguageParser {
   readonly name = 'typescript';
   readonly supportedExtensions = ['.ts', '.tsx', '.js', '.jsx'];
 
+  /** Visible for tests: how many times the Project has been constructed. */
+  static sharedProjectCount = 0;
+
+  private getProject(): Project {
+    if (!sharedProject) {
+      sharedProject = new Project({
+        skipAddingFilesFromTsConfig: true,
+        compilerOptions: { allowJs: true },
+      });
+      TypeScriptParser.sharedProjectCount++;
+    }
+    return sharedProject;
+  }
+
   async parse(filePath: string): Promise<ParsedModule> {
-    const project = new Project({
-      skipAddingFilesFromTsConfig: true,
-      compilerOptions: { allowJs: true },
-    });
+    const project = this.getProject();
     const sourceFile = project.addSourceFileAtPath(filePath);
 
     return {
@@ -83,10 +99,10 @@ export class TypeScriptParser implements LanguageParser {
       });
   }
 
-  private mapMethod(m: any): MethodInfo {
+  private mapMethod(m: MethodDeclaration): MethodInfo {
     return {
       name: m.getName(),
-      parameters: m.getParameters().map((p: any) => ({
+      parameters: m.getParameters().map((p: ParameterDeclaration) => ({
         name: p.getName(),
         type: p.getType().getText(p),
         isOptional: p.isOptional(),

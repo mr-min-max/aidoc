@@ -69,4 +69,15 @@ describe('TypeScriptParser', () => {
     expect(parser.supportedExtensions).toContain('.js');
     expect(parser.supportedExtensions).toContain('.jsx');
   });
+
+  it('reuses a single Project instance across parses (performance)', async () => {
+    // The Project is a module-level singleton: once constructed, it must not
+    // be re-created on subsequent parse() calls, no matter how many files.
+    await parser.parse(fixturePath);
+    const before = TypeScriptParser.sharedProjectCount;
+    await parser.parse(fixturePath);
+    await parser.parse(fixturePath);
+    const after = TypeScriptParser.sharedProjectCount;
+    expect(after).toBe(before); // no new Project created on repeat parses
+  });
 });
