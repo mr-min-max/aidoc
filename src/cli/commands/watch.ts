@@ -2,8 +2,7 @@ import { Command } from "commander";
 import chalk from "chalk";
 import chokidar from "chokidar";
 import * as path from "path";
-import * as fs from "fs";
-import { loadCommandContext, writeDoc } from "../context";
+import { loadCommandContext, writeDoc, readProjectInfo } from "../context";
 import { analyzeCodebase } from "../../core/analyzer";
 import { debounce, isRelevantChange } from "../../core/watcher";
 import { logger } from "../../core/logger";
@@ -35,16 +34,9 @@ export const watchCommand = new Command("watch")
           ctx.config.include,
           ctx.config.exclude,
         );
-        const pkgPath = path.join(ctx.cwd, "package.json");
-        let projectName = path.basename(ctx.cwd);
-        let description = "";
-        let dependencies: string[] = [];
-        if (fs.existsSync(pkgPath)) {
-          const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-          projectName = pkg.name || projectName;
-          description = pkg.description || "";
-          dependencies = Object.keys(pkg.dependencies || {});
-        }
+        const { name: projectName, description, dependencies } = readProjectInfo(
+          ctx.cwd,
+        );
         const readme = await ctx.generator.generateReadme({
           projectName,
           description,

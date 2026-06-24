@@ -2,9 +2,8 @@ import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import * as path from "path";
-import * as fs from "fs";
 import { analyzeCodebase } from "../../core/analyzer";
-import { loadCommandContext, writeDoc } from "../context";
+import { loadCommandContext, writeDoc, readProjectInfo } from "../context";
 
 export const readmeCommand = new Command("readme")
   .description("Generate README.md from code analysis")
@@ -35,16 +34,7 @@ export const readmeCommand = new Command("readme")
       );
 
       // Read package.json for project info
-      const pkgPath = path.join(ctx.cwd, "package.json");
-      let projectName = path.basename(ctx.cwd);
-      let description = "";
-      let dependencies: string[] = [];
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-        projectName = pkg.name || projectName;
-        description = pkg.description || "";
-        dependencies = Object.keys(pkg.dependencies || {});
-      }
+      const { name: projectName, description, dependencies } = readProjectInfo(ctx.cwd);
 
       const genSpinner = ora("Generating README with AI...").start();
       const readmeCtx = {

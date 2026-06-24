@@ -25,6 +25,37 @@ export interface CommandContext {
   isMock: boolean;
 }
 
+/** Project metadata extracted from package.json, with sane fallbacks. */
+export interface ProjectInfo {
+  name: string;
+  description: string;
+  dependencies: string[];
+}
+
+/**
+ * Reads package.json from `cwd` for project metadata used by README/Watch.
+ * Falls back to the directory name when there's no package.json. Centralizes
+ * logic that was copy-pasted across readme/watch/mcp commands.
+ */
+export function readProjectInfo(cwd: string): ProjectInfo {
+  const pkgPath = path.join(cwd, "package.json");
+  let name = path.basename(cwd);
+  let description = "";
+  let dependencies: string[] = [];
+  try {
+    const fs = require("fs");
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+      name = pkg.name || name;
+      description = pkg.description || "";
+      dependencies = Object.keys(pkg.dependencies || {});
+    }
+  } catch {
+    // Malformed or unreadable package.json — keep the fallbacks.
+  }
+  return { name, description, dependencies };
+}
+
 /** Builds the shared context every command needs. Chooses real/mock generator. */
 export async function loadCommandContext(
   options: CommandOptions,
