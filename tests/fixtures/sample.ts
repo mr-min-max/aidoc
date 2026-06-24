@@ -50,9 +50,10 @@ export function greetUser(user: User): string {
   return `Hello, ${user.name}!`;
 }
 
-export async function fetchData(url: string, retries: number = 3): Promise<unknown> {
+export async function fetchData(url: string, _retries: number = 3): Promise<unknown> {
   // implementation
   return {};
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const internalHelper = () => 'not exported';

@@ -34,8 +34,8 @@ export class AnthropicProvider implements LLMProvider {
       } catch (error: any) {
         const status = error.status ?? '';
         // Surface a 429 token so isRetryableError() matches and retries.
-        if (status === 429) throw new Error('429 rate limited: Anthropic');
-        throw new Error(`Anthropic API error: ${error.message}`);
+        if (status === 429) throw new Error('429 rate limited: Anthropic', { cause: error });
+        throw new Error(`Anthropic API error: ${error.message}`, { cause: error });
       }
     };
 

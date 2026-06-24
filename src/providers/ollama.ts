@@ -39,9 +39,9 @@ export class OllamaProvider implements LLMProvider {
       } catch (error: any) {
         // Preserve the ECONNREFUSED token so isRetryableError() can retry it.
         if (error.cause?.code === 'ECONNREFUSED') {
-          throw new Error(`ECONNREFUSED: cannot connect to Ollama at ${this.host}`);
+          throw new Error(`ECONNREFUSED: cannot connect to Ollama at ${this.host}`, { cause: error });
         }
-        throw new Error(`Ollama error: ${error.message}`);
+        throw new Error(`Ollama error: ${error.message}`, { cause: error });
       }
     };
 
