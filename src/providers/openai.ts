@@ -40,4 +40,29 @@ export class OpenAIProvider implements LLMProvider {
 
     return withRetry(run, { maxRetries: 3 });
   }
+
+  async generateStream(
+    prompt: string,
+    options: GenerateOptions,
+    onToken: (token: string) => void
+  ): Promise<string> {
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
+    if (options.systemPrompt) messages.push({ role: 'system', content: options.systemPrompt });
+    messages.push({ role: 'user', content: prompt });
+
+    const run = async (): Promise<string> => {
+      const stream = await this.client.chat.completions.create({
+        model: this.model, messages, stream: true,
+        max_tokens: options.maxTokens, temperature: options.temperature ?? 0.3,
+      });
+      let full = '';
+      for await (const chunk of stream) {
+        const token = chunk.choices[0]?.delta?.content || '';
+        if (token) { full += token; onToken(token); }
+      }
+      return full;
+    };
+
+    return withRetry(run, { maxRetries: 3 });
+  }
 }
