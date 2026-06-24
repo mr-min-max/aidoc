@@ -10,6 +10,13 @@ import { Generator } from '../../core/generator';
 import { createProvider } from '../../providers/factory';
 import { displayDiff } from '../../output/diff-display';
 
+/** Strips ```json ... ``` fences an LLM may wrap around a JSON response. */
+function stripCodeFences(raw: string): string {
+  const trimmed = raw.trim();
+  const match = trimmed.match(/^```(?:json)?\s*([\s\S]*?)```$/);
+  return match ? match[1].trim() : trimmed;
+}
+
 export const annotateCommand = new Command('annotate')
   .description('Add JSDoc/TSDoc comments to undocumented functions')
   .option('--file <path>', 'Annotate a specific file')
@@ -53,7 +60,14 @@ export const annotateCommand = new Command('annotate')
         const templatesDir = path.resolve(__dirname, '../../templates');
         const generator = new Generator(provider, templatesDir);
         const response = await generator.generateJsDoc(undocumented);
-        annotations = JSON.parse(response);
+        try {
+          annotations = JSON.parse(stripCodeFences(response));
+        } catch {
+          throw new Error(
+            'LLM returned malformed JSON for annotations. Try again or use --mock. ' +
+            'Raw response:\n' + response.slice(0, 500)
+          );
+        }
       }
 
       genSpinner.succeed(chalk.green('JSDoc comments generated!'));
