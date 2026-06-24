@@ -1,7 +1,14 @@
-import { LanguageParser, ParsedModule, FunctionInfo, ClassInfo, ImportStatement, MethodInfo } from './types';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import * as fs from 'fs';
+import {
+  LanguageParser,
+  ParsedModule,
+  FunctionInfo,
+  ClassInfo,
+  ImportStatement,
+  MethodInfo,
+} from "./types";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import * as fs from "fs";
 
 const execFileAsync = promisify(execFile);
 
@@ -134,8 +141,8 @@ if __name__ == '__main__':
 `;
 
 export class PythonParser implements LanguageParser {
-  readonly name = 'python';
-  readonly supportedExtensions = ['.py'];
+  readonly name = "python";
+  readonly supportedExtensions = [".py"];
 
   async parse(filePath: string): Promise<ParsedModule> {
     // Verify file exists
@@ -144,16 +151,20 @@ export class PythonParser implements LanguageParser {
     }
 
     try {
-      const { stdout } = await execFileAsync('python3', ['-c', PYTHON_AST_SCRIPT, filePath], {
-        timeout: 15000,
-        maxBuffer: 10 * 1024 * 1024,
-      });
+      const { stdout } = await execFileAsync(
+        "python3",
+        ["-c", PYTHON_AST_SCRIPT, filePath],
+        {
+          timeout: 15000,
+          maxBuffer: 10 * 1024 * 1024,
+        },
+      );
 
       const data = JSON.parse(stdout.trim());
 
       return {
         filePath,
-        language: 'python',
+        language: "python",
         functions: (data.functions || []).map(this.mapFunction),
         classes: (data.classes || []).map(this.mapClass),
         types: [], // Python doesn't have separate type declarations like TS
@@ -162,27 +173,32 @@ export class PythonParser implements LanguageParser {
     } catch (error: unknown) {
       // Graceful fallback: if Python is not available, return empty module
       const message = error instanceof Error ? error.message : String(error);
-      if (message.includes('ENOENT') || message.includes('not found')) {
+      if (message.includes("ENOENT") || message.includes("not found")) {
         console.warn(
-          '⚠️  Python 3 not found. Install Python 3 to enable Python file analysis.\n' +
-          '   Skipping Python parsing for: ' + filePath
+          "⚠️  Python 3 not found. Install Python 3 to enable Python file analysis.\n" +
+            "   Skipping Python parsing for: " +
+            filePath,
         );
         return this.emptyModule(filePath);
       }
-      throw new Error(`Failed to parse Python file ${filePath}: ${message}`, { cause: error });
+      throw new Error(`Failed to parse Python file ${filePath}: ${message}`, {
+        cause: error,
+      });
     }
   }
 
   private mapFunction(raw: Record<string, unknown>): FunctionInfo {
     return {
       name: raw.name as string,
-      parameters: (raw.parameters as Array<Record<string, unknown>>).map(p => ({
-        name: p.name as string,
-        type: (p.type as string) || undefined,
-        isOptional: p.isOptional as boolean,
-        defaultValue: p.defaultValue as string | undefined,
-      })),
-      returnType: (raw.returnType as string) || 'None',
+      parameters: (raw.parameters as Array<Record<string, unknown>>).map(
+        (p) => ({
+          name: p.name as string,
+          type: (p.type as string) || undefined,
+          isOptional: p.isOptional as boolean,
+          defaultValue: p.defaultValue as string | undefined,
+        }),
+      ),
+      returnType: (raw.returnType as string) || "None",
       isAsync: raw.isAsync as boolean,
       isExported: raw.isExported as boolean,
       lineRange: raw.lineRange as [number, number],
@@ -192,23 +208,26 @@ export class PythonParser implements LanguageParser {
   }
 
   private mapClass(raw: Record<string, unknown>): ClassInfo {
-    const methods = (raw.methods as Array<Record<string, unknown>> || []).map(
+    const methods = ((raw.methods as Array<Record<string, unknown>>) || []).map(
       (m): MethodInfo => ({
         name: m.name as string,
-        parameters: (m.parameters as Array<Record<string, unknown>>).map(p => ({
-          name: p.name as string,
-          type: (p.type as string) || undefined,
-          isOptional: p.isOptional as boolean,
-        })),
-        returnType: (m.returnType as string) || 'None',
+        parameters: (m.parameters as Array<Record<string, unknown>>).map(
+          (p) => ({
+            name: p.name as string,
+            type: (p.type as string) || undefined,
+            isOptional: p.isOptional as boolean,
+          }),
+        ),
+        returnType: (m.returnType as string) || "None",
         isAsync: m.isAsync as boolean,
         isExported: true,
         lineRange: m.lineRange as [number, number],
         existingDoc: m.existingDoc as string | undefined,
         signature: m.signature as string,
-        visibility: (m.visibility as 'public' | 'private' | 'protected') || 'public',
+        visibility:
+          (m.visibility as "public" | "private" | "protected") || "public",
         isStatic: (m.isStatic as boolean) || false,
-      })
+      }),
     );
 
     return {
@@ -234,7 +253,7 @@ export class PythonParser implements LanguageParser {
   private emptyModule(filePath: string): ParsedModule {
     return {
       filePath,
-      language: 'python',
+      language: "python",
       functions: [],
       classes: [],
       types: [],

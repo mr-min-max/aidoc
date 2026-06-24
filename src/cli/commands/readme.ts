@@ -1,44 +1,57 @@
-import { Command } from 'commander';
-import chalk from 'chalk';
-import ora from 'ora';
-import * as path from 'path';
-import * as fs from 'fs';
-import { analyzeCodebase } from '../../core/analyzer';
-import { loadCommandContext, writeDoc } from '../context';
+import { Command } from "commander";
+import chalk from "chalk";
+import ora from "ora";
+import * as path from "path";
+import * as fs from "fs";
+import { analyzeCodebase } from "../../core/analyzer";
+import { loadCommandContext, writeDoc } from "../context";
 
-export const readmeCommand = new Command('readme')
-  .description('Generate README.md from code analysis')
-  .option('-o, --output <path>', 'Output file path', './README.md')
-  .option('--dry-run', 'Preview without writing to file')
-  .option('--no-badges', 'Skip badges generation')
-  .option('--mock', 'Use mock LLM response for testing')
+export const readmeCommand = new Command("readme")
+  .description("Generate README.md from code analysis")
+  .option("-o, --output <path>", "Output file path", "./README.md")
+  .option("--dry-run", "Preview without writing to file")
+  .option("--no-badges", "Skip badges generation")
+  .option("--mock", "Use mock LLM response for testing")
   .action(async (options) => {
-    const spinner = ora('Scanning codebase...').start();
+    const spinner = ora("Scanning codebase...").start();
     try {
       const ctx = await loadCommandContext(options);
-      const modules = await analyzeCodebase(ctx.cwd, ctx.config.include, ctx.config.exclude);
+      const modules = await analyzeCodebase(
+        ctx.cwd,
+        ctx.config.include,
+        ctx.config.exclude,
+      );
 
       if (modules.length === 0) {
-        spinner.warn(chalk.yellow('No supported source files found. Make sure your project has .ts, .js, or .py files.'));
+        spinner.warn(
+          chalk.yellow(
+            "No supported source files found. Make sure your project has .ts, .js, or .py files.",
+          ),
+        );
         return;
       }
-      spinner.succeed(chalk.green(`Found ${modules.length} modules to analyze`));
+      spinner.succeed(
+        chalk.green(`Found ${modules.length} modules to analyze`),
+      );
 
       // Read package.json for project info
-      const pkgPath = path.join(ctx.cwd, 'package.json');
+      const pkgPath = path.join(ctx.cwd, "package.json");
       let projectName = path.basename(ctx.cwd);
-      let description = '';
+      let description = "";
       let dependencies: string[] = [];
       if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+        const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
         projectName = pkg.name || projectName;
-        description = pkg.description || '';
+        description = pkg.description || "";
         dependencies = Object.keys(pkg.dependencies || {});
       }
 
-      const genSpinner = ora('Generating README with AI...').start();
+      const genSpinner = ora("Generating README with AI...").start();
       const readmeCtx = {
-        projectName, description, modules, dependencies,
+        projectName,
+        description,
+        modules,
+        dependencies,
         badges: options.badges !== false,
         tableOfContents: ctx.config.readme.tableOfContents,
         installSection: ctx.config.readme.installSection,
@@ -52,14 +65,19 @@ export const readmeCommand = new Command('readme')
       } else {
         readme = await (ctx.generator as any).generateReadmeStream(
           readmeCtx as any,
-          (token: string) => { genSpinner.text = token.slice(-40); } // live tail
+          (token: string) => {
+            genSpinner.text = token.slice(-40);
+          }, // live tail
         );
       }
-      genSpinner.succeed(chalk.green('README generated!'));
+      genSpinner.succeed(chalk.green("README generated!"));
 
-      await writeDoc(path.resolve(ctx.cwd, options.output), readme, { dryRun: options.dryRun, label: options.output });
+      await writeDoc(path.resolve(ctx.cwd, options.output), readme, {
+        dryRun: options.dryRun,
+        label: options.output,
+      });
     } catch (error: any) {
-      spinner.fail(chalk.red('Failed to generate README'));
+      spinner.fail(chalk.red("Failed to generate README"));
       console.error(chalk.red(error.message));
       process.exit(1);
     }

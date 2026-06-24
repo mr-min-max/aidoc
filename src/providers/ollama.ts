@@ -1,15 +1,18 @@
-import { LLMProvider, GenerateOptions } from './types';
-import { withRetry } from '../core/retry';
+import { LLMProvider, GenerateOptions } from "./types";
+import { withRetry } from "../core/retry";
 
 export class OllamaProvider implements LLMProvider {
-  readonly name = 'ollama';
+  readonly name = "ollama";
 
   constructor(
-    private host: string = 'http://localhost:11434',
-    private model: string = 'llama3'
+    private host: string = "http://localhost:11434",
+    private model: string = "llama3",
   ) {}
 
-  async generate(prompt: string, options: GenerateOptions = {}): Promise<string> {
+  async generate(
+    prompt: string,
+    options: GenerateOptions = {},
+  ): Promise<string> {
     const fullPrompt = options.systemPrompt
       ? `${options.systemPrompt}\n\n${prompt}`
       : prompt;
@@ -17,8 +20,8 @@ export class OllamaProvider implements LLMProvider {
     const run = async (): Promise<string> => {
       try {
         const response = await fetch(`${this.host}/api/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             model: this.model,
             prompt: fullPrompt,
@@ -38,8 +41,11 @@ export class OllamaProvider implements LLMProvider {
         return data.response;
       } catch (error: any) {
         // Preserve the ECONNREFUSED token so isRetryableError() can retry it.
-        if (error.cause?.code === 'ECONNREFUSED') {
-          throw new Error(`ECONNREFUSED: cannot connect to Ollama at ${this.host}`, { cause: error });
+        if (error.cause?.code === "ECONNREFUSED") {
+          throw new Error(
+            `ECONNREFUSED: cannot connect to Ollama at ${this.host}`,
+            { cause: error },
+          );
         }
         throw new Error(`Ollama error: ${error.message}`, { cause: error });
       }
@@ -51,35 +57,46 @@ export class OllamaProvider implements LLMProvider {
   async generateStream(
     prompt: string,
     options: GenerateOptions,
-    onToken: (token: string) => void
+    onToken: (token: string) => void,
   ): Promise<string> {
-    const fullPrompt = options.systemPrompt ? `${options.systemPrompt}\n\n${prompt}` : prompt;
+    const fullPrompt = options.systemPrompt
+      ? `${options.systemPrompt}\n\n${prompt}`
+      : prompt;
 
     const run = async (): Promise<string> => {
       const response = await fetch(`${this.host}/api/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: this.model, prompt: fullPrompt, stream: true,
-          options: { temperature: options.temperature ?? 0.3, num_predict: options.maxTokens || 4096 },
+          model: this.model,
+          prompt: fullPrompt,
+          stream: true,
+          options: {
+            temperature: options.temperature ?? 0.3,
+            num_predict: options.maxTokens || 4096,
+          },
         }),
       });
-      if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+      if (!response.ok || !response.body)
+        throw new Error(`HTTP ${response.status}`);
 
-      let full = '';
+      let full = "";
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = '';
+      let buffer = "";
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
         for (const line of lines) {
           if (!line.trim()) continue;
           const data = JSON.parse(line);
-          if (data.response) { full += data.response; onToken(data.response); }
+          if (data.response) {
+            full += data.response;
+            onToken(data.response);
+          }
           if (data.done) return full;
         }
       }

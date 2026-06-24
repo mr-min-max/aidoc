@@ -1,0 +1,26 @@
+You are a technical documentation maintainer.
+Given the EXISTING documentation and the CODE CHANGES below,
+update ONLY the sections that are affected by the changes.
+Keep unchanged sections intact. Output the complete updated document.
+
+--- EXISTING DOCUMENTATION ---
+{{{existingDoc}}}
+
+--- CHANGED FILES ---
+{{#each changedFiles}}
+{{this}}
+{{/each}}
+
+--- DIFF SUMMARY ---
+{{{diffSummary}}}
+
+Requirements:
+- Preserve the existing document structure and formatting
+- Only modify sections directly affected by the code changes
+- If new public APIs were added, add them to the appropriate section
+- If APIs were removed, remove their documentation
+- Update version numbers, dates, or status information if relevant
+- Do NOT add sections that don't exist in the original document
+- Do NOT remove sections unless the related code was deleted
+
+Output the complete updated Markdown document:
