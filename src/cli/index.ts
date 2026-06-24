@@ -8,6 +8,7 @@ import { changelogCommand } from './commands/changelog';
 import { diagramCommand } from './commands/diagram';
 import { updateCommand } from './commands/update';
 import { scoreCommand } from './commands/score';
+import { watchCommand } from './commands/watch';
 import { setLogLevel } from '../core/logger';
 
 dotenv.config();
@@ -34,6 +35,7 @@ program.addCommand(changelogCommand);
 program.addCommand(diagramCommand);
 program.addCommand(updateCommand);
 program.addCommand(scoreCommand);
+program.addCommand(watchCommand);
 
 // Handle --mcp flag before parsing commands
 const args = process.argv.slice(2);
