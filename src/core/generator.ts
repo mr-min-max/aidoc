@@ -72,6 +72,39 @@ export class Generator {
     });
   }
 
+  async generateUpdate(context: {
+    existingDoc: string;
+    changedFiles: string[];
+    diffSummary: string;
+  }): Promise<string> {
+    const prompt = this.renderTemplate('update', {
+      existingDoc: context.existingDoc,
+      changedFiles: context.changedFiles,
+      diffSummary: context.diffSummary.substring(0, 3000),
+    });
+    return this.provider.generate(prompt, {
+      systemPrompt: 'You are a documentation updater. Preserve the existing structure and only modify sections affected by code changes.',
+      temperature: 0.2,
+    });
+  }
+
+  /** Streams a readme, calling onToken for each chunk. Falls back if unsupported. */
+  async generateReadmeStream(
+    context: ReadmeContext,
+    onToken: (token: string) => void
+  ): Promise<string> {
+    const prompt = this.renderTemplate('readme', context);
+    if (this.provider.generateStream) {
+      return this.provider.generateStream(prompt, {
+        systemPrompt: 'You are a professional open-source documentation writer. Output only valid Markdown.',
+        temperature: 0.3,
+      }, onToken);
+    }
+    const result = await this.generateReadme(context);
+    onToken(result);
+    return result;
+  }
+
   private renderTemplate(name: string, context: any): string {
     if (!this.templateCache.has(name)) {
       const templatePath = path.join(this.templatesDir, `${name}.hbs`);
