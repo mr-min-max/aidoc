@@ -47,4 +47,45 @@ export class OllamaProvider implements LLMProvider {
 
     return withRetry(run, { maxRetries: 3 });
   }
+
+  async generateStream(
+    prompt: string,
+    options: GenerateOptions,
+    onToken: (token: string) => void
+  ): Promise<string> {
+    const fullPrompt = options.systemPrompt ? `${options.systemPrompt}\n\n${prompt}` : prompt;
+
+    const run = async (): Promise<string> => {
+      const response = await fetch(`${this.host}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: this.model, prompt: fullPrompt, stream: true,
+          options: { temperature: options.temperature ?? 0.3, num_predict: options.maxTokens || 4096 },
+        }),
+      });
+      if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+
+      let full = '';
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const data = JSON.parse(line);
+          if (data.response) { full += data.response; onToken(data.response); }
+          if (data.done) return full;
+        }
+      }
+      return full;
+    };
+
+    return withRetry(run, { maxRetries: 3 });
+  }
 }

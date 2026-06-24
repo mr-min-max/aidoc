@@ -41,4 +41,35 @@ export class AnthropicProvider implements LLMProvider {
 
     return withRetry(run, { maxRetries: 3 });
   }
+
+  async generateStream(
+    prompt: string,
+    options: GenerateOptions,
+    onToken: (token: string) => void
+  ): Promise<string> {
+    let Anthropic: any;
+    try {
+      const mod = await import('@anthropic-ai/sdk');
+      Anthropic = mod.default;
+    } catch {
+      throw new Error('Anthropic SDK not installed. Run: npm install @anthropic-ai/sdk');
+    }
+    const client = new Anthropic({ apiKey: this.apiKey });
+
+    const run = async (): Promise<string> => {
+      const stream = client.messages.stream({
+        model: this.model, max_tokens: options.maxTokens || 4096,
+        system: options.systemPrompt, messages: [{ role: 'user', content: prompt }],
+      });
+      let full = '';
+      for await (const event of stream) {
+        if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+          full += event.delta.text; onToken(event.delta.text);
+        }
+      }
+      return full;
+    };
+
+    return withRetry(run, { maxRetries: 3 });
+  }
 }
