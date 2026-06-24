@@ -1,4 +1,4 @@
-import { ParsedModule } from '../parsers/types';
+import { ParsedModule } from "../parsers/types";
 
 export interface ModuleScore {
   filePath: string;
@@ -10,14 +10,15 @@ export interface ModuleScore {
 
 export interface ScoreResult {
   score: number; // 0-100 project aggregate
-  band: 'poor' | 'fair' | 'good';
+  band: "poor" | "fair" | "good";
   modules: ModuleScore[];
   totalSymbols: number;
   documentedSymbols: number;
   lowQualityCount: number; // docs that are placeholders
 }
 
-const STUB_PATTERNS = /^(todo|fixme|placeholder|no description|stub|tbd|\.{3})/i;
+const STUB_PATTERNS =
+  /^(todo|fixme|placeholder|no description|stub|tbd|\.{3})/i;
 
 /** Counts a single symbol toward coverage. Returns [documented?, lowQuality?]. */
 function assessDoc(doc: string | undefined): [boolean, boolean] {
@@ -41,7 +42,8 @@ export function scoreModules(modules: ParsedModule[]): ScoreResult {
       if (!f.isExported) continue;
       total++;
       const [isDoc, isLow] = assessDoc(f.existingDoc);
-      if (isDoc) documented++; else undocumented.push(f.name);
+      if (isDoc) documented++;
+      else undocumented.push(f.name);
       if (isLow) lowQualityCount++;
     }
 
@@ -49,13 +51,15 @@ export function scoreModules(modules: ParsedModule[]): ScoreResult {
       if (!c.isExported) continue;
       total++;
       const [isDoc, isLow] = assessDoc(c.existingDoc);
-      if (isDoc) documented++; else undocumented.push(c.name);
+      if (isDoc) documented++;
+      else undocumented.push(c.name);
       if (isLow) lowQualityCount++;
 
       for (const meth of c.methods) {
         total++;
         const [mDoc, mLow] = assessDoc(meth.existingDoc);
-        if (mDoc) documented++; else undocumented.push(`${c.name}.${meth.name}`);
+        if (mDoc) documented++;
+        else undocumented.push(`${c.name}.${meth.name}`);
         if (mLow) lowQualityCount++;
       }
     }
@@ -71,7 +75,10 @@ export function scoreModules(modules: ParsedModule[]): ScoreResult {
     });
   }
 
-  const score = totalSymbols === 0 ? 100 : Math.round((documentedSymbols / totalSymbols) * 100);
+  const score =
+    totalSymbols === 0
+      ? 100
+      : Math.round((documentedSymbols / totalSymbols) * 100);
   return {
     score,
     band: bucket(score),
@@ -82,14 +89,17 @@ export function scoreModules(modules: ParsedModule[]): ScoreResult {
   };
 }
 
-export function bucket(score: number): 'poor' | 'fair' | 'good' {
-  if (score < 40) return 'poor';
-  if (score < 70) return 'fair';
-  return 'good';
+export function bucket(score: number): "poor" | "fair" | "good" {
+  if (score < 40) return "poor";
+  if (score < 70) return "fair";
+  return "good";
 }
 
-export const BAND_META: Record<'poor' | 'fair' | 'good', { emoji: string; label: string }> = {
-  poor: { emoji: '🔴', label: 'Poor' },
-  fair: { emoji: '🟡', label: 'Fair' },
-  good: { emoji: '🟢', label: 'Good' },
+export const BAND_META: Record<
+  "poor" | "fair" | "good",
+  { emoji: string; label: string }
+> = {
+  poor: { emoji: "🔴", label: "Poor" },
+  fair: { emoji: "🟡", label: "Fair" },
+  good: { emoji: "🟢", label: "Good" },
 };

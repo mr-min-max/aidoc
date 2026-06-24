@@ -14,7 +14,12 @@ const RELEVANT_EXT = /\.(ts|tsx|js|jsx|py)$/;
 
 /** True for source files we'd want to regenerate docs from. */
 export function isRelevantChange(filePath: string): boolean {
-  if (filePath.includes('.test.') || filePath.includes('.spec.')) return false;
-  if (filePath.includes('node_modules/') || filePath.includes('dist/') || filePath.includes('build/')) return false;
+  if (filePath.includes(".test.") || filePath.includes(".spec.")) return false;
+  if (
+    filePath.includes("node_modules/") ||
+    filePath.includes("dist/") ||
+    filePath.includes("build/")
+  )
+    return false;
   return RELEVANT_EXT.test(filePath);
 }

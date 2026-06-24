@@ -17,7 +17,7 @@ export interface FunctionInfo {
 }
 
 export interface MethodInfo extends FunctionInfo {
-  visibility: 'public' | 'private' | 'protected';
+  visibility: "public" | "private" | "protected";
   isStatic: boolean;
 }
 
@@ -35,14 +35,14 @@ export interface ClassInfo {
 export interface PropertyInfo {
   name: string;
   type?: string;
-  visibility: 'public' | 'private' | 'protected';
+  visibility: "public" | "private" | "protected";
   isStatic: boolean;
   isReadonly: boolean;
 }
 
 export interface TypeInfo {
   name: string;
-  kind: 'interface' | 'type' | 'enum';
+  kind: "interface" | "type" | "enum";
   isExported: boolean;
   properties: { name: string; type?: string; isOptional: boolean }[];
   lineRange: [number, number];

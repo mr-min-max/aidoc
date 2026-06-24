@@ -1,0 +1,61 @@
+name: 🐛 Bug Report
+description: Report a bug or unexpected behavior in aidoc
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve aidoc! Please fill in the details below.
+  - type: input
+    id: version
+    attributes:
+      label: aidoc version
+      description: "Run `aidoc --version` to get this"
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: LLM Provider
+      options:
+        - OpenAI
+        - Anthropic
+        - Ollama
+        - N/A
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug description
+      description: What happened? What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce this issue?
+      value: |
+        1. Run `aidoc ...`
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error output
+      description: Paste any error messages or output (use `--verbose` for debug logs)
+      render: shell
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      placeholder: "22.x"
+  - type: input
+    id: os
+    attributes:
+      label: Operating System
+      placeholder: "macOS 15 / Ubuntu 24.04 / Windows 11"

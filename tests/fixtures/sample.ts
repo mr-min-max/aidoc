@@ -1,4 +1,4 @@
-import { EventEmitter } from 'events';
+import { EventEmitter } from "events";
 
 /**
  * Represents a user in the system.
@@ -33,7 +33,7 @@ export class UserService extends EventEmitter {
    */
   async addUser(user: User): Promise<User> {
     this.users.set(user.id, user);
-    this.emit('user:added', user);
+    this.emit("user:added", user);
     return user;
   }
 
@@ -50,10 +50,13 @@ export function greetUser(user: User): string {
   return `Hello, ${user.name}!`;
 }
 
-export async function fetchData(url: string, _retries: number = 3): Promise<unknown> {
+export async function fetchData(
+  url: string,
+  _retries: number = 3,
+): Promise<unknown> {
   // implementation
   return {};
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const internalHelper = () => 'not exported';
+const internalHelper = () => "not exported";
