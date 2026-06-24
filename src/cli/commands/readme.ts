@@ -37,13 +37,24 @@ export const readmeCommand = new Command('readme')
       }
 
       const genSpinner = ora('Generating README with AI...').start();
-      const readme = await ctx.generator.generateReadme({
+      const readmeCtx = {
         projectName, description, modules, dependencies,
         badges: options.badges !== false,
         tableOfContents: ctx.config.readme.tableOfContents,
         installSection: ctx.config.readme.installSection,
         usageExamples: ctx.config.readme.usageExamples,
-      } as any);
+      };
+      // Stream LLM output live when a real provider supports it; mock keeps
+      // its plain path. Falls back to non-streaming inside generateReadmeStream.
+      let readme: string;
+      if (ctx.isMock) {
+        readme = await ctx.generator.generateReadme(readmeCtx as any);
+      } else {
+        readme = await (ctx.generator as any).generateReadmeStream(
+          readmeCtx as any,
+          (token: string) => { genSpinner.text = token.slice(-40); } // live tail
+        );
+      }
       genSpinner.succeed(chalk.green('README generated!'));
 
       await writeDoc(path.resolve(ctx.cwd, options.output), readme, { dryRun: options.dryRun, label: options.output });
