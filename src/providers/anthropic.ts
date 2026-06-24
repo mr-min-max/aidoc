@@ -1,4 +1,5 @@
 import { LLMProvider, GenerateOptions } from './types';
+import { withRetry } from '../core/retry';
 
 export class AnthropicProvider implements LLMProvider {
   readonly name = 'anthropic';
@@ -19,18 +20,25 @@ export class AnthropicProvider implements LLMProvider {
 
     const client = new Anthropic({ apiKey: this.apiKey });
 
-    try {
-      const response = await client.messages.create({
-        model: this.model,
-        max_tokens: options.maxTokens || 4096,
-        system: options.systemPrompt,
-        messages: [{ role: 'user', content: prompt }],
-      });
+    const run = async (): Promise<string> => {
+      try {
+        const response = await client.messages.create({
+          model: this.model,
+          max_tokens: options.maxTokens || 4096,
+          system: options.systemPrompt,
+          messages: [{ role: 'user', content: prompt }],
+        });
 
-      const textBlock = response.content.find((block: any) => block.type === 'text');
-      return (textBlock as any)?.text || '';
-    } catch (error: any) {
-      throw new Error(`Anthropic API error: ${error.message}`);
-    }
+        const textBlock = response.content.find((block: any) => block.type === 'text');
+        return (textBlock as any)?.text || '';
+      } catch (error: any) {
+        const status = error.status ?? '';
+        // Surface a 429 token so isRetryableError() matches and retries.
+        if (status === 429) throw new Error('429 rate limited: Anthropic');
+        throw new Error(`Anthropic API error: ${error.message}`);
+      }
+    };
+
+    return withRetry(run, { maxRetries: 3 });
   }
 }
