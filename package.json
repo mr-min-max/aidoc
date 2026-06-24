@@ -35,12 +35,16 @@
     "typescript",
     "mermaid"
   ],
-  "author": "",
+  "author": "aidoc contributors",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/aidoc-dev/aidoc.git"
   },
+  "bugs": {
+    "url": "https://github.com/aidoc-dev/aidoc/issues"
+  },
+  "homepage": "https://github.com/aidoc-dev/aidoc#readme",
   "engines": {
     "node": ">=18.0.0"
   },
@@ -49,7 +53,9 @@
     "src/templates/"
   ],
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.105.0",
     "chalk": "^4.1.2",
+    "chokidar": "^5.0.0",
     "commander": "^15.0.0",
     "cosmiconfig": "^9.0.2",
     "diff": "^7.0.0",
