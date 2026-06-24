@@ -4,25 +4,31 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
-[![NPM Version](https://img.shields.io/npm/v/aidoc-gen.svg)](https://www.npmjs.com/package/aidoc-gen)
+[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A518-green.svg)](https://nodejs.org/)
+[![CI](https://github.com/aidoc-dev/aidoc/actions/workflows/ci.yml/badge.svg)](https://github.com/aidoc-dev/aidoc/actions)
 
-`aidoc` is a local, privacy-first CLI tool that analyzes your codebase using AST parsing and generates professional documentation (READMEs, API docs, JSDocs, Changelogs, and Architecture Diagrams) using LLMs.
+`aidoc` is a local, privacy-first CLI tool that analyzes your codebase using **AST parsing** and generates professional documentation (READMEs, API docs, JSDocs, Changelogs, and Architecture Diagrams) using LLMs.
 
-It is specifically designed for Open Source maintainers who want to spend less time writing docs and more time writing code.
+It is specifically designed for **Open Source maintainers** who want to spend less time writing docs and more time writing code.
 
 ---
 
 ## ✨ Features
 
-- 🧠 **AST-Powered Context:** Doesn't just read text; understands your code structure (functions, classes, exports) via `ts-morph` and `tree-sitter`.
-- 🔄 **Diff-Aware Updates:** Don't regenerate your entire README. `aidoc update` only rewrites sections affected by your latest Git commits.
-- 🔐 **Privacy First (BYOK):** Bring Your Own Key. Supports OpenAI, Anthropic, or run it 100% locally and privately using **Ollama**.
-- 🔌 **Multi-Language:** Built-in TypeScript/JavaScript support, with Python (tree-sitter) architecture ready.
-- 🎨 **Customizable:** Uses Handlebars templates for prompts. Override them to match your exact documentation style.
+- 🧠 **AST-Powered Context** — Doesn't just read text; understands your code structure (functions, classes, exports) via `ts-morph` (TypeScript) and Python's `ast` module.
+- 🐍 **Multi-Language** — Built-in support for TypeScript, JavaScript, and Python with real AST parsing. Extensible parser architecture for adding more languages.
+- 🔄 **Diff-Aware Updates** — Don't regenerate your entire README. `aidoc update` only rewrites sections affected by your latest Git commits.
+- 🔐 **Privacy First (BYOK)** — Bring Your Own Key. Supports OpenAI, Anthropic, or run it 100% locally and privately using **Ollama**.
+- 🎨 **Customizable** — Uses Handlebars templates for prompts. Override them to match your exact documentation style.
+- 🚀 **GitHub Action** — Automate documentation updates in CI/CD with `aidoc-action`.
+- 🔌 **MCP Server** — Integrate with AI assistants (ChatGPT, Claude, Cursor) via the Model Context Protocol.
+- ⚡ **Smart Caching** — AST parsing results are cached; unchanged files are never re-parsed.
+- 🔁 **Resilient** — Built-in retry with exponential backoff for API rate limits and transient errors (wired into every provider).
+- 📊 **Doc Health Scoring** — `aidoc score` grades documentation coverage 0–100 from the AST. No LLM, no API key, instant — with a CI gate (`--min`).
+- 👁️ **Live Watch Mode** — `aidoc watch` regenerates docs in real time as you save files. Streaming LLM output makes generation feel instant.
+- 🧩 **Pluggable Providers** — A provider registry lets you add Gemini/Mistral/vLLM without touching core.
 
 ## 🚀 Quick Start
-
-You don't even need to install it. Just run it via `npx`:
 
 ```bash
 # Generate a README for your project
@@ -30,11 +36,12 @@ npx aidoc-gen readme
 
 # Preview what it would generate without saving
 npx aidoc-gen readme --dry-run
+
+# Use the mock mode for testing (no API key needed)
+npx aidoc-gen readme --mock --dry-run
 ```
 
 ## 📦 Installation
-
-To install globally:
 
 ```bash
 npm install -g aidoc-gen
@@ -43,7 +50,6 @@ npm install -g aidoc-gen
 ## ⚙️ Configuration
 
 `aidoc` requires an API key for OpenAI or Anthropic (unless using Ollama).
-You can set this via an environment variable:
 
 ```bash
 export OPENAI_API_KEY="sk-..."
@@ -57,7 +63,7 @@ Or create a `.aidocrc.json` in your project root:
 {
   "provider": "openai",
   "model": "gpt-4o-mini",
-  "include": ["src/**/*.ts"],
+  "include": ["src/**/*.ts", "src/**/*.py"],
   "exclude": ["**/node_modules/**", "**/*.test.ts"],
   "language": "en"
 }
@@ -65,45 +71,158 @@ Or create a `.aidocrc.json` in your project root:
 
 ## 🛠️ Commands
 
-### 1. Generate README
-Scans your exports and package metadata to generate a comprehensive README.
+### Generate README
 ```bash
-aidoc readme
+aidoc readme                          # Generate README.md
+aidoc readme --dry-run                # Preview without saving
+aidoc readme --output docs/README.md  # Custom output path
 ```
 
-### 2. Generate API Docs
-Extracts all exported symbols, types, and methods to create an `API.md` reference.
+### Generate API Docs
 ```bash
-aidoc api --output docs/API.md
+aidoc api --output docs/API.md        # Generate API reference
 ```
 
-### 3. Auto-Annotate Code
-Finds undocumented functions and interactive prompts you to add generated JSDoc/TSDoc comments directly into your source code.
+### Auto-Annotate Code
 ```bash
-aidoc annotate --all
+aidoc annotate --all                  # Add JSDoc to all undocumented functions
+aidoc annotate --file src/index.ts    # Annotate specific file
 ```
 
-### 4. Generate Changelog
-Reads your git history (Conventional Commits) and generates a human-readable CHANGELOG.md entry.
+### Generate Changelog
 ```bash
-aidoc changelog --version v1.0.0
+aidoc changelog --version v1.0.0      # From latest tag
+aidoc changelog --from HEAD~10        # From specific ref
 ```
 
-### 5. Generate Architecture Diagram
-Analyzes imports and exports to build a Mermaid diagram of your codebase structure.
+### Generate Architecture Diagram
 ```bash
-aidoc diagram --output docs/architecture.md
+aidoc diagram --output docs/arch.md   # Mermaid diagram
 ```
 
-### 6. Diff-Aware Update
-Updates an existing document by only looking at the files changed since a specific commit.
+### Diff-Aware Update
 ```bash
-aidoc update --target README.md --since HEAD~5
+aidoc update --target README.md --since HEAD~5  # Update only changed sections
+```
+
+### Debug Mode
+```bash
+aidoc readme --verbose                # Enable debug logging
+```
+
+### Score Documentation Health
+```bash
+aidoc score                        # 0-100 doc coverage report
+aidoc score --json                 # machine-readable (CI)
+aidoc score --min 80               # fail CI if below 80
+aidoc score -o docs/score.md       # write a report
+```
+
+### Watch Mode (live docs)
+```bash
+aidoc watch                        # regenerate README on save
+aidoc watch --auto --target docs/README.md   # no prompts (great for demos)
+```
+
+## 🎬 GitHub Action
+
+Automate documentation in your CI/CD pipeline:
+
+```yaml
+# .github/workflows/docs.yml
+name: Documentation
+on:
+  push:
+    branches: [main]
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aidoc-dev/aidoc@v1
+        with:
+          provider: openai
+          api-key: ${{ secrets.OPENAI_API_KEY }}
+          commands: readme,api
+          auto-commit: true
+```
+
+### Check Mode (fail CI if docs are stale)
+
+```yaml
+      - uses: aidoc-dev/aidoc@v1
+        with:
+          mode: check
+          commands: readme
+```
+
+## 🔌 MCP Server
+
+Use aidoc as a tool in AI assistants like ChatGPT, Claude, or Cursor:
+
+```bash
+# Start MCP server
+aidoc --mcp
+```
+
+### Claude Desktop / Cursor config
+
+```json
+{
+  "mcpServers": {
+    "aidoc": {
+      "command": "npx",
+      "args": ["aidoc-gen", "--mcp"]
+    }
+  }
+}
+```
+
+### Available MCP Tools
+
+| Tool | Description |
+|:-----|:------------|
+| `analyze_codebase` | Parse code and return structure (functions, classes, types) |
+| `generate_readme` | Generate README from code analysis |
+| `generate_api_docs` | Generate API reference documentation |
+| `generate_diagram` | Generate Mermaid architecture diagram |
+| `check_docs_freshness` | Check if documentation is up-to-date |
+
+## 🏗️ Architecture
+
+```
+src/
+├── cli/           # Commander.js CLI interface
+│   └── commands/  # Individual command implementations
+├── core/          # Business logic
+│   ├── analyzer   # Codebase analysis orchestrator
+│   ├── generator  # LLM-powered doc generation
+│   ├── cache      # AST parsing cache
+│   ├── retry      # Exponential backoff retry
+│   └── logger     # Structured logging
+├── parsers/       # Language-specific AST parsers
+│   ├── typescript # ts-morph based parser
+│   ├── python     # Python ast module based parser
+│   └── registry   # Parser discovery & registration
+├── providers/     # LLM Adapters
+│   ├── openai     # OpenAI (GPT-4o, GPT-4o-mini)
+│   ├── anthropic  # Anthropic (Claude)
+│   └── ollama     # Local LLM via Ollama
+├── mcp/           # Model Context Protocol server
+├── templates/     # Handlebars prompt templates
+└── output/        # Markdown output & diff display
 ```
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines on how to run tests and submit PRs.
+We welcome contributions! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
+
+Check our [ROADMAP.md](./ROADMAP.md) for planned features and areas where we need help.
+
+### Good First Issues
+
+Look for issues labeled `good first issue` — they're specifically designed for new contributors.
 
 ## 📄 License
 
