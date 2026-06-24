@@ -8,7 +8,7 @@ export function loadConfig(searchFrom?: string): AidocConfig {
   if (result && !result.isEmpty) {
     try {
       return ConfigSchema.parse({ ...defaultConfig, ...result.config });
-    } catch (e: any) {
+    } catch {
       console.warn('⚠️  Invalid aidoc configuration. Using defaults.');
       return defaultConfig;
     }

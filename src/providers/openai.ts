@@ -32,9 +32,9 @@ export class OpenAIProvider implements LLMProvider {
       } catch (error: any) {
         if (error.status === 429) {
           // Message contains "429" so isRetryableError() will match and retry.
-          throw new Error('429 rate limited: OpenAI');
+          throw new Error('429 rate limited: OpenAI', { cause: error });
         }
-        throw new Error(`OpenAI API error: ${error.message}`);
+        throw new Error(`OpenAI API error: ${error.message}`, { cause: error });
       }
     };
 
