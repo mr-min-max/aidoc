@@ -1,7 +1,11 @@
 import { z } from 'zod';
+import { listProviders } from '../providers/registry';
 
 export const ConfigSchema = z.object({
-  provider: z.enum(['openai', 'anthropic', 'ollama']).default('openai'),
+  provider: z.string().default('openai').refine(
+    (val: string) => listProviders().some(p => p.name === val),
+    { message: 'Unknown provider. Run `aidoc` with a registered provider name.' }
+  ),
   model: z.string().default('gpt-4o-mini'),
   apiKey: z.string().optional(),
   ollamaHost: z.string().default('http://localhost:11434'),
@@ -19,7 +23,12 @@ export const ConfigSchema = z.object({
     tableOfContents: z.boolean().default(true),
     installSection: z.boolean().default(true),
     usageExamples: z.boolean().default(true),
-  }).default({}),
+  }).default({
+    badges: true,
+    tableOfContents: true,
+    installSection: true,
+    usageExamples: true,
+  }),
 });
 
 export type AidocConfig = z.infer<typeof ConfigSchema>;
