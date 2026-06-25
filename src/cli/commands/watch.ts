@@ -34,9 +34,11 @@ export const watchCommand = new Command("watch")
           ctx.config.include,
           ctx.config.exclude,
         );
-        const { name: projectName, description, dependencies } = readProjectInfo(
-          ctx.cwd,
-        );
+        const {
+          name: projectName,
+          description,
+          dependencies,
+        } = readProjectInfo(ctx.cwd);
         const readme = await ctx.generator.generateReadme({
           projectName,
           description,

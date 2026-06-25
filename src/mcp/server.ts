@@ -217,8 +217,11 @@ async function handleToolCall(
       const templatesDir = path.resolve(__dirname, "../templates");
       const generator = new Generator(provider, templatesDir);
 
-      const { name: projectName, description, dependencies } =
-        readProjectInfo(dir);
+      const {
+        name: projectName,
+        description,
+        dependencies,
+      } = readProjectInfo(dir);
 
       const readme = await generator.generateReadme({
         projectName,
