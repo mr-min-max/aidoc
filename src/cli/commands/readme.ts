@@ -34,7 +34,11 @@ export const readmeCommand = new Command("readme")
       );
 
       // Read package.json for project info
-      const { name: projectName, description, dependencies } = readProjectInfo(ctx.cwd);
+      const {
+        name: projectName,
+        description,
+        dependencies,
+      } = readProjectInfo(ctx.cwd);
 
       const genSpinner = ora("Generating README with AI...").start();
       const readmeCtx = {
