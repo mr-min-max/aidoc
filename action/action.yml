@@ -22,9 +22,21 @@ inputs:
     required: false
     default: 'readme'
   mode:
-    description: 'Operation mode: "generate" (create docs), "check" (fail CI if docs are stale)'
+    description: 'Operation mode: "generate" (create docs), "check" (fail CI if docs are stale), "review" (comment on a PR with the documentation impact of its changes)'
     required: false
     default: 'generate'
+  review-target:
+    description: 'Documentation file that "review" mode checks changed exports against'
+    required: false
+    default: 'README.md'
+  comment-on-pr:
+    description: 'In "review" mode, post the review as a pull request comment'
+    required: false
+    default: 'true'
+  fail-on-issues:
+    description: 'In "review" mode, fail the job when documentation gaps are found'
+    required: false
+    default: 'false'
   output-dir:
     description: 'Output directory for generated documentation'
     required: false
@@ -58,7 +70,53 @@ runs:
       shell: bash
       run: npm install -g aidoc-gen
 
+    - name: Run aidoc documentation review
+      if: inputs.mode == 'review'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+
+        # Determine what to diff against. For pull_request events, compare the
+        # PR's merge base with the head so we review exactly the PR's changes.
+        BASE_REF="${GITHUB_BASE_REF:-}"
+        SINCE="HEAD~1"
+        if [ -n "$BASE_REF" ]; then
+          git fetch origin "$BASE_REF" --depth=100 || true
+          if MB=$(git merge-base "origin/$BASE_REF" HEAD 2>/dev/null); then
+            SINCE="$MB"
+          else
+            SINCE="origin/$BASE_REF"
+          fi
+        fi
+        echo "🔎 Reviewing documentation impact since: $SINCE"
+
+        REVIEW_ARGS="review --since $SINCE --target ${{ inputs.review-target }}"
+        if [ "${{ inputs.fail-on-issues }}" = "true" ]; then
+          REVIEW_ARGS="$REVIEW_ARGS --fail-on-issues"
+        fi
+
+        # The report is Markdown on stdout; the spinner uses stderr.
+        set +e
+        aidoc $REVIEW_ARGS > review.md
+        REVIEW_EXIT=$?
+        set -e
+        cat review.md
+
+        if [ "${{ inputs.comment-on-pr }}" = "true" ] && [ -n "${GITHUB_EVENT_PATH:-}" ]; then
+          PR_NUMBER=$(jq -r '.pull_request.number // empty' "$GITHUB_EVENT_PATH")
+          if [ -n "$PR_NUMBER" ]; then
+            # Update our previous comment when possible, otherwise create one.
+            gh pr comment "$PR_NUMBER" --body-file review.md --edit-last 2>/dev/null \
+              || gh pr comment "$PR_NUMBER" --body-file review.md
+          fi
+        fi
+
+        exit $REVIEW_EXIT
+
     - name: Run aidoc commands
+      if: inputs.mode != 'review'
       shell: bash
       env:
         OPENAI_API_KEY: ${{ inputs.api-key }}
@@ -144,7 +202,7 @@ runs:
         fi
 
     - name: Auto-commit changes
-      if: inputs.auto-commit == 'true' && inputs.mode != 'check' && inputs.dry-run != 'true'
+      if: inputs.auto-commit == 'true' && inputs.mode != 'check' && inputs.mode != 'review' && inputs.dry-run != 'true'
       shell: bash
       run: |
         git config user.name "aidoc[bot]"

@@ -9,6 +9,7 @@ import { diagramCommand } from "./commands/diagram.js";
 import { updateCommand } from "./commands/update.js";
 import { scoreCommand } from "./commands/score.js";
 import { watchCommand } from "./commands/watch.js";
+import { reviewCommand } from "./commands/review.js";
 import { setLogLevel } from "../core/logger.js";
 
 // `quiet` suppresses dotenv's startup banner, which would otherwise print to
@@ -44,6 +45,7 @@ program.addCommand(diagramCommand);
 program.addCommand(updateCommand);
 program.addCommand(scoreCommand);
 program.addCommand(watchCommand);
+program.addCommand(reviewCommand);
 
 // Handle --mcp flag before parsing commands
 const args = process.argv.slice(2);

@@ -23,6 +23,8 @@ This roadmap outlines the development plan for aidoc. We welcome community feedb
 - [x] Documentation health scoring (`aidoc score`) — deterministic, CI-gateable
 - [x] Live watch mode with streaming LLM output (`aidoc watch`)
 - [x] Pluggable provider registry
+- [x] PR documentation-impact review (`aidoc review`) + GitHub Action comment mode
+- [x] Native ESM + official `@modelcontextprotocol/sdk` MCP server
 - [ ] Go parser (via `go/ast`)
 - [ ] Rust parser (via `syn` subprocess)
 

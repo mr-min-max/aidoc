@@ -25,6 +25,7 @@ It is specifically designed for **Open Source maintainers** who want to spend le
 - ⚡ **Smart Caching** — AST parsing results are cached; unchanged files are never re-parsed.
 - 🔁 **Resilient** — Built-in retry with exponential backoff for API rate limits and transient errors (wired into every provider).
 - 📊 **Doc Health Scoring** — `aidoc score` grades documentation coverage 0–100 from the AST. No LLM, no API key, instant — with a CI gate (`--min`).
+- 🔎 **PR Doc Review** — `aidoc review` flags exported symbols changed in a PR that aren't documented. Deterministic, no API key; the GitHub Action posts it as a PR comment.
 - 👁️ **Live Watch Mode** — `aidoc watch` regenerates docs in real time as you save files. Streaming LLM output makes generation feel instant.
 - 🧩 **Pluggable Providers** — A provider registry lets you add Gemini/Mistral/vLLM without touching core.
 
@@ -136,6 +137,19 @@ aidoc watch                        # regenerate README on save
 aidoc watch --auto --target docs/README.md   # no prompts (great for demos)
 ```
 
+### Review Documentation Impact (PR workflow)
+```bash
+aidoc review                          # exports changed since HEAD~1 vs README.md
+aidoc review --since origin/main      # compare against a base branch
+aidoc review --target docs/API.md     # check against API docs instead
+aidoc review --json                   # machine-readable (CI)
+aidoc review --fail-on-issues         # exit non-zero when docs gaps are found
+```
+
+`aidoc review` uses deterministic AST analysis (no LLM, no API key): it lists
+the exported functions, classes, and types touched by your changes and checks
+whether each is referenced in the target doc and has an inline doc comment.
+
 ## 🎬 GitHub Action
 
 Automate documentation in your CI/CD pipeline:
@@ -168,6 +182,35 @@ jobs:
           mode: check
           commands: readme
 ```
+
+### Review Mode (comment on PRs with documentation impact)
+
+```yaml
+# .github/workflows/docs-review.yml
+name: Docs Review
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+  pull-requests: write        # allow the bot to comment
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # needed to compute the PR merge base
+      - uses: aidoc-dev/aidoc@v1
+        with:
+          mode: review
+          review-target: README.md
+          fail-on-issues: false # set true to block merges on doc gaps
+```
+
+Review mode needs no API key — it runs the deterministic `aidoc review` and
+posts (or updates) a single PR comment summarizing which changed exports still
+need documentation.
 
 ## 🔌 MCP Server
 
