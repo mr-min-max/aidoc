@@ -1,6 +1,7 @@
 import { LLMProvider, GenerateOptions } from "./types";
 import { withRetry } from "../core/retry";
 
+/** Local Ollama provider for privacy-preserving generation and streaming. */
 export class OllamaProvider implements LLMProvider {
   readonly name = "ollama";
 
@@ -9,6 +10,7 @@ export class OllamaProvider implements LLMProvider {
     private model: string = "llama3",
   ) {}
 
+  /** Generates a non-streaming response from a local Ollama model. */
   async generate(
     prompt: string,
     options: GenerateOptions = {},
@@ -54,6 +56,7 @@ export class OllamaProvider implements LLMProvider {
     return withRetry(run, { maxRetries: 3 });
   }
 
+  /** Streams response tokens from a local Ollama model. */
   async generateStream(
     prompt: string,
     options: GenerateOptions,

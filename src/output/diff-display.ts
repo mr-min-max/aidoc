@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import { createTwoFilesPatch } from "diff";
 
+/** Prints a colorized unified diff for an existing documentation file. */
 export function displayDiff(
   filename: string,
   oldContent: string,

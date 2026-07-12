@@ -6,6 +6,7 @@ interface ValidationResult {
   warnings: string[];
 }
 
+/** Performs lightweight validation on generated markdown before writing it. */
 export function validateMarkdown(content: string): ValidationResult {
   const warnings: string[] = [];
 
@@ -21,6 +22,7 @@ export function validateMarkdown(content: string): ValidationResult {
   return { isValid: warnings.length === 0, warnings };
 }
 
+/** Writes markdown to disk, creating parent directories as needed. */
 export function writeMarkdown(filePath: string, content: string): void {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
@@ -29,6 +31,7 @@ export function writeMarkdown(filePath: string, content: string): void {
   fs.writeFileSync(filePath, content, "utf8");
 }
 
+/** Reads an existing markdown file or returns null when it is absent. */
 export function readExistingMarkdown(filePath: string): string | null {
   if (!fs.existsSync(filePath)) return null;
   return fs.readFileSync(filePath, "utf8");

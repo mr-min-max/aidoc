@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { LLMProvider, GenerateOptions } from "./types";
 import { withRetry } from "../core/retry";
 
+/** OpenAI chat-completions provider with retry and streaming support. */
 export class OpenAIProvider implements LLMProvider {
   readonly name = "openai";
   private client: OpenAI;
@@ -13,6 +14,7 @@ export class OpenAIProvider implements LLMProvider {
     this.client = new OpenAI({ apiKey });
   }
 
+  /** Generates a non-streaming completion from the configured OpenAI model. */
   async generate(
     prompt: string,
     options: GenerateOptions = {},
@@ -47,6 +49,7 @@ export class OpenAIProvider implements LLMProvider {
     return withRetry(run, { maxRetries: 3 });
   }
 
+  /** Streams completion tokens from the configured OpenAI model. */
   async generateStream(
     prompt: string,
     options: GenerateOptions,

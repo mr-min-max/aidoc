@@ -23,6 +23,7 @@ interface ChangelogContext {
   toRef: string;
 }
 
+/** Renders prompt templates and delegates generation to the configured LLM provider. */
 export class Generator {
   private templateCache: Map<string, HandlebarsTemplateDelegate> = new Map();
 
@@ -31,6 +32,7 @@ export class Generator {
     private templatesDir: string,
   ) {}
 
+  /** Generates a complete README from project metadata and parsed modules. */
   async generateReadme(context: ReadmeContext): Promise<string> {
     const prompt = this.renderTemplate("readme", context);
     return this.provider.generate(prompt, {
@@ -40,6 +42,7 @@ export class Generator {
     });
   }
 
+  /** Generates API reference markdown for exported symbols. */
   async generateApiDocs(modules: ParsedModule[]): Promise<string> {
     const prompt = this.renderTemplate("api-doc", { modules });
     return this.provider.generate(prompt, {
@@ -49,6 +52,7 @@ export class Generator {
     });
   }
 
+  /** Generates JSDoc comments as structured JSON for undocumented symbols. */
   async generateJsDoc(symbols: any[]): Promise<string> {
     const prompt = this.renderTemplate("jsdoc", { symbols });
     return this.provider.generate(prompt, {
@@ -59,6 +63,7 @@ export class Generator {
     });
   }
 
+  /** Generates a changelog entry from normalized git commit metadata. */
   async generateChangelog(context: ChangelogContext): Promise<string> {
     const prompt = this.renderTemplate("changelog", context);
     return this.provider.generate(prompt, {
@@ -68,6 +73,7 @@ export class Generator {
     });
   }
 
+  /** Generates a Mermaid architecture diagram from module imports and exports. */
   async generateDiagram(modules: ParsedModule[]): Promise<string> {
     const prompt = this.renderTemplate("diagram", { modules });
     return this.provider.generate(prompt, {
@@ -77,6 +83,7 @@ export class Generator {
     });
   }
 
+  /** Updates an existing markdown document using changed files and a diff summary. */
   async generateUpdate(context: {
     existingDoc: string;
     changedFiles: string[];

@@ -113,6 +113,34 @@ describe("scoreModules", () => {
     expect(scoreModules([m]).score).toBe(67);
   });
 
+  it("ignores private methods because they are not public documentation surface", () => {
+    const m = mod({
+      classes: [
+        {
+          name: "C",
+          implements: [],
+          isExported: true,
+          lineRange: [1, 5],
+          existingDoc: "doc",
+          properties: [],
+          methods: [
+            {
+              name: "helper",
+              parameters: [],
+              isAsync: false,
+              isExported: true,
+              lineRange: [2, 2],
+              signature: "",
+              visibility: "private",
+              isStatic: false,
+            },
+          ],
+        } as any,
+      ],
+    });
+    expect(scoreModules([m]).score).toBe(100);
+  });
+
   it("flags stub docs as low-quality", () => {
     const m = mod({
       functions: [

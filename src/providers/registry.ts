@@ -26,10 +26,12 @@ export function registerProvider(def: ProviderDefinition): void {
   registry.set(def.name, def);
 }
 
+/** Lists all provider definitions registered in the current process. */
 export function listProviders(): ProviderDefinition[] {
   return Array.from(registry.values());
 }
 
+/** Creates a configured LLM provider after validating prerequisites. */
 export function createProvider(config: ProviderConfig): LLMProvider {
   const def = registry.get(config.provider);
   if (!def) {

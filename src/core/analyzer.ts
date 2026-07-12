@@ -4,6 +4,7 @@ import { ParsedModule } from "../parsers/types";
 import { globalCache } from "./cache";
 import { logger } from "./logger";
 
+/** Scans configured source files and parses each supported file into AST metadata. */
 export async function analyzeCodebase(
   baseDir: string,
   include: string[],

@@ -6,6 +6,7 @@ import { ParsedModule } from "../parsers/types";
  * without calling an LLM, so the CLI can be demoed/tested with no API key.
  */
 export class MockGenerator {
+  /** Generates deterministic README markdown for tests and demos. */
   async generateReadme(ctx: {
     projectName: string;
     description: string;
@@ -52,6 +53,7 @@ export class MockGenerator {
     ].join("\n");
   }
 
+  /** Generates deterministic API docs from parsed modules. */
   async generateApiDocs(modules: ParsedModule[]): Promise<string> {
     const sections = modules.map((m) => {
       const funcs = m.functions
@@ -71,6 +73,7 @@ export class MockGenerator {
     return `# API Documentation\n\n${sections.join("\n---\n\n")}`;
   }
 
+  /** Generates a deterministic Mermaid dependency sketch from parsed modules. */
   async generateDiagram(modules: ParsedModule[]): Promise<string> {
     const nodes = modules.map((m, i) => {
       const name = path.basename(m.filePath, path.extname(m.filePath));
@@ -80,6 +83,7 @@ export class MockGenerator {
     return `graph TD\n${nodes.join("\n")}\n${edges.join("\n")}`;
   }
 
+  /** Generates deterministic JSDoc JSON for undocumented symbols. */
   async generateJsDoc(symbols: any[]): Promise<string> {
     return JSON.stringify(
       symbols.map((f: any) => ({
@@ -89,6 +93,7 @@ export class MockGenerator {
     );
   }
 
+  /** Generates deterministic changelog markdown from commit metadata. */
   async generateChangelog(ctx: {
     commits: any[];
     version: string;
@@ -117,6 +122,7 @@ export class MockGenerator {
     ].join("\n");
   }
 
+  /** Appends a deterministic update note for changed files. */
   async generateUpdate(ctx: {
     existingDoc: string;
     changedFiles: string[];
