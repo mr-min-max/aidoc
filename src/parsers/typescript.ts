@@ -21,6 +21,7 @@ import {
 // 100 files meant 100 compiler initializations).
 let sharedProject: Project | null = null;
 
+/** Parses TypeScript and JavaScript files using ts-morph AST metadata. */
 export class TypeScriptParser implements LanguageParser {
   readonly name = "typescript";
   readonly supportedExtensions = [".ts", ".tsx", ".js", ".jsx"];
@@ -39,6 +40,7 @@ export class TypeScriptParser implements LanguageParser {
     return sharedProject;
   }
 
+  /** Parses a source file into exported functions, classes, types, and imports. */
   async parse(filePath: string): Promise<ParsedModule> {
     const project = this.getProject();
     const sourceFile = project.addSourceFileAtPath(filePath);

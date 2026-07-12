@@ -28,6 +28,18 @@ It is specifically designed for **Open Source maintainers** who want to spend le
 - 👁️ **Live Watch Mode** — `aidoc watch` regenerates docs in real time as you save files. Streaming LLM output makes generation feel instant.
 - 🧩 **Pluggable Providers** — A provider registry lets you add Gemini/Mistral/vLLM without touching core.
 
+## 🧰 Maintainer Workflows
+
+`aidoc` is designed for the ongoing work open-source maintainers already do:
+
+- Review documentation impact in pull requests before stale docs land.
+- Generate release notes and changelog drafts from Git history.
+- Gate documentation health in CI with `aidoc score --min`.
+- Triage parser/provider/template issues using deterministic AST context.
+- Run privacy-preserving local workflows with Ollama when code should not leave the machine.
+
+See [Codex maintainer workflows](./docs/codex-maintainer-workflows.md) for the API-credit plan we use for OpenAI Codex for OSS readiness.
+
 ## 🚀 Quick Start
 
 ```bash
@@ -219,6 +231,7 @@ src/
 We welcome contributions! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 Check our [ROADMAP.md](./ROADMAP.md) for planned features and areas where we need help.
+Project governance is documented in [GOVERNANCE.md](./GOVERNANCE.md), and community expectations are documented in [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
 
 ### Good First Issues
 

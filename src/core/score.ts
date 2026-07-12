@@ -27,6 +27,7 @@ function assessDoc(doc: string | undefined): [boolean, boolean] {
   return [true, low];
 }
 
+/** Computes deterministic documentation coverage for exported public symbols. */
 export function scoreModules(modules: ParsedModule[]): ScoreResult {
   const moduleScores: ModuleScore[] = [];
   let totalSymbols = 0;
@@ -56,6 +57,7 @@ export function scoreModules(modules: ParsedModule[]): ScoreResult {
       if (isLow) lowQualityCount++;
 
       for (const meth of c.methods) {
+        if (meth.visibility !== "public") continue;
         total++;
         const [mDoc, mLow] = assessDoc(meth.existingDoc);
         if (mDoc) documented++;
@@ -89,6 +91,7 @@ export function scoreModules(modules: ParsedModule[]): ScoreResult {
   };
 }
 
+/** Maps a numeric documentation score to a coarse health band. */
 export function bucket(score: number): "poor" | "fair" | "good" {
   if (score < 40) return "poor";
   if (score < 70) return "fair";

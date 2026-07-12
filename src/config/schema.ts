@@ -22,6 +22,7 @@ export const ConfigSchema = z.object({
       "**/build/**",
       "**/.git/**",
       "**/coverage/**",
+      "**/tests/**",
       "**/*.test.*",
       "**/*.spec.*",
       "**/package-lock.json",

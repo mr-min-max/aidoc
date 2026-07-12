@@ -51,9 +51,18 @@ npm run test:coverage     # Run with coverage report
 ## Adding a New LLM Provider
 
 1. Create `src/providers/yourprovider.ts` implementing `LLMProvider`
-2. Add it to the factory in `src/providers/factory.ts`
-3. Update the config schema in `src/config/schema.ts`
+2. Register it in `src/providers/registry.ts`
+3. Update configuration defaults only if the provider needs new settings
 4. Write unit tests
+
+## Good First Contributions
+
+Good starter tasks usually fit one of these areas:
+
+- Add parser fixtures that cover real-world syntax.
+- Improve Handlebars templates in `src/templates/`.
+- Add focused tests around CLI flags and output validation.
+- Improve documentation examples for `score`, `watch`, and MCP usage.
 
 ## Code Style
 

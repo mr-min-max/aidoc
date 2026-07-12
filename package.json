@@ -15,6 +15,7 @@
     "lint": "eslint src/ tests/ --ext .ts",
     "lint:fix": "eslint src/ tests/ --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
+    "score": "npm run build && node dist/cli/index.js score",
     "start": "node dist/cli/index.js",
     "prepublishOnly": "npm run build"
   },

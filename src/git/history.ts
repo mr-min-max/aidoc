@@ -7,12 +7,14 @@ export interface CommitInfo {
   author: string;
 }
 
+/** Resolves the repository root for a working directory. */
 export async function getGitRoot(cwd?: string): Promise<string> {
   const git = cwd ? simpleGit(cwd) : simpleGit();
   const root = await git.revparse(["--show-toplevel"]);
   return root.trim();
 }
 
+/** Returns commit metadata between two git refs for changelog generation. */
 export async function getCommitsSince(
   fromRef: string,
   toRef: string = "HEAD",
@@ -29,6 +31,7 @@ export async function getCommitsSince(
   }));
 }
 
+/** Returns the unified diff between two git refs. */
 export async function getDiff(
   fromRef: string,
   toRef: string = "HEAD",
@@ -38,6 +41,7 @@ export async function getDiff(
   return git.diff([`${fromRef}..${toRef}`]);
 }
 
+/** Lists files changed between two git refs. */
 export async function getChangedFiles(
   fromRef: string,
   toRef: string = "HEAD",
@@ -48,6 +52,7 @@ export async function getChangedFiles(
   return result.trim().split("\n").filter(Boolean);
 }
 
+/** Returns the latest reachable git tag, or null when the repo has no tags. */
 export async function getLatestTag(cwd?: string): Promise<string | null> {
   const git = cwd ? simpleGit(cwd) : simpleGit();
   try {

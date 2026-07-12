@@ -140,10 +140,12 @@ if __name__ == '__main__':
     analyze_file(sys.argv[1])
 `;
 
+/** Parses Python files by delegating AST extraction to Python's stdlib ast module. */
 export class PythonParser implements LanguageParser {
   readonly name = "python";
   readonly supportedExtensions = [".py"];
 
+  /** Parses a Python file into exported functions, classes, and imports. */
   async parse(filePath: string): Promise<ParsedModule> {
     // Verify file exists
     if (!fs.existsSync(filePath)) {

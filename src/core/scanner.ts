@@ -1,5 +1,6 @@
 import { glob } from "glob";
 
+/** Expands include globs into a sorted, de-duplicated source file list. */
 export async function scanFiles(
   baseDir: string,
   include: string[],

@@ -1,6 +1,7 @@
 import { LLMProvider, GenerateOptions } from "./types";
 import { withRetry } from "../core/retry";
 
+/** Anthropic messages provider with retry and streaming support. */
 export class AnthropicProvider implements LLMProvider {
   readonly name = "anthropic";
 
@@ -9,6 +10,7 @@ export class AnthropicProvider implements LLMProvider {
     private model: string = "claude-sonnet-4-20250514",
   ) {}
 
+  /** Generates a non-streaming completion from the configured Anthropic model. */
   async generate(
     prompt: string,
     options: GenerateOptions = {},
@@ -53,6 +55,7 @@ export class AnthropicProvider implements LLMProvider {
     return withRetry(run, { maxRetries: 3 });
   }
 
+  /** Streams completion tokens from the configured Anthropic model. */
   async generateStream(
     prompt: string,
     options: GenerateOptions,

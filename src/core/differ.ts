@@ -4,6 +4,7 @@ export interface UpdateContext {
   diffSummary: string;
 }
 
+/** Builds the minimal context needed for a diff-aware documentation update. */
 export function buildUpdateContext(
   existingDoc: string,
   changedFiles: string[],

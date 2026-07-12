@@ -1,6 +1,7 @@
 import { cosmiconfigSync } from "cosmiconfig";
 import { ConfigSchema, AidocConfig, defaultConfig } from "./schema";
 
+/** Loads aidoc configuration from cosmiconfig and falls back to defaults. */
 export function loadConfig(searchFrom?: string): AidocConfig {
   const explorer = cosmiconfigSync("aidoc");
   const result = searchFrom ? explorer.search(searchFrom) : explorer.search();
