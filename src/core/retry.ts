@@ -1,4 +1,4 @@
-import { logger } from "./logger";
+import { logger } from "./logger.js";
 
 /** Options for configuring retry behavior. */
 export interface RetryOptions {

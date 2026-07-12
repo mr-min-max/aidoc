@@ -1,4 +1,4 @@
-import { withRetry } from "../../../src/core/retry";
+import { withRetry } from "../../../src/core/retry.js";
 
 describe("withRetry", () => {
   it("should return result on first success", async () => {

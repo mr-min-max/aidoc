@@ -1,5 +1,5 @@
 import * as path from "path";
-import { ParsedModule } from "../parsers/types";
+import { ParsedModule } from "../parsers/types.js";
 
 /**
  * Drop-in stand-in for Generator used by --mock. Produces deterministic output

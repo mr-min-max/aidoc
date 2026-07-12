@@ -2,8 +2,12 @@
 /**
  * aidoc MCP (Model Context Protocol) Server
  *
- * Exposes aidoc's functionality as tools for AI assistants (ChatGPT, Claude, Cursor, etc.)
- * via the Model Context Protocol standard.
+ * Exposes aidoc's functionality as tools for AI assistants (ChatGPT, Claude,
+ * Cursor, etc.) via the Model Context Protocol standard.
+ *
+ * Built on the official `@modelcontextprotocol/sdk`, so transport framing and
+ * the JSON-RPC handshake are handled by the reference implementation rather
+ * than by hand.
  *
  * Tools:
  * - analyze_codebase: Parse and return code structure (AST)
@@ -17,71 +21,57 @@
  *   # or add to Claude/Cursor MCP config
  */
 
-import { analyzeCodebase } from "../core/analyzer";
-import { Generator } from "../core/generator";
-import { createProvider } from "../providers/registry";
-import { loadConfig } from "../config/loader";
-import { getChangedFiles } from "../git/history";
-import { readExistingMarkdown } from "../output/markdown";
-import { readProjectInfo } from "../cli/context";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { z, ZodRawShape } from "zod";
 import * as path from "path";
+import { fileURLToPath } from "url";
 
-/** MCP Tool Definition */
-interface MCPTool {
+import { analyzeCodebase } from "../core/analyzer.js";
+import { Generator } from "../core/generator.js";
+import { createProvider } from "../providers/registry.js";
+import { loadConfig } from "../config/loader.js";
+import { getChangedFiles } from "../git/history.js";
+import { readExistingMarkdown } from "../output/markdown.js";
+import { readProjectInfo } from "../cli/context.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/** Server identity reported during the MCP `initialize` handshake. */
+const SERVER_INFO = { name: "aidoc", version: "0.1.0" };
+
+/** A tool exposed over MCP: its name, description, and Zod input schema. */
+interface ToolDefinition {
   name: string;
   description: string;
-  inputSchema: {
-    type: "object";
-    properties: Record<
-      string,
-      { type: string; description: string; default?: unknown }
-    >;
-    required?: string[];
-  };
+  inputSchema: ZodRawShape;
 }
 
-/** MCP JSON-RPC Request */
-interface MCPRequest {
-  jsonrpc: "2.0";
-  id: number | string;
-  method: string;
-  params?: Record<string, unknown>;
-}
-
-/** MCP JSON-RPC Response */
-interface MCPResponse {
-  jsonrpc: "2.0";
-  id: number | string;
-  result?: unknown;
-  error?: { code: number; message: string; data?: unknown };
-}
-
-/** Available MCP tools */
-const TOOLS: MCPTool[] = [
+/**
+ * Tool catalog. Input schemas are declared with Zod, which the SDK turns into
+ * the JSON Schema advertised to clients and uses to validate incoming
+ * arguments before our handler runs.
+ */
+export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: "analyze_codebase",
     description:
       "Analyze a codebase directory using AST parsing. Returns structured data about functions, classes, types, and imports found in the code.",
     inputSchema: {
-      type: "object",
-      properties: {
-        directory: {
-          type: "string",
-          description: "Absolute path to the directory to analyze",
-        },
-        include: {
-          type: "string",
-          description:
-            "Comma-separated glob patterns to include (default: **/*.ts,**/*.py)",
-          default: "**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/*.py",
-        },
-        exclude: {
-          type: "string",
-          description: "Comma-separated glob patterns to exclude",
-          default: "**/node_modules/**,**/dist/**,**/*.test.*",
-        },
-      },
-      required: ["directory"],
+      directory: z
+        .string()
+        .describe("Absolute path to the directory to analyze"),
+      include: z
+        .string()
+        .optional()
+        .describe(
+          "Comma-separated glob patterns to include (default: **/*.ts,**/*.py)",
+        ),
+      exclude: z
+        .string()
+        .optional()
+        .describe("Comma-separated glob patterns to exclude"),
     },
   },
   {
@@ -89,14 +79,7 @@ const TOOLS: MCPTool[] = [
     description:
       "Generate a professional README.md for a project by analyzing its code structure, package metadata, and dependencies.",
     inputSchema: {
-      type: "object",
-      properties: {
-        directory: {
-          type: "string",
-          description: "Absolute path to the project directory",
-        },
-      },
-      required: ["directory"],
+      directory: z.string().describe("Absolute path to the project directory"),
     },
   },
   {
@@ -104,14 +87,7 @@ const TOOLS: MCPTool[] = [
     description:
       "Generate API reference documentation for all exported symbols (functions, classes, types) in a codebase.",
     inputSchema: {
-      type: "object",
-      properties: {
-        directory: {
-          type: "string",
-          description: "Absolute path to the project directory",
-        },
-      },
-      required: ["directory"],
+      directory: z.string().describe("Absolute path to the project directory"),
     },
   },
   {
@@ -119,14 +95,7 @@ const TOOLS: MCPTool[] = [
     description:
       "Generate a Mermaid architecture diagram showing module dependencies and data flow.",
     inputSchema: {
-      type: "object",
-      properties: {
-        directory: {
-          type: "string",
-          description: "Absolute path to the project directory",
-        },
-      },
-      required: ["directory"],
+      directory: z.string().describe("Absolute path to the project directory"),
     },
   },
   {
@@ -134,31 +103,26 @@ const TOOLS: MCPTool[] = [
     description:
       "Check whether documentation files are up-to-date with the current codebase. Returns a report of stale sections.",
     inputSchema: {
-      type: "object",
-      properties: {
-        directory: {
-          type: "string",
-          description: "Absolute path to the project directory",
-        },
-        doc_file: {
-          type: "string",
-          description:
-            "Path to the documentation file to check (relative to directory)",
-          default: "README.md",
-        },
-        since: {
-          type: "string",
-          description: "Git ref to compare against (default: HEAD~5)",
-          default: "HEAD~5",
-        },
-      },
-      required: ["directory"],
+      directory: z.string().describe("Absolute path to the project directory"),
+      doc_file: z
+        .string()
+        .optional()
+        .describe(
+          "Path to the documentation file to check (relative to directory)",
+        ),
+      since: z
+        .string()
+        .optional()
+        .describe("Git ref to compare against (default: HEAD~5)"),
     },
   },
 ];
 
-/** Handle a tool call */
-async function handleToolCall(
+/**
+ * Executes a tool by name. Kept independent of the MCP transport so it can be
+ * unit-tested directly (e.g. `analyze_codebase` runs with no LLM).
+ */
+export async function handleToolCall(
   name: string,
   args: Record<string, unknown>,
 ): Promise<unknown> {
@@ -322,106 +286,43 @@ async function handleToolCall(
   }
 }
 
-/** MCP Server over stdio */
-export async function startMCPServer(): Promise<void> {
-  const readline = await import("readline");
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    terminal: false,
-  });
+/** Wraps a tool result payload as an MCP text content block. */
+function toTextResult(payload: unknown): CallToolResult {
+  return {
+    content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
+  };
+}
 
-  function send(response: MCPResponse): void {
-    const json = JSON.stringify(response);
-    process.stdout.write(
-      `Content-Length: ${Buffer.byteLength(json)}\r\n\r\n${json}`,
+/** Builds an `McpServer` with every aidoc tool registered. */
+export function createServer(): McpServer {
+  const server = new McpServer(SERVER_INFO);
+
+  for (const def of TOOL_DEFINITIONS) {
+    server.registerTool(
+      def.name,
+      { description: def.description, inputSchema: def.inputSchema },
+      async (args: Record<string, unknown>): Promise<CallToolResult> => {
+        try {
+          const result = await handleToolCall(def.name, args);
+          return toTextResult(result);
+        } catch (error: unknown) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          return {
+            content: [{ type: "text", text: `Error: ${message}` }],
+            isError: true,
+          };
+        }
+      },
     );
   }
 
-  let buffer = "";
+  return server;
+}
 
-  rl.on("line", async (line: string) => {
-    buffer += line;
-
-    // Try to parse as JSON-RPC
-    try {
-      const request: MCPRequest = JSON.parse(buffer);
-      buffer = "";
-
-      switch (request.method) {
-        case "initialize":
-          send({
-            jsonrpc: "2.0",
-            id: request.id,
-            result: {
-              protocolVersion: "2024-11-05",
-              capabilities: { tools: {} },
-              serverInfo: {
-                name: "aidoc",
-                version: "0.1.0",
-              },
-            },
-          });
-          break;
-
-        case "tools/list":
-          send({
-            jsonrpc: "2.0",
-            id: request.id,
-            result: { tools: TOOLS },
-          });
-          break;
-
-        case "tools/call": {
-          const params = request.params as {
-            name: string;
-            arguments: Record<string, unknown>;
-          };
-          try {
-            const result = await handleToolCall(
-              params.name,
-              params.arguments || {},
-            );
-            send({
-              jsonrpc: "2.0",
-              id: request.id,
-              result: {
-                content: [
-                  {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                  },
-                ],
-              },
-            });
-          } catch (error: unknown) {
-            const message =
-              error instanceof Error ? error.message : String(error);
-            send({
-              jsonrpc: "2.0",
-              id: request.id,
-              error: { code: -32000, message },
-            });
-          }
-          break;
-        }
-
-        case "notifications/initialized":
-          // Client notification, no response needed
-          break;
-
-        default:
-          send({
-            jsonrpc: "2.0",
-            id: request.id,
-            error: {
-              code: -32601,
-              message: `Method not found: ${request.method}`,
-            },
-          });
-      }
-    } catch {
-      // Not complete JSON yet, continue buffering
-    }
-  });
+/** Starts the MCP server over stdio (newline-delimited JSON-RPC via the SDK). */
+export async function startMCPServer(): Promise<void> {
+  const server = createServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
 }

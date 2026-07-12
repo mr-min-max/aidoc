@@ -2,8 +2,8 @@ import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import * as path from "path";
-import { analyzeCodebase } from "../../core/analyzer";
-import { loadCommandContext, writeDoc, readProjectInfo } from "../context";
+import { analyzeCodebase } from "../../core/analyzer.js";
+import { loadCommandContext, writeDoc, readProjectInfo } from "../context.js";
 
 export const readmeCommand = new Command("readme")
   .description("Generate README.md from code analysis")

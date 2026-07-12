@@ -1,5 +1,5 @@
-import { LLMProvider, GenerateOptions } from "./types";
-import { withRetry } from "../core/retry";
+import { LLMProvider, GenerateOptions } from "./types.js";
+import { withRetry } from "../core/retry.js";
 
 /** Anthropic messages provider with retry and streaming support. */
 export class AnthropicProvider implements LLMProvider {

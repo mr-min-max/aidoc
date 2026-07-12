@@ -1,8 +1,8 @@
-import { scanFiles } from "./scanner";
-import { getParserForFile } from "../parsers/registry";
-import { ParsedModule } from "../parsers/types";
-import { globalCache } from "./cache";
-import { logger } from "./logger";
+import { scanFiles } from "./scanner.js";
+import { getParserForFile } from "../parsers/registry.js";
+import { ParsedModule } from "../parsers/types.js";
+import { globalCache } from "./cache.js";
+import { logger } from "./logger.js";
 
 /** Scans configured source files and parses each supported file into AST metadata. */
 export async function analyzeCodebase(

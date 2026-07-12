@@ -1,4 +1,5 @@
-import { OllamaProvider } from "../../../src/providers/ollama";
+import { jest } from "@jest/globals";
+import { OllamaProvider } from "../../../src/providers/ollama.js";
 
 describe("OllamaProvider.generateStream", () => {
   beforeEach(() => jest.restoreAllMocks());

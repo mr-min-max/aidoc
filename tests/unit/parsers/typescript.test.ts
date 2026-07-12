@@ -1,5 +1,8 @@
-import { TypeScriptParser } from "../../../src/parsers/typescript";
+import { TypeScriptParser } from "../../../src/parsers/typescript.js";
 import * as path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 describe("TypeScriptParser", () => {
   const parser = new TypeScriptParser();

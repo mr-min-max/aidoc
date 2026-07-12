@@ -1,4 +1,4 @@
-import { ConfigSchema, defaultConfig } from "../../../src/config/schema";
+import { ConfigSchema, defaultConfig } from "../../../src/config/schema.js";
 
 describe("ConfigSchema", () => {
   it("should parse empty object with defaults", () => {

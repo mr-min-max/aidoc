@@ -2,10 +2,10 @@ import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import * as path from "path";
-import { loadCommandContext, writeDoc } from "../context";
-import { readExistingMarkdown } from "../../output/markdown";
-import { getChangedFiles, getDiff } from "../../git/history";
-import { buildUpdateContext } from "../../core/differ";
+import { loadCommandContext, writeDoc } from "../context.js";
+import { readExistingMarkdown } from "../../output/markdown.js";
+import { getChangedFiles, getDiff } from "../../git/history.js";
+import { buildUpdateContext } from "../../core/differ.js";
 
 export const updateCommand = new Command("update")
   .description(

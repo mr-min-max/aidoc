@@ -1,7 +1,7 @@
-import { LLMProvider } from "./types";
-import { OpenAIProvider } from "./openai";
-import { AnthropicProvider } from "./anthropic";
-import { OllamaProvider } from "./ollama";
+import { LLMProvider } from "./types.js";
+import { OpenAIProvider } from "./openai.js";
+import { AnthropicProvider } from "./anthropic.js";
+import { OllamaProvider } from "./ollama.js";
 
 export interface ProviderDefinition {
   name: string;

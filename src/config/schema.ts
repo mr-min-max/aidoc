@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { listProviders } from "../providers/registry";
+import { listProviders } from "../providers/registry.js";
 
 export const ConfigSchema = z.object({
   provider: z

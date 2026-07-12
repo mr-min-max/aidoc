@@ -2,8 +2,8 @@ import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import * as path from "path";
-import { analyzeCodebase } from "../../core/analyzer";
-import { loadCommandContext, writeDoc } from "../context";
+import { analyzeCodebase } from "../../core/analyzer.js";
+import { loadCommandContext, writeDoc } from "../context.js";
 
 export const diagramCommand = new Command("diagram")
   .description("Generate architecture diagram (Mermaid) from code analysis")

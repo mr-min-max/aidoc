@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import * as dotenv from "dotenv";
-import { readmeCommand } from "./commands/readme";
-import { apiCommand } from "./commands/api";
-import { annotateCommand } from "./commands/annotate";
-import { changelogCommand } from "./commands/changelog";
-import { diagramCommand } from "./commands/diagram";
-import { updateCommand } from "./commands/update";
-import { scoreCommand } from "./commands/score";
-import { watchCommand } from "./commands/watch";
-import { setLogLevel } from "../core/logger";
+import { readmeCommand } from "./commands/readme.js";
+import { apiCommand } from "./commands/api.js";
+import { annotateCommand } from "./commands/annotate.js";
+import { changelogCommand } from "./commands/changelog.js";
+import { diagramCommand } from "./commands/diagram.js";
+import { updateCommand } from "./commands/update.js";
+import { scoreCommand } from "./commands/score.js";
+import { watchCommand } from "./commands/watch.js";
+import { setLogLevel } from "../core/logger.js";
 
-dotenv.config();
+// `quiet` suppresses dotenv's startup banner, which would otherwise print to
+// stdout — noisy for the CLI and fatal for the MCP server, whose stdout is a
+// JSON-RPC channel that must not contain anything else.
+dotenv.config({ quiet: true });
 
 const program = new Command();
 
@@ -45,7 +48,7 @@ program.addCommand(watchCommand);
 // Handle --mcp flag before parsing commands
 const args = process.argv.slice(2);
 if (args.includes("--mcp")) {
-  import("../mcp/server").then(({ startMCPServer }) => {
+  import("../mcp/server.js").then(({ startMCPServer }) => {
     startMCPServer().catch(console.error);
   });
 } else {

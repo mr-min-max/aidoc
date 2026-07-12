@@ -1,4 +1,4 @@
-import { ParsedModule } from "../parsers/types";
+import { ParsedModule } from "../parsers/types.js";
 
 export interface ModuleScore {
   filePath: string;

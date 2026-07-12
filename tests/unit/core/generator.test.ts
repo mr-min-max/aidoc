@@ -1,6 +1,9 @@
-import { Generator } from "../../../src/core/generator";
-import { LLMProvider, GenerateOptions } from "../../../src/providers/types";
+import { Generator } from "../../../src/core/generator.js";
+import { LLMProvider, GenerateOptions } from "../../../src/providers/types.js";
 import * as path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 class MockProvider implements LLMProvider {
   readonly name = "mock";

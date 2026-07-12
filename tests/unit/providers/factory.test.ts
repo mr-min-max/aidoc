@@ -1,4 +1,4 @@
-import { createProvider } from "../../../src/providers/factory";
+import { createProvider } from "../../../src/providers/factory.js";
 
 describe("createProvider", () => {
   it("should create OpenAI provider", () => {

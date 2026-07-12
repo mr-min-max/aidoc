@@ -1,7 +1,7 @@
 import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
-import { loadCommandContext, writeDoc } from "../../../src/cli/context";
+import { loadCommandContext, writeDoc } from "../../../src/cli/context.js";
 
 describe("loadCommandContext", () => {
   it("returns a mock generator when mock is set", async () => {

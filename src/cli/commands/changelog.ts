@@ -2,9 +2,9 @@ import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import * as path from "path";
-import { loadCommandContext, writeDoc } from "../context";
-import { readExistingMarkdown } from "../../output/markdown";
-import { getCommitsSince, getLatestTag } from "../../git/history";
+import { loadCommandContext, writeDoc } from "../context.js";
+import { readExistingMarkdown } from "../../output/markdown.js";
+import { getCommitsSince, getLatestTag } from "../../git/history.js";
 
 export const changelogCommand = new Command("changelog")
   .description("Generate CHANGELOG from git history")

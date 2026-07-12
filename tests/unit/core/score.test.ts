@@ -1,5 +1,5 @@
-import { scoreModules, bucket } from "../../../src/core/score";
-import { ParsedModule } from "../../../src/parsers/types";
+import { scoreModules, bucket } from "../../../src/core/score.js";
+import { ParsedModule } from "../../../src/parsers/types.js";
 
 const mod = (overrides: Partial<ParsedModule>): ParsedModule => ({
   filePath: "x.ts",

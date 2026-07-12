@@ -4,9 +4,9 @@ import ora from "ora";
 import prompts from "prompts";
 import * as fs from "fs";
 import * as path from "path";
-import { loadCommandContext } from "../context";
-import { analyzeCodebase } from "../../core/analyzer";
-import { displayDiff } from "../../output/diff-display";
+import { loadCommandContext } from "../context.js";
+import { analyzeCodebase } from "../../core/analyzer.js";
+import { displayDiff } from "../../output/diff-display.js";
 
 /** Strips ```json ... ``` fences an LLM may wrap around a JSON response. */
 function stripCodeFences(raw: string): string {

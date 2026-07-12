@@ -2,7 +2,7 @@ import {
   registerProvider,
   listProviders,
   createProvider,
-} from "../../../src/providers/registry";
+} from "../../../src/providers/registry.js";
 
 describe("provider registry", () => {
   it("lists built-in providers", () => {

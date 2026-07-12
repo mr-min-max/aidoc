@@ -14,7 +14,7 @@ import {
   MethodInfo,
   ImportStatement,
   ParameterInfo,
-} from "./types";
+} from "./types.js";
 
 // One shared Project for the whole process — avoids re-booting the
 // TypeScript compiler for every file (was a major perf bottleneck:

@@ -1,5 +1,8 @@
-import { ASTCache } from "../../../src/core/cache";
+import { ASTCache } from "../../../src/core/cache.js";
 import * as path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 describe("ASTCache", () => {
   let cache: ASTCache;

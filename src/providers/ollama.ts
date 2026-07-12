@@ -1,5 +1,5 @@
-import { LLMProvider, GenerateOptions } from "./types";
-import { withRetry } from "../core/retry";
+import { LLMProvider, GenerateOptions } from "./types.js";
+import { withRetry } from "../core/retry.js";
 
 /** Local Ollama provider for privacy-preserving generation and streaming. */
 export class OllamaProvider implements LLMProvider {

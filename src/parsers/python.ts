@@ -5,7 +5,7 @@ import {
   ClassInfo,
   ImportStatement,
   MethodInfo,
-} from "./types";
+} from "./types.js";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";

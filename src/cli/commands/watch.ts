@@ -2,10 +2,10 @@ import { Command } from "commander";
 import chalk from "chalk";
 import chokidar from "chokidar";
 import * as path from "path";
-import { loadCommandContext, writeDoc, readProjectInfo } from "../context";
-import { analyzeCodebase } from "../../core/analyzer";
-import { debounce, isRelevantChange } from "../../core/watcher";
-import { logger } from "../../core/logger";
+import { loadCommandContext, writeDoc, readProjectInfo } from "../context.js";
+import { analyzeCodebase } from "../../core/analyzer.js";
+import { debounce, isRelevantChange } from "../../core/watcher.js";
+import { logger } from "../../core/logger.js";
 
 export const watchCommand = new Command("watch")
   .description("Watch source files and regenerate docs live on save")

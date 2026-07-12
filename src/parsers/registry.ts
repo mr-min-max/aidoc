@@ -1,6 +1,6 @@
-import { LanguageParser } from "./types";
-import { TypeScriptParser } from "./typescript";
-import { PythonParser } from "./python";
+import { LanguageParser } from "./types.js";
+import { TypeScriptParser } from "./typescript.js";
+import { PythonParser } from "./python.js";
 
 const parsers: LanguageParser[] = [new TypeScriptParser(), new PythonParser()];
 

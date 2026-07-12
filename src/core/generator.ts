@@ -1,8 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import Handlebars from "handlebars";
-import { LLMProvider } from "../providers/types";
-import { ParsedModule } from "../parsers/types";
+import { LLMProvider } from "../providers/types.js";
+import { ParsedModule } from "../parsers/types.js";
 
 interface ReadmeContext {
   projectName: string;

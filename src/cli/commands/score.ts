@@ -2,12 +2,15 @@ import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import * as path from "path";
+import { fileURLToPath } from "url";
 import Handlebars from "handlebars";
 import * as fs from "fs";
-import { analyzeCodebase } from "../../core/analyzer";
-import { scoreModules, BAND_META } from "../../core/score";
-import { writeDoc } from "../context";
-import { loadConfig } from "../../config/loader";
+import { analyzeCodebase } from "../../core/analyzer.js";
+import { scoreModules, BAND_META } from "../../core/score.js";
+import { writeDoc } from "../context.js";
+import { loadConfig } from "../../config/loader.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const scoreCommand = new Command("score")
   .description("Score documentation health (0-100) from AST coverage")

@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
-import { ParsedModule } from "../parsers/types";
-import { logger } from "./logger";
+import { ParsedModule } from "../parsers/types.js";
+import { logger } from "./logger.js";
 
 interface CacheEntry {
   mtimeMs: number;

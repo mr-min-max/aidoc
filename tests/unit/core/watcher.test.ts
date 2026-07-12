@@ -1,4 +1,5 @@
-import { debounce, isRelevantChange } from "../../../src/core/watcher";
+import { jest } from "@jest/globals";
+import { debounce, isRelevantChange } from "../../../src/core/watcher.js";
 
 describe("debounce", () => {
   jest.useFakeTimers();

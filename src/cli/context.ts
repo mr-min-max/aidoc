@@ -1,17 +1,21 @@
 import * as path from "path";
+import * as fs from "fs";
+import { fileURLToPath } from "url";
 import prompts from "prompts";
 import chalk from "chalk";
-import { loadConfig, AidocConfig } from "../config/loader";
-import { createProvider } from "../providers/registry";
-import { Generator } from "../core/generator";
-import { MockGenerator } from "./mock-generator";
+import { loadConfig, AidocConfig } from "../config/loader.js";
+import { createProvider } from "../providers/registry.js";
+import { Generator } from "../core/generator.js";
+import { MockGenerator } from "./mock-generator.js";
 import {
   writeMarkdown,
   readExistingMarkdown,
   validateMarkdown,
-} from "../output/markdown";
-import { displayDiff } from "../output/diff-display";
-import { logger } from "../core/logger";
+} from "../output/markdown.js";
+import { displayDiff } from "../output/diff-display.js";
+import { logger } from "../core/logger.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export interface CommandOptions {
   mock?: boolean;
@@ -43,7 +47,6 @@ export function readProjectInfo(cwd: string): ProjectInfo {
   let description = "";
   let dependencies: string[] = [];
   try {
-    const fs = require("fs");
     if (fs.existsSync(pkgPath)) {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
       name = pkg.name || name;

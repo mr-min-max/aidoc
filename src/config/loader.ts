@@ -1,5 +1,5 @@
 import { cosmiconfigSync } from "cosmiconfig";
-import { ConfigSchema, AidocConfig, defaultConfig } from "./schema";
+import { ConfigSchema, AidocConfig, defaultConfig } from "./schema.js";
 
 /** Loads aidoc configuration from cosmiconfig and falls back to defaults. */
 export function loadConfig(searchFrom?: string): AidocConfig {
@@ -17,4 +17,5 @@ export function loadConfig(searchFrom?: string): AidocConfig {
   return defaultConfig;
 }
 
-export { defaultConfig, ConfigSchema, AidocConfig };
+export { defaultConfig, ConfigSchema };
+export type { AidocConfig };

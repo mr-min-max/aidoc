@@ -1,5 +1,8 @@
-import { scanFiles } from "../../../src/core/scanner";
+import { scanFiles } from "../../../src/core/scanner.js";
 import * as path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 describe("scanFiles", () => {
   const fixturesDir = path.resolve(__dirname, "../../fixtures");

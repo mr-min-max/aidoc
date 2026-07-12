@@ -1,4 +1,4 @@
-import { buildUpdateContext } from "../../../src/core/differ";
+import { buildUpdateContext } from "../../../src/core/differ.js";
 
 describe("buildUpdateContext", () => {
   it("should create context with all fields", () => {
