@@ -48,7 +48,11 @@ program.addCommand(checkCommand);
 const args = process.argv.slice(2);
 if (args.includes("--mcp")) {
   import("../mcp/server").then(({ startMCPServer }) => {
-    startMCPServer().catch(console.error);
+    startMCPServer().catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(message);
+      process.exitCode = 1;
+    });
   });
 } else {
   program.parseAsync().catch((error: unknown) => {

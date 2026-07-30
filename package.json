@@ -19,6 +19,7 @@
     "score": "npm run build && node dist/cli/index.js score",
     "start": "node dist/cli/index.js",
     "test:package": "node tests/e2e/package-smoke.mjs",
+    "test:mcp": "node tests/e2e/mcp-smoke.mjs",
     "test:check": "npm run build && node tests/e2e/check-cli-smoke.mjs",
     "prepack": "npm run build",
     "prepublishOnly": "npm run lint && npm test -- --runInBand"
@@ -56,6 +57,7 @@
   "files": ["dist/"],
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "chalk": "^4.1.2",
     "chokidar": "^5.0.0",
     "commander": "^15.0.0",
