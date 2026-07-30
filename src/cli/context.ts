@@ -7,6 +7,7 @@ import { Generator } from "../core/generator";
 import { resolveTemplatesDir } from "../core/templates";
 import { MockGenerator } from "./mock-generator";
 import {
+  ValidationResult,
   writeMarkdown,
   readExistingMarkdown,
   validateMarkdown,
@@ -33,6 +34,20 @@ export interface ProjectInfo {
   name: string;
   description: string;
   dependencies: string[];
+}
+
+/** Applies a command-specific provider-output check at the strict boundary. */
+export function enforceGeneratedOutput(
+  result: ValidationResult,
+  options: CommandOptions,
+  label: string,
+): void {
+  if (options.strictOutput && !result.isValid) {
+    throw new Error(
+      `${label} failed validation: ${result.warnings.join("; ")}`,
+    );
+  }
+  result.warnings.forEach((warning) => logger.warn(warning));
 }
 
 /**

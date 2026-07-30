@@ -4,11 +4,13 @@ import ora from "ora";
 import * as path from "path";
 import { analyzeCodebase } from "../../core/analyzer";
 import {
+  enforceGeneratedOutput,
   hasGenerationInput,
   loadCommandContext,
   toWriteDocOptions,
   writeDoc,
 } from "../context";
+import { validateMermaidSource } from "../../output/markdown";
 
 export const diagramCommand = new Command("diagram")
   .description("Generate architecture diagram (Mermaid) from code analysis")
@@ -41,6 +43,11 @@ export const diagramCommand = new Command("diagram")
 
       const genSpinner = ora("Generating architecture diagram...").start();
       const diagram = await ctx.generator.generateDiagram(modules);
+      enforceGeneratedOutput(
+        validateMermaidSource(diagram),
+        options,
+        "Architecture diagram",
+      );
       genSpinner.succeed(chalk.green("Architecture diagram generated!"));
 
       const output = `# Architecture\n\n\`\`\`mermaid\n${diagram}\n\`\`\`\n`;

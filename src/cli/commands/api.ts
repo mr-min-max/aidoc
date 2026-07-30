@@ -4,11 +4,13 @@ import ora from "ora";
 import * as path from "path";
 import { analyzeCodebase } from "../../core/analyzer";
 import {
+  enforceGeneratedOutput,
   hasGenerationInput,
   loadCommandContext,
   toWriteDocOptions,
   writeDoc,
 } from "../context";
+import { validateGeneratedContent } from "../../output/markdown";
 
 export const apiCommand = new Command("api")
   .description("Generate API documentation from code analysis")
@@ -41,6 +43,11 @@ export const apiCommand = new Command("api")
 
       const genSpinner = ora("Generating API documentation...").start();
       const apiDocs = await ctx.generator.generateApiDocs(modules);
+      enforceGeneratedOutput(
+        validateGeneratedContent(apiDocs),
+        options,
+        "API documentation",
+      );
       genSpinner.succeed(chalk.green("API documentation generated!"));
 
       await writeDoc(

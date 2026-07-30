@@ -1,7 +1,11 @@
 import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
-import { loadCommandContext, writeDoc } from "../../../src/cli/context";
+import {
+  enforceGeneratedOutput,
+  loadCommandContext,
+  writeDoc,
+} from "../../../src/cli/context";
 
 describe("loadCommandContext", () => {
   it("returns a mock generator when mock is set", async () => {
@@ -52,5 +56,17 @@ describe("writeDoc", () => {
       writeDoc(target, "not a Markdown document", { strict: true }),
     ).rejects.toThrow(/failed validation/i);
     expect(fs.existsSync(target)).toBe(false);
+  });
+});
+
+describe("enforceGeneratedOutput", () => {
+  it("turns command-specific validation warnings into a strict failure", () => {
+    expect(() =>
+      enforceGeneratedOutput(
+        { isValid: false, warnings: ["Generated provider output is blank"] },
+        { strictOutput: true },
+        "README",
+      ),
+    ).toThrow("README failed validation: Generated provider output is blank");
   });
 });

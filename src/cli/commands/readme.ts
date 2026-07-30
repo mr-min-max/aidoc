@@ -4,12 +4,14 @@ import ora from "ora";
 import * as path from "path";
 import { analyzeCodebase } from "../../core/analyzer";
 import {
+  enforceGeneratedOutput,
   hasGenerationInput,
   loadCommandContext,
   readProjectInfo,
   toWriteDocOptions,
   writeDoc,
 } from "../context";
+import { validateGeneratedContent } from "../../output/markdown";
 
 export const readmeCommand = new Command("readme")
   .description("Generate README.md from code analysis")
@@ -78,6 +80,11 @@ export const readmeCommand = new Command("readme")
           }, // live tail
         );
       }
+      enforceGeneratedOutput(
+        validateGeneratedContent(readme),
+        options,
+        "README",
+      );
       genSpinner.succeed(chalk.green("README generated!"));
 
       await writeDoc(

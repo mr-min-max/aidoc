@@ -3,12 +3,16 @@ import chalk from "chalk";
 import ora from "ora";
 import * as path from "path";
 import {
+  enforceGeneratedOutput,
   hasGenerationInput,
   loadCommandContext,
   toWriteDocOptions,
   writeDoc,
 } from "../context";
-import { readExistingMarkdown } from "../../output/markdown";
+import {
+  readExistingMarkdown,
+  validateChangelogEntry,
+} from "../../output/markdown";
 import { getCommitsSince, getLatestTag } from "../../git/history";
 
 export const changelogCommand = new Command("changelog")
@@ -49,6 +53,11 @@ export const changelogCommand = new Command("changelog")
         fromRef,
         toRef,
       } as any);
+      enforceGeneratedOutput(
+        validateChangelogEntry(entry, options.version),
+        options,
+        "CHANGELOG entry",
+      );
       genSpinner.succeed(chalk.green("CHANGELOG entry generated!"));
 
       // Changelog prepends to an existing file rather than replacing it.
