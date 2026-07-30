@@ -1,47 +1,82 @@
 # 🗺️ Roadmap
 
-This roadmap outlines the development plan for aidoc. We welcome community feedback and contributions!
+This roadmap separates the unreleased release candidate from shipped and future
+work. We welcome community feedback and contributions.
 
-## v0.1.0 — Foundation (Current) ✅
+## Release candidate
 
-- [x] TypeScript/JavaScript AST parser (ts-morph)
-- [x] Multi-provider LLM support (OpenAI, Anthropic, Ollama)
-- [x] 6 CLI commands: readme, api, annotate, changelog, diagram, update
-- [x] Diff-aware documentation updates
-- [x] Handlebars template system
-- [x] Zod-validated configuration
-- [x] CI/CD with GitHub Actions
+### v0.1.1 — Release Integrity
 
-## v0.2.0 — Multi-Language & Intelligence
+- Packaged Handlebars templates with tarball smoke coverage
+- Failure-propagating GitHub Action generate/check modes
+- Deterministic AST-backed documentation co-change command
+- Standards-compliant MCP stdio transport
 
-- [x] Python AST parser (via Python `ast` module subprocess)
-- [x] AST caching for faster repeated runs
-- [x] Retry logic with exponential backoff (now wired into every provider)
-- [x] Structured logging with `--verbose` flag
-- [x] MCP (Model Context Protocol) server
-- [x] GitHub Action for CI/CD integration
-- [x] Documentation health scoring (`aidoc score`) — deterministic, CI-gateable
-- [x] Live watch mode with streaming LLM output (`aidoc watch`)
-- [x] Pluggable provider registry
-- [ ] Go parser (via `go/ast`)
-- [ ] Rust parser (via `syn` subprocess)
+`v0.1.1` remains unreleased until its tag, npm publication, and release checks
+all succeed.
 
-## v0.3.0 — Ecosystem & Polish
+### Additional current-branch capabilities
 
-- [ ] Plugin system for custom language parsers
-- [ ] Custom template overrides via `.aidocrc.json`
-- [ ] VS Code extension
-- [ ] Interactive `aidoc init` wizard
-- [ ] Monorepo support (workspaces)
+- Python AST parser (Python `ast` subprocess)
+- In-process AST cache for repeated analysis
+- Retry logic with exponential backoff
+- Structured logging with `--verbose`
+- Documentation health scoring (`aidoc score`)
+- Live watch mode with streaming LLM output (`aidoc watch`)
+- Pluggable provider registry
 
-## v1.0.0 — Stable Release
+## In progress
 
-- [ ] Comprehensive E2E test suite
-- [ ] 90%+ code coverage
-- [ ] Published npm package with stable API
-- [ ] Documentation website
-- [ ] Support for 5+ programming languages
-- [ ] Community-contributed parser plugins
+### v0.2.0 — Trust Gate
+
+- Provider-context secret detection and redaction
+- Repository-contained atomic writes
+- Security doctor and bounded run receipts
+
+## Planned
+
+### v0.3.0 — ProofGraph
+
+- Semantic AST documentation impact
+- Evidence-backed technical claims
+- `aidoc verify` and `aidoc explain`
+
+## Shipped
+
+### v0.1.0 — Foundation
+
+- TypeScript/JavaScript AST parser (`ts-morph`)
+- Multi-provider LLM support (OpenAI, Anthropic, Ollama)
+- CLI commands for README, API, annotation, changelog, diagrams, and updates
+- Git-aware documentation updates
+- Built-in Handlebars prompt templates
+- Zod-validated configuration
+- CI/CD with GitHub Actions
+
+## Later ideas
+
+### Language support
+
+- Go parser via `go/ast`
+- Rust parser via a `syn` subprocess
+
+### Ecosystem and polish
+
+- Plugin system for custom language parsers
+- Future custom template overrides through `.aidocrc.json` after the
+  configuration field is wired
+- VS Code extension
+- Interactive `aidoc init` wizard
+- Monorepo/workspace support
+
+### Stable release goals
+
+- Comprehensive end-to-end test suite
+- 90%+ code coverage
+- Published npm package with a stable API
+- Documentation website
+- Support for at least five programming languages
+- Community-contributed parser plugins
 
 ---
 
@@ -51,7 +86,8 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines. We especially welcome:
 
 - 🐍 **Language parsers** — Help us support more languages
 - 🔌 **LLM providers** — Add support for new AI providers
-- 📝 **Templates** — Create better documentation templates
+- 📝 **Templates** — Improve the built-in prompt templates
 - 🐛 **Bug fixes** — Help us improve reliability
 
-Use [GitHub Issues](https://github.com/aidoc-dev/aidoc/issues) to propose features or report bugs.
+Use [GitHub Issues](https://github.com/mr-min-max/aidoc/issues) to propose
+features or report bugs.

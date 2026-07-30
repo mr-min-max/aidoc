@@ -11,6 +11,7 @@ import { scoreCommand } from "./commands/score";
 import { watchCommand } from "./commands/watch";
 import { checkCommand } from "./commands/check";
 import { setLogLevel } from "../core/logger";
+import { readPackageVersion } from "../core/package-meta";
 
 dotenv.config({ quiet: true });
 
@@ -21,7 +22,7 @@ program
   .description(
     "🤖 AI-powered documentation generator for codebases. Analyzes your code via AST parsing and generates professional documentation using LLM.",
   )
-  .version("0.1.0")
+  .version(readPackageVersion())
   .option("--verbose", "Enable verbose debug logging")
   .option(
     "--mcp",

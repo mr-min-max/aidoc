@@ -1,6 +1,6 @@
 {
   "name": "aidoc-gen",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AI-powered documentation generator for codebases. Analyzes code via AST parsing and LLM to generate README, API docs, JSDoc, CHANGELOG, and architecture diagrams.",
   "main": "dist/cli/index.js",
   "bin": {
@@ -21,6 +21,7 @@
     "test:package": "node tests/e2e/package-smoke.mjs",
     "test:mcp": "node tests/e2e/mcp-smoke.mjs",
     "test:check": "npm run build && node tests/e2e/check-cli-smoke.mjs",
+    "verify:release": "npm run lint && npm test -- --runInBand && npm run build && npm run test:check && npm run test:package && npm run test:action && npm run test:mcp",
     "prepack": "npm run build",
     "prepublishOnly": "npm run lint && npm test -- --runInBand"
   },
@@ -45,16 +46,18 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/aidoc-dev/aidoc.git"
+    "url": "https://github.com/mr-min-max/aidoc.git"
   },
   "bugs": {
-    "url": "https://github.com/aidoc-dev/aidoc/issues"
+    "url": "https://github.com/mr-min-max/aidoc/issues"
   },
-  "homepage": "https://github.com/aidoc-dev/aidoc#readme",
+  "homepage": "https://github.com/mr-min-max/aidoc#readme",
   "engines": {
     "node": ">=22.12.0"
   },
-  "files": ["dist/"],
+  "files": [
+    "dist/"
+  ],
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
     "@modelcontextprotocol/sdk": "^1.30.0",

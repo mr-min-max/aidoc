@@ -4,10 +4,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A518-green.svg)](https://nodejs.org/)
-[![CI](https://github.com/aidoc-dev/aidoc/actions/workflows/ci.yml/badge.svg)](https://github.com/aidoc-dev/aidoc/actions)
+[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522.12-green.svg)](https://nodejs.org/)
+[![CI](https://github.com/mr-min-max/aidoc/actions/workflows/ci.yml/badge.svg)](https://github.com/mr-min-max/aidoc/actions)
 
-`aidoc` is a local, privacy-first CLI tool that analyzes your codebase using **AST parsing** and generates professional documentation (READMEs, API docs, JSDocs, Changelogs, and Architecture Diagrams) using LLMs.
+`aidoc` is a CLI tool that analyzes your codebase using **AST parsing** before generating documentation (READMEs, API docs, JSDocs, changelogs, and architecture diagrams) with a configured LLM provider.
 
 It is specifically designed for **Open Source maintainers** who want to spend less time writing docs and more time writing code.
 
@@ -17,12 +17,12 @@ It is specifically designed for **Open Source maintainers** who want to spend le
 
 - 🧠 **AST-Powered Context** — Doesn't just read text; understands your code structure (functions, classes, exports) via `ts-morph` (TypeScript) and Python's `ast` module.
 - 🐍 **Multi-Language** — Built-in support for TypeScript, JavaScript, and Python with real AST parsing. Extensible parser architecture for adding more languages.
-- 🔄 **Diff-Aware Updates** — Don't regenerate your entire README. `aidoc update` only rewrites sections affected by your latest Git commits.
-- 🔐 **Privacy First (BYOK)** — Bring Your Own Key. Supports OpenAI, Anthropic, or run it 100% locally and privately using **Ollama**.
-- 🎨 **Customizable** — Uses Handlebars templates for prompts. Override them to match your exact documentation style.
-- 🚀 **GitHub Action** — Automate documentation updates in CI/CD with `aidoc-action`.
+- 🔄 **Diff-Aware Updates** — `aidoc update` supplies the selected Git changes to the configured provider as context for a documentation update; review generated content before accepting it.
+- 🏠 **Local Provider Option** — Use **Ollama** when the model and code context should stay on your machine; OpenAI and Anthropic are remote provider options.
+- 🎨 **Packaged Prompts** — Built-in Handlebars prompt templates ship with the npm package.
+- 🚀 **GitHub Action** — Automate documentation generation and AST-backed source/document co-change checks with `mr-min-max/aidoc`.
 - 🔌 **MCP Server** — Integrate with AI assistants (ChatGPT, Claude, Cursor) via the Model Context Protocol.
-- ⚡ **Smart Caching** — AST parsing results are cached; unchanged files are never re-parsed.
+- ⚡ **In-Process Caching** — Repeated analysis in one process, such as watch mode, can reuse AST parsing results.
 - 🔁 **Resilient** — Built-in retry with exponential backoff for API rate limits and transient errors (wired into every provider).
 - 📊 **Doc Health Scoring** — `aidoc score` grades documentation coverage 0–100 from the AST. No LLM, no API key, instant — with a CI gate (`--min`).
 - 👁️ **Live Watch Mode** — `aidoc watch` regenerates docs in real time as you save files. Streaming LLM output makes generation feel instant.
@@ -36,7 +36,8 @@ It is specifically designed for **Open Source maintainers** who want to spend le
 - Generate release notes and changelog drafts from Git history.
 - Gate documentation health in CI with `aidoc score --min`.
 - Triage parser/provider/template issues using deterministic AST context.
-- Run privacy-preserving local workflows with Ollama when code should not leave the machine.
+- Run local-provider workflows with Ollama when the model and code context
+  should stay on the machine.
 
 See [Codex maintainer workflows](./docs/codex-maintainer-workflows.md) for the API-credit plan we use for OpenAI Codex for OSS readiness.
 
@@ -114,7 +115,7 @@ aidoc diagram --output docs/arch.md   # Mermaid diagram
 
 ### Diff-Aware Update
 ```bash
-aidoc update --target README.md --since HEAD~5  # Update only changed sections
+aidoc update --target README.md --since HEAD~5  # Give selected Git changes to the provider
 ```
 
 ### Debug Mode
@@ -138,7 +139,10 @@ aidoc watch --auto --target docs/README.md   # no prompts (great for demos)
 
 ## 🎬 GitHub Action
 
-Automate documentation in your CI/CD pipeline:
+The `v0.1.1` examples below identify the unreleased release candidate. Do not
+use that ref until the corresponding tag is published.
+
+Generate documentation and push the resulting commit:
 
 ```yaml
 # .github/workflows/docs.yml
@@ -147,12 +151,15 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: write
+
 jobs:
   docs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: aidoc-dev/aidoc@v1
+      - uses: mr-min-max/aidoc@v0.1.1
         with:
           provider: openai
           api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -160,14 +167,33 @@ jobs:
           auto-commit: true
 ```
 
-### Check Mode (fail CI if docs are stale)
+### AST-backed source/document co-change guard
 
 ```yaml
-      - uses: aidoc-dev/aidoc@v1
-        with:
-          mode: check
-          commands: readme
+permissions:
+  contents: read
+
+steps:
+  - uses: actions/checkout@v4
+    with:
+      fetch-depth: 0
+  - uses: mr-min-max/aidoc@v0.1.1
+    with:
+      mode: check
+      since: ${{ github.event.pull_request.base.sha }}
+      commands: readme,api
 ```
+
+Check mode is a deterministic co-change guard. It reports a document as stale
+when AST-parseable source files changed in the selected Git range without the
+target document changing in that range. `fetch-depth: 0` makes the selected
+base ref available. A successful `co-changed` result does not prove that the
+document content is semantically correct, and check mode never compares
+non-deterministic LLM output.
+
+Pull-request workflows should use
+`${{ github.event.pull_request.base.sha }}`. Push workflows can use
+`${{ github.event.before }}`.
 
 ## 🔌 MCP Server
 
@@ -199,7 +225,7 @@ aidoc --mcp
 | `generate_readme` | Generate README from code analysis |
 | `generate_api_docs` | Generate API reference documentation |
 | `generate_diagram` | Generate Mermaid architecture diagram |
-| `check_docs_freshness` | Check if documentation is up-to-date |
+| `check_docs_freshness` | Run an AST-backed source/document co-change guard |
 
 ## 🏗️ Architecture
 

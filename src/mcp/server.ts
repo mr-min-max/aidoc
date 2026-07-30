@@ -10,7 +10,7 @@
  * - generate_readme: Generate README documentation
  * - generate_api_docs: Generate API reference documentation
  * - generate_diagram: Generate architecture diagram
- * - check_docs_freshness: Check if documentation is up-to-date
+ * - check_docs_freshness: Run an AST-backed source/document co-change guard
  *
  * Usage:
  *   npx aidoc-gen --mcp
@@ -23,6 +23,7 @@ import { createProvider } from "../providers/registry";
 import { loadConfig } from "../config/loader";
 import { readProjectInfo } from "../cli/context";
 import { checkDocumentationFreshness } from "../core/freshness";
+import { readPackageVersion } from "../core/package-meta";
 import { resolveTemplatesDir } from "../core/templates";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -263,7 +264,7 @@ export async function handleToolCall(
 
 export function createMCPServer(): Server {
   const server = new Server(
-    { name: "aidoc", version: "0.1.0" },
+    { name: "aidoc", version: readPackageVersion() },
     { capabilities: { tools: {} } },
   );
 
