@@ -12,6 +12,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:action": "jest tests/unit/action/runner.test.ts --runInBand",
     "lint": "eslint src/ tests/ --ext .ts",
     "lint:fix": "eslint src/ tests/ --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",

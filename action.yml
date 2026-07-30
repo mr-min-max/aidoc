@@ -1,0 +1,103 @@
+name: "aidoc — AI Documentation Generator"
+description: "Automatically generate and validate documentation (README, API docs, changelogs) using AI-powered code analysis in your CI/CD pipeline."
+author: "aidoc contributors"
+
+branding:
+  icon: "file-text"
+  color: "blue"
+
+inputs:
+  provider:
+    description: "LLM provider to use (openai, anthropic, ollama)"
+    required: false
+    default: "openai"
+  api-key:
+    description: "API key for the LLM provider"
+    required: false
+  model:
+    description: "Model to use (e.g., gpt-4o-mini, claude-sonnet-4-20250514)"
+    required: false
+  commands:
+    description: "Comma-separated list of commands to run (readme,api,changelog,diagram)"
+    required: false
+    default: "readme"
+  mode:
+    description: 'Operation mode: "generate" (create docs), "check" (run the deterministic AST-backed co-change guard)'
+    required: false
+    default: "generate"
+  output-dir:
+    description: "Output directory for generated documentation"
+    required: false
+    default: "./docs"
+  auto-commit:
+    description: "Automatically commit generated documentation changes"
+    required: false
+    default: "false"
+  dry-run:
+    description: "Preview changes without writing files"
+    required: false
+    default: "false"
+  since:
+    description: "Git ref present in the checkout and used by co-change check mode"
+    required: false
+    default: "HEAD~1"
+
+outputs:
+  changed:
+    description: "Whether documentation was updated (true/false)"
+    value: ${{ steps.aidoc.outputs.changed }}
+  files:
+    description: "Newline-delimited documentation paths changed by aidoc"
+    value: ${{ steps.aidoc.outputs.files }}
+  summary:
+    description: "Human-readable summary"
+    value: ${{ steps.aidoc.outputs.summary }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+
+    - name: Install aidoc
+      shell: bash
+      run: |
+        cd "$GITHUB_ACTION_PATH"
+        version="$(node -p "require('./package.json').version")"
+        npm install -g "aidoc-gen@$version"
+
+    - name: Run aidoc commands
+      id: aidoc
+      shell: bash
+      env:
+        AIDOC_INPUT_PROVIDER: ${{ inputs.provider }}
+        AIDOC_INPUT_API_KEY: ${{ inputs.api-key }}
+        AIDOC_INPUT_MODEL: ${{ inputs.model }}
+        AIDOC_INPUT_COMMANDS: ${{ inputs.commands }}
+        AIDOC_INPUT_MODE: ${{ inputs.mode }}
+        AIDOC_INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
+        AIDOC_INPUT_DRY_RUN: ${{ inputs.dry-run }}
+        AIDOC_INPUT_SINCE: ${{ inputs.since }}
+        AIDOC_CHANGED_FILES_FILE: ${{ runner.temp }}/aidoc-changed-files
+      run: bash "$GITHUB_ACTION_PATH/action/run.sh"
+
+    - name: Auto-commit changes
+      if: inputs.auto-commit == 'true' && inputs.mode != 'check' && inputs.dry-run != 'true' && steps.aidoc.outputs.changed == 'true'
+      shell: bash
+      run: |
+        git config user.name "aidoc[bot]"
+        git config user.email "aidoc[bot]@users.noreply.github.com"
+        if ! git diff --cached --quiet; then
+          echo "Refusing to commit: the checkout already has staged changes" >&2
+          exit 2
+        fi
+        while IFS= read -r file; do
+          if [ -n "$file" ]; then
+            git add -- "$file"
+          fi
+        done < "$RUNNER_TEMP/aidoc-changed-files"
+        git diff --staged --quiet || \
+          git commit -m "docs: update documentation via aidoc [skip ci]"
+        git push
