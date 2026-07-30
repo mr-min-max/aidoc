@@ -11,7 +11,7 @@ import { scoreCommand } from "./commands/score";
 import { watchCommand } from "./commands/watch";
 import { setLogLevel } from "../core/logger";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const program = new Command();
 

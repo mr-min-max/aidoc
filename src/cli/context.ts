@@ -4,6 +4,7 @@ import chalk from "chalk";
 import { loadConfig, AidocConfig } from "../config/loader";
 import { createProvider } from "../providers/registry";
 import { Generator } from "../core/generator";
+import { resolveTemplatesDir } from "../core/templates";
 import { MockGenerator } from "./mock-generator";
 import {
   writeMarkdown,
@@ -65,10 +66,7 @@ export async function loadCommandContext(
   const isMock = !!options.mock;
   const generator = isMock
     ? new MockGenerator()
-    : new Generator(
-        createProvider(config),
-        path.resolve(__dirname, "../templates"),
-      );
+    : new Generator(createProvider(config), resolveTemplatesDir());
   return { config, cwd, generator, isMock };
 }
 
