@@ -14,6 +14,7 @@ import process from "node:process";
 import { clearTimeout, setTimeout } from "node:timers";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { getConfiguredSmokeTarball } from "./smoke-tarball.mjs";
 
 const PACK_TIMEOUT_MS = 120_000;
 const INSTALL_TIMEOUT_MS = 120_000;
@@ -36,7 +37,7 @@ function terminateProcessTree(child) {
   }
 
   try {
-      process.kill(-child.pid, "SIGTERM");
+    process.kill(-child.pid, "SIGTERM");
   } catch {
     // The process may have exited between the timeout and this cleanup.
   }
@@ -119,23 +120,27 @@ async function withTimeout(promise, label) {
 }
 
 try {
-  const packOutput = await runCommand(
-    "npm",
-    ["pack", "--json", "--pack-destination", root],
-    { cwd: resolve("."), timeout: PACK_TIMEOUT_MS },
-  );
-  const [{ filename }] = JSON.parse(packOutput);
+  let tarball = getConfiguredSmokeTarball();
+  if (tarball === null) {
+    const packOutput = await runCommand(
+      "npm",
+      ["pack", "--json", "--pack-destination", root],
+      { cwd: resolve("."), timeout: PACK_TIMEOUT_MS },
+    );
+    const [{ filename }] = JSON.parse(packOutput);
+    tarball = join(root, filename);
+  }
+
   const consumer = join(root, "consumer");
   mkdirSync(consumer);
   writeFileSync(
     join(consumer, "package.json"),
     JSON.stringify({ name: "aidoc-mcp-consumer", private: true }),
   );
-  await runCommand(
-    "npm",
-    ["install", "--ignore-scripts", join(root, filename)],
-    { cwd: consumer, timeout: INSTALL_TIMEOUT_MS },
-  );
+  await runCommand("npm", ["install", "--ignore-scripts", tarball], {
+    cwd: consumer,
+    timeout: INSTALL_TIMEOUT_MS,
+  });
 
   const fixture = join(root, "fixture-repo");
   mkdirSync(join(fixture, "src"), { recursive: true });
@@ -188,9 +193,7 @@ try {
   assert.equal(client.getServerVersion()?.version, packedPackage.version);
   const { tools } = await withTimeout(client.listTools(), "MCP tools/list");
   assert.ok(tools.some((tool) => tool.name === "analyze_codebase"));
-  const checkTool = tools.find(
-    (tool) => tool.name === "check_docs_freshness",
-  );
+  const checkTool = tools.find((tool) => tool.name === "check_docs_freshness");
   assert.ok(checkTool);
   assert.match(checkTool.description ?? "", /co-change/i);
 
@@ -223,9 +226,7 @@ try {
     "MCP check_docs_freshness",
   );
   assert.notEqual(checkResult.isError, true);
-  const checkText = checkResult.content.find(
-    (item) => item.type === "text",
-  );
+  const checkText = checkResult.content.find((item) => item.type === "text");
   assert.ok(checkText && "text" in checkText);
   assert.equal(JSON.parse(checkText.text).status, "stale");
 } finally {

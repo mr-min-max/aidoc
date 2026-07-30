@@ -18,7 +18,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "score": "npm run build && node dist/cli/index.js score",
     "start": "node dist/cli/index.js",
-    "test:package": "node tests/e2e/package-smoke.mjs",
+    "test:package": "node --test tests/e2e/smoke-tarball.test.mjs && node tests/e2e/package-smoke.mjs",
     "test:mcp": "node tests/e2e/mcp-smoke.mjs",
     "test:check": "npm run build && node tests/e2e/check-cli-smoke.mjs",
     "verify:release": "npm run lint && npm test -- --runInBand && npm run build && npm run test:check && npm run test:package && npm run test:action && npm run test:mcp",

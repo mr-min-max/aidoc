@@ -89,6 +89,13 @@ describe("action/run.sh", () => {
     expect(result.log).toBe("");
   });
 
+  it("rejects an invalid dry-run input before invoking aidoc", () => {
+    const result = runRunner({ AIDOC_INPUT_DRY_RUN: "yes" });
+
+    expect(result.status).toBe(2);
+    expect(result.log).toBe("");
+  });
+
   it("uses the real command path without --mock", () => {
     const result = runRunner();
     expect(result.status).toBe(0);

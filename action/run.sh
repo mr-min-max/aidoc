@@ -16,6 +16,11 @@ case "$mode" in
   *) echo "Unsupported aidoc Action mode: $mode" >&2; exit 2 ;;
 esac
 
+case "$dry_run" in
+  true|false) ;;
+  *) echo "Unsupported aidoc dry-run value: $dry_run" >&2; exit 2 ;;
+esac
+
 case "$provider" in
   openai)
     export OPENAI_API_KEY="$api_key"

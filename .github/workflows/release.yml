@@ -2,7 +2,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: read
@@ -16,13 +16,13 @@ jobs:
       matrix:
         node-version: [22, 24]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'npm'
+          cache: "npm"
       - run: npm ci
       - name: Verify tag matches package version
         shell: bash
@@ -33,32 +33,50 @@ jobs:
             exit 1
           fi
       - run: npm run verify:release
-      - name: Pack verified artifact
+      - name: Pack release artifact
         if: matrix.node-version == 24
         id: pack
         shell: bash
         run: |
-          npm pack --json --pack-destination "$RUNNER_TEMP" \
-            > "$RUNNER_TEMP/aidoc-pack.json"
-          filename="$(node -e "const fs=require('fs'); const p=process.env.RUNNER_TEMP + '/aidoc-pack.json'; console.log(JSON.parse(fs.readFileSync(p, 'utf8'))[0].filename)")"
-          echo "tarball=$RUNNER_TEMP/$filename" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          artifact_dir="$RUNNER_TEMP/aidoc-package"
+          mkdir -p "$artifact_dir"
+          npm pack --json --pack-destination "$artifact_dir" \
+            > "$artifact_dir/pack.json"
+          filename="$(node -e "const fs=require('fs'); const p=process.argv[1]; const files=JSON.parse(fs.readFileSync(p, 'utf8')); if (files.length !== 1 || !files[0].filename) throw new Error('Expected exactly one packed tarball'); process.stdout.write(files[0].filename)" "$artifact_dir/pack.json")"
+          tarball="$artifact_dir/$filename"
+          checksum="$tarball.sha256"
+          (
+            cd "$artifact_dir"
+            sha256sum "$filename" > "$filename.sha256"
+          )
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+          echo "checksum=$checksum" >> "$GITHUB_OUTPUT"
+      - name: Smoke exact release artifact
+        if: matrix.node-version == 24
+        env:
+          AIDOC_TEST_TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          npm run test:package
+          npm run test:mcp
       - name: Upload verified artifact
         if: matrix.node-version == 24
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: aidoc-npm-package
-          path: ${{ steps.pack.outputs.tarball }}
+          path: |
+            ${{ steps.pack.outputs.tarball }}
+            ${{ steps.pack.outputs.checksum }}
           if-no-files-found: error
           retention-days: 1
 
-  release:
+  publish:
     needs: verify
-    permissions:
-      contents: write
+    permissions: {}
     runs-on: ubuntu-latest
     steps:
       - name: Download verified artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: aidoc-npm-package
           path: ${{ runner.temp }}/aidoc-artifact
@@ -66,22 +84,41 @@ jobs:
         id: artifact
         shell: bash
         run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/aidoc-artifact"
           shopt -s nullglob
-          tarballs=("$RUNNER_TEMP/aidoc-artifact/"*.tgz)
+          tarballs=(*.tgz)
+          checksums=(*.sha256)
           if [ "${#tarballs[@]}" -ne 1 ]; then
             echo "Expected exactly one verified tarball, found ${#tarballs[@]}" >&2
             exit 1
           fi
-          echo "tarball=${tarballs[0]}" >> "$GITHUB_OUTPUT"
-      - uses: actions/setup-node@v4
+          if [ "${#checksums[@]}" -ne 1 ]; then
+            echo "Expected exactly one checksum, found ${#checksums[@]}" >&2
+            exit 1
+          fi
+          if [ "${checksums[0]}" != "${tarballs[0]}.sha256" ]; then
+            echo "Checksum does not match the verified tarball name" >&2
+            exit 1
+          fi
+          sha256sum --check --strict "${checksums[0]}"
+          echo "tarball=$PWD/${tarballs[0]}" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: "https://registry.npmjs.org"
       - name: Publish verified artifact
         run: npm publish "${{ steps.artifact.outputs.tarball }}" --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  github-release:
+    needs: publish
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           generate_release_notes: true

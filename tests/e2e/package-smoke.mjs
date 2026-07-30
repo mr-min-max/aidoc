@@ -11,17 +11,22 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import process from "node:process";
+import { getConfiguredSmokeTarball } from "./smoke-tarball.mjs";
 
 const root = mkdtempSync(join(tmpdir(), "aidoc-package-smoke-"));
 
 try {
-  const packOutput = execFileSync(
-    "npm",
-    ["pack", "--json", "--pack-destination", root],
-    { cwd: resolve("."), encoding: "utf8" },
-  );
-  const [{ filename }] = JSON.parse(packOutput);
-  const tarball = join(root, filename);
+  let tarball = getConfiguredSmokeTarball();
+  if (tarball === null) {
+    const packOutput = execFileSync(
+      "npm",
+      ["pack", "--json", "--pack-destination", root],
+      { cwd: resolve("."), encoding: "utf8" },
+    );
+    const [{ filename }] = JSON.parse(packOutput);
+    tarball = join(root, filename);
+  }
+
   const consumer = join(root, "consumer");
   mkdirSync(consumer);
   writeFileSync(
