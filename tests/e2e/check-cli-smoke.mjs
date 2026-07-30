@@ -8,6 +8,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import process from "node:process";
 
 const cli = resolve("dist/cli/index.js");
 const repo = mkdtempSync(join(tmpdir(), "aidoc-check-cli-"));
