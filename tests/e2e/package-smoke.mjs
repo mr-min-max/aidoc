@@ -66,6 +66,7 @@ try {
     readFileSync(join(packageRoot, "package.json"), "utf8"),
   );
   assert.equal(packedPackage.name, "aidoc-gen");
+  assert.equal(packedPackage.engines.node, ">=22.12.0");
   const packedCli = join(packageRoot, "dist", "cli", "index.js");
   const cliVersion = execFileSync(process.execPath, [packedCli, "--version"], {
     cwd: consumer,
