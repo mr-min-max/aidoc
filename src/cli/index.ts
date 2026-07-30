@@ -9,6 +9,7 @@ import { diagramCommand } from "./commands/diagram";
 import { updateCommand } from "./commands/update";
 import { scoreCommand } from "./commands/score";
 import { watchCommand } from "./commands/watch";
+import { checkCommand } from "./commands/check";
 import { setLogLevel } from "../core/logger";
 
 dotenv.config({ quiet: true });
@@ -41,6 +42,7 @@ program.addCommand(diagramCommand);
 program.addCommand(updateCommand);
 program.addCommand(scoreCommand);
 program.addCommand(watchCommand);
+program.addCommand(checkCommand);
 
 // Handle --mcp flag before parsing commands
 const args = process.argv.slice(2);
@@ -49,5 +51,9 @@ if (args.includes("--mcp")) {
     startMCPServer().catch(console.error);
   });
 } else {
-  program.parse();
+  program.parseAsync().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(message);
+    process.exitCode = 1;
+  });
 }

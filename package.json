@@ -18,6 +18,7 @@
     "score": "npm run build && node dist/cli/index.js score",
     "start": "node dist/cli/index.js",
     "test:package": "node tests/e2e/package-smoke.mjs",
+    "test:check": "npm run build && node tests/e2e/check-cli-smoke.mjs",
     "prepack": "npm run build",
     "prepublishOnly": "npm run lint && npm test -- --runInBand"
   },
