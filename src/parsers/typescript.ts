@@ -4,6 +4,8 @@ import {
   Scope,
   MethodDeclaration,
   ParameterDeclaration,
+  FileSystemRefreshResult,
+  ts,
 } from "ts-morph";
 import {
   LanguageParser,
@@ -43,7 +45,32 @@ export class TypeScriptParser implements LanguageParser {
   /** Parses a source file into exported functions, classes, types, and imports. */
   async parse(filePath: string): Promise<ParsedModule> {
     const project = this.getProject();
-    const sourceFile = project.addSourceFileAtPath(filePath);
+    let sourceFile = project.getSourceFile(filePath);
+    if (sourceFile) {
+      const refreshResult = await sourceFile.refreshFromFileSystem();
+      if (refreshResult === FileSystemRefreshResult.Deleted) {
+        throw new Error(`File not found: ${filePath}`);
+      }
+    } else {
+      sourceFile = project.addSourceFileAtPath(filePath);
+    }
+    const diagnostics = project
+      .getProgram()
+      .getSyntacticDiagnostics(sourceFile);
+    if (diagnostics.length > 0) {
+      const details = diagnostics
+        .map((diagnostic) => {
+          const line = diagnostic.getLineNumber();
+          const message = ts.flattenDiagnosticMessageText(
+            diagnostic.compilerObject.messageText,
+            "\n",
+          );
+          return line === undefined ? message : `line ${line}: ${message}`;
+        })
+        .join("; ");
+      project.removeSourceFile(sourceFile);
+      throw new Error(`TypeScript syntax error in ${filePath}: ${details}`);
+    }
 
     return {
       filePath,

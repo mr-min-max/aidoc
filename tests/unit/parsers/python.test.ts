@@ -1,4 +1,6 @@
 import { PythonParser } from "../../../src/parsers/python";
+import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 
 describe("PythonParser", () => {
@@ -96,5 +98,36 @@ describe("PythonParser", () => {
     await expect(parser.parse("/nonexistent/file.py")).rejects.toThrow(
       "File not found",
     );
+  });
+
+  it("throws a parser-unavailable error when the Python process cannot start", async () => {
+    const unavailable = Object.assign(new Error("spawn python3 ENOENT"), {
+      code: "ENOENT",
+    });
+    const unavailableParser = new PythonParser(async () => {
+      throw unavailable;
+    });
+
+    await expect(unavailableParser.parse(fixturePath)).rejects.toThrow(
+      /Python parser unavailable.*python3/i,
+    );
+  });
+
+  it("accepts a genuinely parsed empty Python source file", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-python-empty-"));
+    const emptyFile = path.join(root, "empty.py");
+    fs.writeFileSync(emptyFile, "");
+
+    try {
+      await expect(parser.parse(emptyFile)).resolves.toMatchObject({
+        filePath: emptyFile,
+        language: "python",
+        functions: [],
+        classes: [],
+        imports: [],
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });

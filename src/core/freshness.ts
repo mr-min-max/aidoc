@@ -41,9 +41,12 @@ export async function collectAstSourceFiles(
     if (!parser) continue;
 
     const absoluteFile = path.resolve(cwd, changedFile);
-    if (fs.existsSync(absoluteFile)) {
-      await parser.parse(absoluteFile);
+    if (!fs.existsSync(absoluteFile)) {
+      throw new Error(
+        `Changed supported source file does not exist: ${changedFile}`,
+      );
     }
+    await parser.parse(absoluteFile);
 
     sourceFiles.push(changedFile);
   }

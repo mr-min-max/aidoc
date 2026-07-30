@@ -1,4 +1,6 @@
 import { TypeScriptParser } from "../../../src/parsers/typescript";
+import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 
 describe("TypeScriptParser", () => {
@@ -79,5 +81,72 @@ describe("TypeScriptParser", () => {
     await parser.parse(fixturePath);
     const after = TypeScriptParser.sharedProjectCount;
     expect(after).toBe(before); // no new Project created on repeat parses
+  });
+
+  it("rejects a recovery AST when the source has syntax diagnostics", async () => {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-typescript-invalid-"),
+    );
+    const invalidFile = path.join(root, "invalid.ts");
+    fs.writeFileSync(
+      invalidFile,
+      "export function broken(: string { return 'no'; }\n",
+    );
+
+    try {
+      await expect(parser.parse(invalidFile)).rejects.toThrow(
+        /TypeScript syntax error/i,
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("refreshes a cached source before checking syntax diagnostics", async () => {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-typescript-refresh-"),
+    );
+    const sourceFile = path.join(root, "changing.ts");
+    fs.writeFileSync(
+      sourceFile,
+      "export function current(): string { return 'ok'; }\n",
+    );
+
+    try {
+      await expect(parser.parse(sourceFile)).resolves.toMatchObject({
+        functions: [{ name: "current" }],
+      });
+      fs.writeFileSync(
+        sourceFile,
+        "export function broken(: string { return 'no'; }\n",
+      );
+
+      await expect(parser.parse(sourceFile)).rejects.toThrow(
+        /TypeScript syntax error/i,
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("accepts a genuinely parsed empty TypeScript source file", async () => {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-typescript-empty-"),
+    );
+    const emptyFile = path.join(root, "empty.ts");
+    fs.writeFileSync(emptyFile, "");
+
+    try {
+      await expect(parser.parse(emptyFile)).resolves.toMatchObject({
+        filePath: emptyFile,
+        language: "typescript",
+        functions: [],
+        classes: [],
+        types: [],
+        imports: [],
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });

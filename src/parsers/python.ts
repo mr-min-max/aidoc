@@ -12,6 +12,18 @@ import * as fs from "fs";
 
 const execFileAsync = promisify(execFile);
 
+type PythonProcessRunner = (
+  command: string,
+  args: string[],
+  options: { timeout: number; maxBuffer: number },
+) => Promise<{ stdout: string; stderr: string }>;
+
+const runPythonProcess: PythonProcessRunner = async (command, args, options) =>
+  (await execFileAsync(command, args, options)) as {
+    stdout: string;
+    stderr: string;
+  };
+
 /**
  * Python AST analysis script.
  * Uses Python's built-in `ast` module for real AST parsing — no heavy native dependencies.
@@ -145,6 +157,10 @@ export class PythonParser implements LanguageParser {
   readonly name = "python";
   readonly supportedExtensions = [".py"];
 
+  constructor(
+    private readonly executePython: PythonProcessRunner = runPythonProcess,
+  ) {}
+
   /** Parses a Python file into exported functions, classes, and imports. */
   async parse(filePath: string): Promise<ParsedModule> {
     // Verify file exists
@@ -153,7 +169,7 @@ export class PythonParser implements LanguageParser {
     }
 
     try {
-      const { stdout } = await execFileAsync(
+      const { stdout } = await this.executePython(
         "python3",
         ["-c", PYTHON_AST_SCRIPT, filePath],
         {
@@ -173,15 +189,16 @@ export class PythonParser implements LanguageParser {
         imports: (data.imports || []).map(this.mapImport),
       };
     } catch (error: unknown) {
-      // Graceful fallback: if Python is not available, return empty module
       const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("ENOENT") || message.includes("not found")) {
-        console.warn(
-          "⚠️  Python 3 not found. Install Python 3 to enable Python file analysis.\n" +
-            "   Skipping Python parsing for: " +
-            filePath,
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code?: unknown }).code)
+          : undefined;
+      if (code === "ENOENT") {
+        throw new Error(
+          "Python parser unavailable: python3 executable was not found",
+          { cause: error },
         );
-        return this.emptyModule(filePath);
       }
       throw new Error(`Failed to parse Python file ${filePath}: ${message}`, {
         cause: error,
@@ -249,17 +266,6 @@ export class PythonParser implements LanguageParser {
       source: raw.source as string,
       names: raw.names as string[],
       isDefault: raw.isDefault as boolean,
-    };
-  }
-
-  private emptyModule(filePath: string): ParsedModule {
-    return {
-      filePath,
-      language: "python",
-      functions: [],
-      classes: [],
-      types: [],
-      imports: [],
     };
   }
 }
