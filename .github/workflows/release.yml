@@ -5,17 +5,24 @@ on:
       - 'v*'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  verify:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22, 24]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-          registry-url: 'https://registry.npmjs.org'
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
       - run: npm ci
       - name: Verify tag matches package version
         shell: bash
@@ -27,6 +34,7 @@ jobs:
           fi
       - run: npm run verify:release
       - name: Pack verified artifact
+        if: matrix.node-version == 24
         id: pack
         shell: bash
         run: |
@@ -34,7 +42,43 @@ jobs:
             > "$RUNNER_TEMP/aidoc-pack.json"
           filename="$(node -e "const fs=require('fs'); const p=process.env.RUNNER_TEMP + '/aidoc-pack.json'; console.log(JSON.parse(fs.readFileSync(p, 'utf8'))[0].filename)")"
           echo "tarball=$RUNNER_TEMP/$filename" >> "$GITHUB_OUTPUT"
-      - run: npm publish "${{ steps.pack.outputs.tarball }}"
+      - name: Upload verified artifact
+        if: matrix.node-version == 24
+        uses: actions/upload-artifact@v4
+        with:
+          name: aidoc-npm-package
+          path: ${{ steps.pack.outputs.tarball }}
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    needs: verify
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download verified artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: aidoc-npm-package
+          path: ${{ runner.temp }}/aidoc-artifact
+      - name: Validate verified artifact
+        id: artifact
+        shell: bash
+        run: |
+          shopt -s nullglob
+          tarballs=("$RUNNER_TEMP/aidoc-artifact/"*.tgz)
+          if [ "${#tarballs[@]}" -ne 1 ]; then
+            echo "Expected exactly one verified tarball, found ${#tarballs[@]}" >&2
+            exit 1
+          fi
+          echo "tarball=${tarballs[0]}" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: 'https://registry.npmjs.org'
+      - name: Publish verified artifact
+        run: npm publish "${{ steps.artifact.outputs.tarball }}" --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
       - name: Create GitHub Release
