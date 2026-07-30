@@ -25,15 +25,13 @@ all succeed.
 - Live watch mode with streaming LLM output (`aidoc watch`)
 - Pluggable provider registry
 
-## In progress
+## Planned
 
-### v0.2.0 — Trust Gate
+### v0.2.0 — Trust Gate (planned next)
 
 - Provider-context secret detection and redaction
 - Repository-contained atomic writes
 - Security doctor and bounded run receipts
-
-## Planned
 
 ### v0.3.0 — ProofGraph
 
@@ -43,15 +41,21 @@ all succeed.
 
 ## Shipped
 
-### v0.1.0 — Foundation
+### v0.1.0 — Source-level foundation
 
 - TypeScript/JavaScript AST parser (`ts-morph`)
 - Multi-provider LLM support (OpenAI, Anthropic, Ollama)
 - CLI commands for README, API, annotation, changelog, diagrams, and updates
 - Git-aware documentation updates
-- Built-in Handlebars prompt templates
+- Handlebars prompt templates in the source tree
 - Zod-validated configuration
 - CI/CD with GitHub Actions
+
+These bullets describe source-level foundations, not release-integrity-verified
+distribution paths. The v0.1.0 distributed template, Action, and MCP paths were
+not release-integrity verified. The unreleased v0.1.1 candidate repairs those
+packaging, automation, and transport paths and adds verification evidence
+before release.
 
 ## Later ideas
 

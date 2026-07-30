@@ -1,10 +1,23 @@
-## Summary
+## Problem
 
-<!-- Brief description of what this PR does -->
+<!-- What user, maintainer, or release problem does this PR address? -->
 
-## Changes
+## Change
 
-<!-- List key changes, organized by component -->
+<!-- Describe the change, organized by component when useful. -->
+
+-
+
+## Verification
+
+<!-- Give reproducible commands and results. -->
+
+- [ ] Added/updated unit tests where behavior changed
+- [ ] `npm run verify:release` passes
+
+## Known limits
+
+<!-- State remaining constraints, deferred work, or "None known." -->
 
 -
 
@@ -16,13 +29,6 @@
 - [ ] ♻️ Refactoring
 - [ ] 🧪 Test improvements
 - [ ] 🔧 Configuration/CI
-
-## Testing
-
-<!-- How did you verify this works? -->
-
-- [ ] Added/updated unit tests
-- [ ] `npm run verify:release` passes
 
 ## Checklist
 
