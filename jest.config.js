@@ -4,7 +4,13 @@ module.exports = {
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.ts'],
   transform: {
-    '^.+\\.[tj]sx?$': [
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        diagnostics: false,
+      },
+    ],
+    'node_modules/commander/.+\\.js$': [
       'ts-jest',
       {
         diagnostics: false,
