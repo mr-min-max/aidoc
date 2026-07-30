@@ -38,7 +38,7 @@
 - `scripts/clean-dist.mjs` — removes stale build output before TypeScript compilation.
 - `scripts/copy-templates.mjs` — copies required `.hbs` files to `dist/templates`.
 - `action.yml` — repository-root composite Action entrypoint used by
-  `aidoc-dev/aidoc@<ref>`.
+  `mr-min-max/aidoc@<ref>`.
 - `action/run.sh` — testable implementation of composite Action generate/check behavior.
 - `tests/unit/core/templates.test.ts` — template resolver tests.
 - `tests/unit/core/package-meta.test.ts` — installed-version resolution tests.
@@ -1424,7 +1424,7 @@ function runRunner(
   output: string;
   changedFiles: string;
 } {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-action-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-github-action-"));
   const bin = setupFakeAidoc(root);
   const log = path.join(root, "aidoc.log");
   const githubOutput = path.join(root, "github-output");
@@ -1685,7 +1685,7 @@ npx jest tests/unit/action/runner.test.ts --runInBand
 ```
 
 Expected: FAIL because the metadata currently exists at
-`action/action.yml`, while the documented `uses: aidoc-dev/aidoc@...` syntax
+`action/action.yml`, while the documented `uses: mr-min-max/aidoc@...` syntax
 requires `action.yml` at the repository root.
 
 - [ ] **Step 7: Move the metadata and delegate to the runner**
@@ -2332,7 +2332,7 @@ publish that exact `.tgz` rather than repacking implicitly:
 Remove the old bare `npm publish` step. A tag must never bypass version
 matching, package, Action, or packed-MCP checks.
 
-Update the README badge from `Node.js-≥18` to `Node.js-≥22.12`.
+Update the README badge to `Node.js-≥22.12`.
 
 - [ ] **Step 7: Verify the supported runtime contract**
 
@@ -2397,8 +2397,8 @@ release commit immediately before tagging.
 
 - [ ] **Step 10: Correct README and roadmap claims**
 
-Replace every unverified `aidoc-dev/aidoc@v1` example with the exact
-`aidoc-dev/aidoc@v0.1.1` release candidate. Update the Action check example to
+Replace every unverified major-only Action example with the exact
+`mr-min-max/aidoc@v0.1.1` release candidate. Update the Action check example to
 include:
 
 ```yaml
@@ -2409,7 +2409,7 @@ steps:
   - uses: actions/checkout@v4
     with:
       fetch-depth: 0
-  - uses: aidoc-dev/aidoc@v0.1.1
+  - uses: mr-min-max/aidoc@v0.1.1
     with:
       mode: check
       since: ${{ github.event.pull_request.base.sha }}
@@ -2446,8 +2446,7 @@ Correct the surrounding release claims at the same time:
 
 - rename “Check Mode (fail CI if docs are stale)” to an AST-backed co-change
   guard and change the MCP tool table from “up-to-date” to the same wording;
-- refer to the Action as `aidoc-dev/aidoc`, not the nonexistent
-  `aidoc-action`;
+- refer to the Action as `mr-min-max/aidoc`, not a different product name;
 - describe `update` as giving Git changes to the provider, not guaranteeing
   that only correct affected sections are rewritten;
 - describe cache scope accurately (in-process runs such as watch mode), not
@@ -2610,7 +2609,7 @@ available before deciding to release.
 Check:
 
 ```bash
-rg -n "v0\\.1\\.1|Unreleased|Shipped|Trust Gate|ProofGraph|--mock|check mode|up-to-date|freshness|privacy-first|aidoc-action|never re-parsed" \
+rg -n "v0\\.1\\.1|Unreleased|Shipped|Trust Gate|ProofGraph|--mock|check mode|up-to-date|freshness|privacy-first|never re-parsed" \
   README.md ROADMAP.md CHANGELOG.md action.yml action/run.sh
 ```
 

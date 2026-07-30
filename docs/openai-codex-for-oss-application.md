@@ -20,8 +20,9 @@ Terms: https://developers.openai.com/codex/codex-for-oss-terms
 - First name: TODO
 - Last name: TODO
 - Email: TODO, must match the ChatGPT account email
-- GitHub username: TODO, profile must be public
-- GitHub repository URL: TODO, repository must be public
+- GitHub username: `mr-min-max`, profile must be public before submission
+- GitHub repository URL: `https://github.com/mr-min-max/aidoc`, repository is
+  currently private and must be public before submission
 - Role: Primary maintainer
 - Interested in:
   - Codex Security
@@ -39,6 +40,7 @@ Fill these before submitting:
 - npm package URL: TODO
 - Monthly npm downloads: TODO
 - Current release tag: v0.1.0
+- Unreleased release candidate: v0.1.1
 - CI status: TODO, public GitHub Actions URL
 - Maintainer permissions proof: public GitHub ownership or write access
 
@@ -47,7 +49,7 @@ Fill these before submitting:
 Use this after replacing TODO metrics.
 
 ```text
-aidoc is a public MIT TypeScript CLI/MCP tool that helps OSS maintainers keep README, API, changelog, and architecture docs current. It uses AST-first analysis, supports OpenAI/Anthropic/Ollama, includes a GitHub Action, and has active tests/CI. TODO: add stars/downloads/recent activity before submitting.
+aidoc is an MIT TypeScript CLI/MCP tool that helps OSS maintainers work on README, API, changelog, and architecture docs. It uses AST-first analysis, supports OpenAI/Anthropic/Ollama, and includes a GitHub Action and automated tests. The canonical repository is https://github.com/mr-min-max/aidoc and must be made public before this application is submitted. TODO: add stars/downloads/recent activity before submitting.
 ```
 
 ## Field: How API Credits Will Be Used
@@ -59,7 +61,7 @@ We will use API credits for Codex-powered maintainer workflows: PR documentation
 ## Field: Anything Else
 
 ```text
-aidoc is built for the same maintainer burden this program targets: reviewing code changes, keeping docs fresh, and reducing OSS maintenance toil. The project is privacy-first and provider-agnostic, with local Ollama support and an MCP server so maintainers can use it inside their existing AI coding tools.
+aidoc is built for the same maintainer burden this program targets: reviewing code changes, maintaining docs, and reducing OSS maintenance toil. The project is provider-agnostic, offers Ollama as a local-provider option, and includes an MCP server so maintainers can use it inside compatible AI coding tools.
 ```
 
 ## Pre-Submit Repository Work
@@ -71,4 +73,3 @@ aidoc is built for the same maintainer burden this program targets: reviewing co
 - Add a short demo GIF or video to the README.
 - Add 3-5 starter issues labeled `good first issue`.
 - Confirm the OpenAI organization ID belongs to the account that will receive credits.
-

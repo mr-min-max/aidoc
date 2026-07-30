@@ -4,6 +4,8 @@ First off, thanks for taking the time to contribute! 🎉
 
 ## Development Setup
 
+Use Node.js `>=22.12.0`.
+
 1. Clone the repo
 2. Install dependencies: `npm install`
 3. Build the CLI: `npm run build`
@@ -17,6 +19,12 @@ We use Jest for testing.
 npm run test              # Run all tests
 npm run test:watch        # Run in watch mode
 npm run test:coverage     # Run with coverage report
+```
+
+Before opening a pull request, run the same release-integrity gate used by CI:
+
+```bash
+npm run verify:release
 ```
 
 ## Architecture
@@ -68,5 +76,6 @@ Good starter tasks usually fit one of these areas:
 
 - We use TypeScript strictly (`strict: true`).
 - Follow the existing ESLint and Prettier rules.
-- Run `npm run lint:fix` before submitting a PR.
+- Run `npm run lint:fix` when needed, then run `npm run verify:release` before
+  submitting a PR.
 - Use `--verbose` flag for debug logging during development.
