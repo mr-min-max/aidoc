@@ -3,12 +3,19 @@ import chalk from "chalk";
 import ora from "ora";
 import * as path from "path";
 import { analyzeCodebase } from "../../core/analyzer";
-import { loadCommandContext, writeDoc } from "../context";
+import {
+  hasGenerationInput,
+  loadCommandContext,
+  toWriteDocOptions,
+  writeDoc,
+} from "../context";
 
 export const diagramCommand = new Command("diagram")
   .description("Generate architecture diagram (Mermaid) from code analysis")
   .option("-o, --output <path>", "Output file path", "./docs/architecture.md")
   .option("--dry-run", "Preview without writing")
+  .option("--yes", "Apply generated changes without an interactive prompt")
+  .option("--strict-output", "Fail instead of writing malformed Markdown")
   .option("--mock", "Use mock LLM response for testing")
   .action(async (options) => {
     const spinner = ora("Analyzing project architecture...").start();
@@ -20,7 +27,13 @@ export const diagramCommand = new Command("diagram")
         ctx.config.exclude,
       );
 
-      if (modules.length === 0) {
+      if (
+        !hasGenerationInput(
+          modules.length > 0,
+          options,
+          "No supported source files found.",
+        )
+      ) {
         spinner.warn(chalk.yellow("No supported source files found."));
         return;
       }
@@ -31,10 +44,11 @@ export const diagramCommand = new Command("diagram")
       genSpinner.succeed(chalk.green("Architecture diagram generated!"));
 
       const output = `# Architecture\n\n\`\`\`mermaid\n${diagram}\n\`\`\`\n`;
-      await writeDoc(path.resolve(ctx.cwd, options.output), output, {
-        dryRun: options.dryRun,
-        label: options.output,
-      });
+      await writeDoc(
+        path.resolve(ctx.cwd, options.output),
+        output,
+        toWriteDocOptions(options, options.output),
+      );
     } catch (error: any) {
       spinner.fail(chalk.red("Failed to generate diagram"));
       console.error(chalk.red(error.message));

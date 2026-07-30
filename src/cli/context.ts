@@ -17,6 +17,8 @@ import { logger } from "../core/logger";
 export interface CommandOptions {
   mock?: boolean;
   dryRun?: boolean;
+  yes?: boolean;
+  strictOutput?: boolean;
 }
 
 export interface CommandContext {
@@ -62,7 +64,7 @@ export async function loadCommandContext(
   options: CommandOptions,
   cwd = process.cwd(),
 ): Promise<CommandContext> {
-  const config = loadConfig();
+  const config = loadConfig(cwd);
   const isMock = !!options.mock;
   const generator = isMock
     ? new MockGenerator()
@@ -78,13 +80,23 @@ export async function loadCommandContext(
 export async function writeDoc(
   outputPath: string,
   content: string,
-  opts: { dryRun?: boolean; auto?: boolean; label?: string } = {},
+  opts: {
+    dryRun?: boolean;
+    auto?: boolean;
+    label?: string;
+    strict?: boolean;
+  } = {},
 ): Promise<void> {
   const label = opts.label || path.basename(outputPath);
   const existing = readExistingMarkdown(outputPath);
 
   // Warn (don't fail) on malformed output — e.g. unclosed code fences.
-  const { warnings } = validateMarkdown(content);
+  const { isValid, warnings } = validateMarkdown(content);
+  if (opts.strict && !isValid) {
+    throw new Error(
+      `Generated Markdown failed validation: ${warnings.join("; ")}`,
+    );
+  }
   warnings.forEach((w) => logger.warn(w));
 
   if (existing) {
@@ -110,4 +122,27 @@ export async function writeDoc(
     writeMarkdown(outputPath, content);
     console.log(chalk.green(`✔ Created ${label}`));
   }
+}
+
+export function toWriteDocOptions(
+  options: CommandOptions,
+  label: string,
+): { dryRun?: boolean; auto?: boolean; strict?: boolean; label: string } {
+  return {
+    dryRun: options.dryRun,
+    auto: options.yes,
+    label,
+    strict: options.strictOutput,
+  };
+}
+
+export function hasGenerationInput(
+  condition: boolean,
+  options: CommandOptions,
+  message: string,
+): boolean {
+  if (!condition && options.strictOutput) {
+    throw new Error(message);
+  }
+  return condition;
 }

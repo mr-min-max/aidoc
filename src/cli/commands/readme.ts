@@ -3,12 +3,20 @@ import chalk from "chalk";
 import ora from "ora";
 import * as path from "path";
 import { analyzeCodebase } from "../../core/analyzer";
-import { loadCommandContext, writeDoc, readProjectInfo } from "../context";
+import {
+  hasGenerationInput,
+  loadCommandContext,
+  readProjectInfo,
+  toWriteDocOptions,
+  writeDoc,
+} from "../context";
 
 export const readmeCommand = new Command("readme")
   .description("Generate README.md from code analysis")
   .option("-o, --output <path>", "Output file path", "./README.md")
   .option("--dry-run", "Preview without writing to file")
+  .option("--yes", "Apply generated changes without an interactive prompt")
+  .option("--strict-output", "Fail instead of writing malformed Markdown")
   .option("--no-badges", "Skip badges generation")
   .option("--mock", "Use mock LLM response for testing")
   .action(async (options) => {
@@ -21,7 +29,13 @@ export const readmeCommand = new Command("readme")
         ctx.config.exclude,
       );
 
-      if (modules.length === 0) {
+      if (
+        !hasGenerationInput(
+          modules.length > 0,
+          options,
+          "No supported source files found. Make sure your project has .ts, .js, or .py files.",
+        )
+      ) {
         spinner.warn(
           chalk.yellow(
             "No supported source files found. Make sure your project has .ts, .js, or .py files.",
@@ -66,10 +80,11 @@ export const readmeCommand = new Command("readme")
       }
       genSpinner.succeed(chalk.green("README generated!"));
 
-      await writeDoc(path.resolve(ctx.cwd, options.output), readme, {
-        dryRun: options.dryRun,
-        label: options.output,
-      });
+      await writeDoc(
+        path.resolve(ctx.cwd, options.output),
+        readme,
+        toWriteDocOptions(options, options.output),
+      );
     } catch (error: any) {
       spinner.fail(chalk.red("Failed to generate README"));
       console.error(chalk.red(error.message));

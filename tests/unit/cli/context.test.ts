@@ -9,6 +9,20 @@ describe("loadCommandContext", () => {
     expect(ctx.isMock).toBe(true);
     expect(ctx.generator.constructor.name).toBe("MockGenerator");
   });
+
+  it("loads configuration from the project directory being analyzed", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-context-"));
+    try {
+      fs.writeFileSync(
+        path.join(root, ".aidocrc.json"),
+        JSON.stringify({ model: "project-model" }),
+      );
+      const ctx = await loadCommandContext({ mock: true }, root);
+      expect(ctx.config.model).toBe("project-model");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("writeDoc", () => {
@@ -30,5 +44,13 @@ describe("writeDoc", () => {
   it("dry-run writes nothing", async () => {
     await writeDoc(tmp, "# Hello\n", { dryRun: true });
     expect(fs.existsSync(tmp)).toBe(false);
+  });
+
+  it("rejects invalid Markdown before writing in strict-output mode", async () => {
+    const target = path.join(os.tmpdir(), `aidoc-strict-${Date.now()}.md`);
+    await expect(
+      writeDoc(target, "not a Markdown document", { strict: true }),
+    ).rejects.toThrow(/failed validation/i);
+    expect(fs.existsSync(target)).toBe(false);
   });
 });

@@ -4,7 +4,7 @@ describe("ConfigSchema", () => {
   it("should parse empty object with defaults", () => {
     const result = ConfigSchema.parse({});
     expect(result.provider).toBe("openai");
-    expect(result.model).toBe("gpt-4o-mini");
+    expect(result.model).toBeUndefined();
     expect(result.language).toBe("en");
     expect(result.exclude).toContain("**/node_modules/**");
   });

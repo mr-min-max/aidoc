@@ -4,13 +4,15 @@ module.exports = {
   roots: ['<rootDir>/tests'],
   testMatch: ['**/*.test.ts'],
   transform: {
-    '^.+\\.tsx?$': [
+    '^.+\\.[tj]sx?$': [
       'ts-jest',
       {
         diagnostics: false,
+        tsconfig: { allowJs: true },
       },
     ],
   },
+  transformIgnorePatterns: ['/node_modules/(?!commander/)'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/cli/index.ts',

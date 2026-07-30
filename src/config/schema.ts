@@ -8,7 +8,7 @@ export const ConfigSchema = z.object({
     .refine((val: string) => listProviders().some((p) => p.name === val), {
       message: "Unknown provider. Run `aidoc` with a registered provider name.",
     }),
-  model: z.string().default("gpt-4o-mini"),
+  model: z.string().min(1).optional(),
   apiKey: z.string().optional(),
   ollamaHost: z.string().default("http://localhost:11434"),
   include: z
