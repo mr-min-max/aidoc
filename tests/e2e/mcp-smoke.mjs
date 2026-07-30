@@ -15,8 +15,9 @@ import { clearTimeout, setTimeout } from "node:timers";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
-const COMMAND_TIMEOUT_MS = 15_000;
-const MCP_TIMEOUT_MS = 5_000;
+const PACK_TIMEOUT_MS = 120_000;
+const INSTALL_TIMEOUT_MS = 120_000;
+const MCP_OPERATION_TIMEOUT_MS = 5_000;
 const root = mkdtempSync(join(tmpdir(), "aidoc-mcp-smoke-"));
 let client;
 let transport;
@@ -24,23 +25,25 @@ let transport;
 function terminateProcessTree(child) {
   if (!child.pid) return;
 
+  if (process.platform === "win32") {
+    const taskkill = spawn(
+      "taskkill",
+      ["/PID", String(child.pid), "/T", "/F"],
+      { stdio: "ignore", windowsHide: true },
+    );
+    taskkill.unref();
+    return;
+  }
+
   try {
-    if (process.platform === "win32") {
-      child.kill("SIGTERM");
-    } else {
       process.kill(-child.pid, "SIGTERM");
-    }
   } catch {
     // The process may have exited between the timeout and this cleanup.
   }
 
   setTimeout(() => {
     try {
-      if (process.platform === "win32") {
-        child.kill("SIGKILL");
-      } else {
-        process.kill(-child.pid, "SIGKILL");
-      }
+      process.kill(-child.pid, "SIGKILL");
     } catch {
       // The process was already terminated.
     }
@@ -48,7 +51,7 @@ function terminateProcessTree(child) {
 }
 
 async function runCommand(command, args, options = {}) {
-  const { cwd, timeout = COMMAND_TIMEOUT_MS } = options;
+  const { cwd, timeout } = options;
 
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -100,8 +103,13 @@ async function withTimeout(promise, label) {
       promise,
       new Promise((_, reject) => {
         timer = setTimeout(
-          () => reject(new Error(`${label} timed out after ${MCP_TIMEOUT_MS}ms`)),
-          MCP_TIMEOUT_MS,
+          () =>
+            reject(
+              new Error(
+                `${label} timed out after ${MCP_OPERATION_TIMEOUT_MS}ms`,
+              ),
+            ),
+          MCP_OPERATION_TIMEOUT_MS,
         );
       }),
     ]);
@@ -114,7 +122,7 @@ try {
   const packOutput = await runCommand(
     "npm",
     ["pack", "--json", "--pack-destination", root],
-    { cwd: resolve(".") },
+    { cwd: resolve("."), timeout: PACK_TIMEOUT_MS },
   );
   const [{ filename }] = JSON.parse(packOutput);
   const consumer = join(root, "consumer");
@@ -123,9 +131,11 @@ try {
     join(consumer, "package.json"),
     JSON.stringify({ name: "aidoc-mcp-consumer", private: true }),
   );
-  await runCommand("npm", ["install", "--ignore-scripts", join(root, filename)], {
-    cwd: consumer,
-  });
+  await runCommand(
+    "npm",
+    ["install", "--ignore-scripts", join(root, filename)],
+    { cwd: consumer, timeout: INSTALL_TIMEOUT_MS },
+  );
 
   const fixture = join(root, "fixture-repo");
   mkdirSync(join(fixture, "src"), { recursive: true });
