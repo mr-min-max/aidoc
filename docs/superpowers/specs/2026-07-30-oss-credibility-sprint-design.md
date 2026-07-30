@@ -2,7 +2,7 @@
 
 - **Date:** 2026-07-30
 - **Duration:** 6 calendar days, starting today
-- **Status:** Direction approved; written specification awaiting final review
+- **Status:** Approved for implementation
 
 ## 1. Objective
 
@@ -223,6 +223,12 @@ Check mode must compare a deterministic artifact. Non-deterministic remote LLM
 generation is not a valid freshness oracle; where deterministic regeneration
 is unavailable, check mode must use AST-derived freshness or fail with a clear
 configuration error.
+
+For Day 1, this is an AST-backed **co-change guard**: it can prove that a
+documentation target did or did not change in the same Git range as parseable
+source files. It must not label co-change as semantic correctness or claim that
+the resulting prose is current. Semantic base/head comparison and claim-level
+verification remain Day 3 and Day 4 work.
 
 ### 5.3 MCP transport boundary
 
