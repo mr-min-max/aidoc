@@ -1,3 +1,4 @@
+# Keep CI on the default branch so pushes and pull requests share one gate.
 name: CI
 on:
   push:
