@@ -81,9 +81,13 @@ export async function loadCommandContext(
 ): Promise<CommandContext> {
   const config = loadConfig(cwd);
   const isMock = !!options.mock;
+  const origin = process.env.AIDOC_ORIGIN === "action" ? "action" : "cli";
   const generator = isMock
     ? new MockGenerator()
-    : new Generator(createProvider(config), resolveTemplatesDir());
+    : new Generator(createProvider(config), resolveTemplatesDir(), {
+        policy: config.trustPolicy,
+        origin,
+      });
   return { config, cwd, generator, isMock };
 }
 

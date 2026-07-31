@@ -4,6 +4,7 @@ import * as path from "path";
 import { spawnSync } from "child_process";
 
 const runner = path.resolve("action/run.sh");
+const fakeOpenAiKey = ["fake", "openai", "key", "for", "tests"].join("-");
 
 function setupFakeAidoc(root: string): string {
   const bin = path.join(root, "bin");
@@ -14,6 +15,7 @@ function setupFakeAidoc(root: string): string {
     `#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$*" >> "$AIDOC_FAKE_LOG"
+printf 'trust-policy=%s\norigin=%s\n' "\${AIDOC_TRUST_POLICY:-}" "\${AIDOC_ORIGIN:-}" >> "$AIDOC_FAKE_LOG"
 if [ "\${AIDOC_FAKE_EXIT:-0}" != "0" ]; then
   exit "$AIDOC_FAKE_EXIT"
 fi
@@ -42,17 +44,19 @@ function runRunner(overrides: NodeJS.ProcessEnv = {}): {
   const log = path.join(root, "aidoc.log");
   const githubOutput = path.join(root, "github-output");
   const changedFiles = path.join(root, "changed-files");
+  const inheritedEnvironment = { ...process.env };
+  delete inheritedEnvironment.AIDOC_INPUT_TRUST_POLICY;
   const result = spawnSync("bash", [runner], {
     cwd: root,
     encoding: "utf8",
     env: {
-      ...process.env,
+      ...inheritedEnvironment,
       PATH: `${bin}${path.delimiter}${process.env.PATH}`,
       AIDOC_FAKE_LOG: log,
       GITHUB_OUTPUT: githubOutput,
       AIDOC_CHANGED_FILES_FILE: changedFiles,
       AIDOC_INPUT_PROVIDER: "openai",
-      AIDOC_INPUT_API_KEY: "fake-openai-key-for-tests",
+      AIDOC_INPUT_API_KEY: fakeOpenAiKey,
       AIDOC_INPUT_MODEL: "test-model",
       AIDOC_INPUT_COMMANDS: "readme",
       AIDOC_INPUT_MODE: "generate",
@@ -96,15 +100,26 @@ describe("action/run.sh", () => {
     expect(result.log).toBe("");
   });
 
+  it("rejects an invalid trust-policy input before invoking aidoc", () => {
+    const result = runRunner({ AIDOC_INPUT_TRUST_POLICY: "unsafe" });
+
+    expect(result.status).toBe(2);
+    expect(result.log).toBe("");
+  });
+
   it("uses the real command path without --mock", () => {
     const result = runRunner();
     expect(result.status).toBe(0);
     expect(result.log).toContain(
       "readme --output ./README.md --yes --strict-output",
     );
+    expect(result.log).toContain("trust-policy=strict\norigin=action");
     expect(result.log).not.toContain("--mock");
     expect(result.output).toContain("changed=true");
     expect(result.changedFiles.trim()).toBe("./README.md");
+    expect(
+      [result.log, result.output, result.changedFiles].join("\n"),
+    ).not.toContain(fakeOpenAiKey);
   });
 
   it("uses deterministic check mode without an API key", () => {

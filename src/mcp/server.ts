@@ -192,7 +192,10 @@ export async function handleToolCall(
       );
       const provider = createProvider(config);
       const templatesDir = resolveTemplatesDir();
-      const generator = new Generator(provider, templatesDir);
+      const generator = new Generator(provider, templatesDir, {
+        policy: config.trustPolicy,
+        origin: "mcp",
+      });
 
       const {
         name: projectName,
@@ -223,7 +226,10 @@ export async function handleToolCall(
       );
       const provider = createProvider(config);
       const templatesDir = resolveTemplatesDir();
-      const generator = new Generator(provider, templatesDir);
+      const generator = new Generator(provider, templatesDir, {
+        policy: config.trustPolicy,
+        origin: "mcp",
+      });
       const apiDocs = await generator.generateApiDocs(modules);
       return { content: apiDocs, format: "markdown" };
     }
@@ -237,7 +243,10 @@ export async function handleToolCall(
       );
       const provider = createProvider(config);
       const templatesDir = resolveTemplatesDir();
-      const generator = new Generator(provider, templatesDir);
+      const generator = new Generator(provider, templatesDir, {
+        policy: config.trustPolicy,
+        origin: "mcp",
+      });
       const diagram = await generator.generateDiagram(modules);
       return { content: diagram, format: "mermaid" };
     }

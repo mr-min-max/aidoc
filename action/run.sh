@@ -10,6 +10,15 @@ dry_run="${AIDOC_INPUT_DRY_RUN:-false}"
 since="${AIDOC_INPUT_SINCE:-HEAD~1}"
 api_key="${AIDOC_INPUT_API_KEY:-}"
 changed_files_file="${AIDOC_CHANGED_FILES_FILE:-}"
+trust_policy="${AIDOC_INPUT_TRUST_POLICY:-strict}"
+
+case "$trust_policy" in
+  warn|redact|strict) ;;
+  *) echo "Unsupported aidoc trust policy: $trust_policy" >&2; exit 2 ;;
+esac
+
+export AIDOC_TRUST_POLICY="$trust_policy"
+export AIDOC_ORIGIN="action"
 
 case "$mode" in
   generate|check) ;;

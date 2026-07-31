@@ -23,11 +23,13 @@ describe("loadConfig environment overrides", () => {
       AIDOC_PROVIDER: "anthropic",
       AIDOC_MODEL: "env-model",
       AIDOC_OLLAMA_HOST: "http://ollama.internal:11434",
+      AIDOC_TRUST_POLICY: "strict",
     });
 
     expect(config.provider).toBe("anthropic");
     expect(config.model).toBe("env-model");
     expect(config.ollamaHost).toBe("http://ollama.internal:11434");
+    expect(config.trustPolicy).toBe("strict");
   });
 
   it("rejects an invalid provider instead of silently using OpenAI", () => {

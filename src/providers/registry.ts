@@ -21,6 +21,12 @@ export interface ProviderConfig {
 
 const registry = new Map<string, ProviderDefinition>();
 
+const openAiKey = (config: ProviderConfig): string | undefined =>
+  process.env.OPENAI_API_KEY || config.apiKey;
+
+const anthropicKey = (config: ProviderConfig): string | undefined =>
+  process.env.ANTHROPIC_API_KEY || config.apiKey;
+
 /** Registers a provider. Lets the community add providers without editing core. */
 export function registerProvider(def: ProviderDefinition): void {
   registry.set(def.name, def);
@@ -52,26 +58,21 @@ export function createProvider(config: ProviderConfig): LLMProvider {
 // --- Built-in providers (self-register) ---
 registerProvider({
   name: "openai",
-  available: (c) => !!(c.apiKey || process.env.OPENAI_API_KEY),
+  available: (c) => !!openAiKey(c),
   missingMessage:
     "OpenAI API key is required.\nSet it via:\n" +
-    '  • Environment variable: export OPENAI_API_KEY="sk-..."\n' +
-    '  • Config file: add "apiKey" to .aidocrc.json\n' +
-    "  • .env file: OPENAI_API_KEY=sk-...",
-  create: (c) =>
-    new OpenAIProvider(c.apiKey || process.env.OPENAI_API_KEY!, c.model),
+    '  • Environment variable: export OPENAI_API_KEY="sk-..."',
+  create: (c) => new OpenAIProvider(openAiKey(c)!, c.model),
 });
 
 registerProvider({
   name: "anthropic",
-  available: (c) => !!(c.apiKey || process.env.ANTHROPIC_API_KEY),
+  available: (c) => !!anthropicKey(c),
   missingMessage:
     "Anthropic API key is required.\n" +
     "Set it via:\n" +
-    '  • Environment variable: export ANTHROPIC_API_KEY="sk-ant-..."\n' +
-    '  • Config file: add "apiKey" to .aidocrc.json',
-  create: (c) =>
-    new AnthropicProvider(c.apiKey || process.env.ANTHROPIC_API_KEY!, c.model),
+    '  • Environment variable: export ANTHROPIC_API_KEY="sk-ant-..."',
+  create: (c) => new AnthropicProvider(anthropicKey(c)!, c.model),
 });
 
 registerProvider({

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { listProviders } from "../providers/registry";
+import { TRUST_POLICIES } from "../security/types";
 
 export const ConfigSchema = z.object({
   provider: z
@@ -10,6 +11,7 @@ export const ConfigSchema = z.object({
     }),
   model: z.string().min(1).optional(),
   apiKey: z.string().optional(),
+  trustPolicy: z.enum(TRUST_POLICIES).default("redact"),
   ollamaHost: z.string().default("http://localhost:11434"),
   include: z
     .array(z.string())

@@ -14,6 +14,10 @@ inputs:
   api-key:
     description: "API key for the LLM provider"
     required: false
+  trust-policy:
+    description: "Secret handling policy: warn, redact, or strict"
+    required: false
+    default: "strict"
   model:
     description: "Model to use (e.g., gpt-4o-mini, claude-sonnet-4-20250514)"
     required: false
@@ -74,6 +78,7 @@ runs:
       env:
         AIDOC_INPUT_PROVIDER: ${{ inputs.provider }}
         AIDOC_INPUT_API_KEY: ${{ inputs.api-key }}
+        AIDOC_INPUT_TRUST_POLICY: ${{ inputs.trust-policy }}
         AIDOC_INPUT_MODEL: ${{ inputs.model }}
         AIDOC_INPUT_COMMANDS: ${{ inputs.commands }}
         AIDOC_INPUT_MODE: ${{ inputs.mode }}
