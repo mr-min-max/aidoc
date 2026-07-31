@@ -47,9 +47,19 @@ const sensitiveBasenamePattern =
 const awsCredentialsPattern =
   /(?<![A-Za-z0-9._-])\.aws[\\/]credentials(?=$|[\\/\s,;:)"'\]}`<>])/g;
 
+/**
+ * Maintains stable opaque placeholders for one Trust Gate transaction.
+ *
+ * Repeated secret values receive the same marker without returning those values.
+ */
 export class RedactionSession {
   private readonly values = new Map<SecretKind, Map<string, number>>();
 
+  /**
+   * Returns a stable opaque placeholder for a secret during this session.
+   *
+   * The placeholder includes its kind and ordinal, but never the raw value.
+   */
   placeholder(kind: SecretKind, value: string): string {
     const byValue = this.values.get(kind) ?? new Map<string, number>();
     this.values.set(kind, byValue);
@@ -58,6 +68,12 @@ export class RedactionSession {
   }
 }
 
+/**
+ * Scans text and applies a Trust Gate policy to it.
+ *
+ * Strict policy blocks detections, warn preserves the text with findings, and
+ * redact replaces matches with opaque placeholders. Findings never include raw values.
+ */
 export function applySecretPolicy(
   text: string,
   policy: TrustPolicy,
@@ -85,6 +101,11 @@ export function applySecretPolicy(
   };
 }
 
+/**
+ * Redacts detected secrets from a diagnostic before it is surfaced to callers.
+ *
+ * A fresh session prevents provider error text from carrying raw secret values onward.
+ */
 export function sanitizeDiagnostic(text: string): string {
   return applySecretPolicy(text, "redact", new RedactionSession()).text;
 }

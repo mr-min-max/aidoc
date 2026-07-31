@@ -1,6 +1,10 @@
+/** Lists the supported ways the Trust Gate handles detected secret material. */
 export const TRUST_POLICIES = ["warn", "redact", "strict"] as const;
+
+/** Selects whether the Trust Gate reports, redacts, or blocks detected secrets. */
 export type TrustPolicy = (typeof TRUST_POLICIES)[number];
 
+/** Classifies the sensitive material detected without exposing its raw value. */
 export type SecretKind =
   | "openai_api_key"
   | "anthropic_api_key"
@@ -10,17 +14,24 @@ export type SecretKind =
   | "named_secret"
   | "sensitive_path";
 
+/** Aggregates secret detections by kind; matched secret text is never included. */
 export interface FindingSummary {
   kind: SecretKind;
   count: number;
 }
 
+/** Describes text after the configured Trust Gate policy has been applied. */
 export interface TrustTextResult {
   text: string;
   findings: FindingSummary[];
   action: "allowed" | "warned" | "redacted";
 }
 
+/**
+ * Signals that strict policy blocked text containing detected secrets.
+ *
+ * Its findings expose categories and counts only, never the matched values.
+ */
 export class TrustViolationError extends Error {
   readonly code = "TRUST_SECRET_BLOCKED" as const;
 

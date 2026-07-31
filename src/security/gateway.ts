@@ -11,6 +11,7 @@ import {
   TrustViolationError,
 } from "./types";
 
+/** Identifies the generation feature associated with Trust Gate events. */
 export type GenerationOperation =
   | "readme"
   | "api"
@@ -19,14 +20,19 @@ export type GenerationOperation =
   | "diagram"
   | "update";
 
+/** Identifies the entry point that initiated a provider generation request. */
 export type GenerationOrigin = "cli" | "action" | "mcp";
 
+/** Carries both provider-bound text fields that the gateway must approve. */
 export interface ContextEnvelope {
   operation: GenerationOperation;
   systemPrompt: string;
   prompt: string;
 }
 
+/**
+ * Reports a Trust Gate decision without including prompt, response, or matched secret text.
+ */
 export interface TrustEvent {
   stage: "input" | "output" | "error";
   operation: GenerationOperation;
@@ -36,6 +42,7 @@ export interface TrustEvent {
   findings: FindingSummary[];
 }
 
+/** Configures the Trust Gate policy, source, and optional metadata-only event observer. */
 export interface GatewayOptions {
   policy: TrustPolicy;
   origin: GenerationOrigin;
@@ -47,6 +54,12 @@ interface ApprovedInput {
   prompt: string;
 }
 
+/**
+ * Applies the configured Trust Gate policy around provider generation.
+ *
+ * Inputs and final output are approved under that policy, while provider diagnostics are
+ * always sanitized before they are rethrown.
+ */
 export class TrustGateway {
   private readonly session = new RedactionSession();
   private readonly policy: TrustPolicy;
@@ -62,6 +75,11 @@ export class TrustGateway {
     this.eventHook = options.onEvent;
   }
 
+  /**
+   * Generates one provider response after approving its input and final output.
+   *
+   * Strict policy blocks detected input before the provider is called.
+   */
   async generate(
     envelope: ContextEnvelope,
     options: Omit<GenerateOptions, "systemPrompt"> = {},
@@ -71,6 +89,11 @@ export class TrustGateway {
     return this.approveOutput(envelope, output);
   }
 
+  /**
+   * Generates a streamed provider response and delivers only the approved final content.
+   *
+   * The callback runs once after policy evaluation; raw provider chunks are never forwarded.
+   */
   async generateStream(
     envelope: ContextEnvelope,
     options: Omit<GenerateOptions, "systemPrompt">,
