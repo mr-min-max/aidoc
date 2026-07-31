@@ -1,8 +1,15 @@
 import * as fs from "fs";
 import * as path from "path";
 import Handlebars from "handlebars";
-import { LLMProvider } from "../providers/types";
+import { GenerateOptions, LLMProvider } from "../providers/types";
 import { ParsedModule } from "../parsers/types";
+import {
+  GenerationOperation,
+  GenerationOrigin,
+  TrustEvent,
+  TrustGateway,
+} from "../security/gateway";
+import { TrustPolicy } from "../security/types";
 
 interface ReadmeContext {
   projectName: string;
@@ -23,64 +30,82 @@ interface ChangelogContext {
   toRef: string;
 }
 
+export interface GeneratorSecurityOptions {
+  policy?: TrustPolicy;
+  origin?: GenerationOrigin;
+  onEvent?: (event: TrustEvent) => void;
+}
+
 /** Renders prompt templates and delegates generation to the configured LLM provider. */
 export class Generator {
   private templateCache: Map<string, HandlebarsTemplateDelegate> = new Map();
+  private readonly gateway: TrustGateway;
 
   constructor(
-    private provider: LLMProvider,
+    provider: LLMProvider,
     private templatesDir: string,
-  ) {}
+    security: GeneratorSecurityOptions = {},
+  ) {
+    this.gateway = new TrustGateway(provider, {
+      policy: security.policy ?? "redact",
+      origin: security.origin ?? "cli",
+      onEvent: security.onEvent,
+    });
+  }
 
   /** Generates a complete README from project metadata and parsed modules. */
   async generateReadme(context: ReadmeContext): Promise<string> {
     const prompt = this.renderTemplate("readme", context);
-    return this.provider.generate(prompt, {
-      systemPrompt:
-        "You are a professional open-source documentation writer. Output only valid Markdown.",
-      temperature: 0.3,
-    });
+    return this.generateWithTrust(
+      "readme",
+      "You are a professional open-source documentation writer. Output only valid Markdown.",
+      prompt,
+      { temperature: 0.3 },
+    );
   }
 
   /** Generates API reference markdown for exported symbols. */
   async generateApiDocs(modules: ParsedModule[]): Promise<string> {
     const prompt = this.renderTemplate("api-doc", { modules });
-    return this.provider.generate(prompt, {
-      systemPrompt:
-        "You are a technical API documentation writer. Be precise and comprehensive. Output only valid Markdown.",
-      temperature: 0.2,
-    });
+    return this.generateWithTrust(
+      "api",
+      "You are a technical API documentation writer. Be precise and comprehensive. Output only valid Markdown.",
+      prompt,
+      { temperature: 0.2 },
+    );
   }
 
   /** Generates JSDoc comments as structured JSON for undocumented symbols. */
   async generateJsDoc(symbols: any[]): Promise<string> {
     const prompt = this.renderTemplate("jsdoc", { symbols });
-    return this.provider.generate(prompt, {
-      systemPrompt:
-        "You are a TypeScript expert. Generate only valid JSDoc comments. Respond only with valid JSON.",
-      responseFormat: "json",
-      temperature: 0.2,
-    });
+    return this.generateWithTrust(
+      "jsdoc",
+      "You are a TypeScript expert. Generate only valid JSDoc comments. Respond only with valid JSON.",
+      prompt,
+      { responseFormat: "json", temperature: 0.2 },
+    );
   }
 
   /** Generates a changelog entry from normalized git commit metadata. */
   async generateChangelog(context: ChangelogContext): Promise<string> {
     const prompt = this.renderTemplate("changelog", context);
-    return this.provider.generate(prompt, {
-      systemPrompt:
-        'You are a technical writer creating changelog entries. Follow the "Keep a Changelog" format.',
-      temperature: 0.3,
-    });
+    return this.generateWithTrust(
+      "changelog",
+      'You are a technical writer creating changelog entries. Follow the "Keep a Changelog" format.',
+      prompt,
+      { temperature: 0.3 },
+    );
   }
 
   /** Generates a Mermaid architecture diagram from module imports and exports. */
   async generateDiagram(modules: ParsedModule[]): Promise<string> {
     const prompt = this.renderTemplate("diagram", { modules });
-    return this.provider.generate(prompt, {
-      systemPrompt:
-        "You are a software architect. Output only valid Mermaid diagram code without markdown fences.",
-      temperature: 0.2,
-    });
+    return this.generateWithTrust(
+      "diagram",
+      "You are a software architect. Output only valid Mermaid diagram code without markdown fences.",
+      prompt,
+      { temperature: 0.2 },
+    );
   }
 
   /** Updates an existing markdown document using changed files and a diff summary. */
@@ -94,33 +119,39 @@ export class Generator {
       changedFiles: context.changedFiles,
       diffSummary: context.diffSummary.substring(0, 3000),
     });
-    return this.provider.generate(prompt, {
-      systemPrompt:
-        "You are a documentation updater. Preserve the existing structure and only modify sections affected by code changes.",
-      temperature: 0.2,
-    });
+    return this.generateWithTrust(
+      "update",
+      "You are a documentation updater. Preserve the existing structure and only modify sections affected by code changes.",
+      prompt,
+      { temperature: 0.2 },
+    );
   }
 
-  /** Streams a readme, calling onToken for each chunk. Falls back if unsupported. */
+  /** Generates a readme and calls onToken once with the approved completed response. */
   async generateReadmeStream(
     context: ReadmeContext,
     onToken: (token: string) => void,
   ): Promise<string> {
     const prompt = this.renderTemplate("readme", context);
-    if (this.provider.generateStream) {
-      return this.provider.generateStream(
+    return this.gateway.generateStream(
+      {
+        operation: "readme",
+        systemPrompt:
+          "You are a professional open-source documentation writer. Output only valid Markdown.",
         prompt,
-        {
-          systemPrompt:
-            "You are a professional open-source documentation writer. Output only valid Markdown.",
-          temperature: 0.3,
-        },
-        onToken,
-      );
-    }
-    const result = await this.generateReadme(context);
-    onToken(result);
-    return result;
+      },
+      { temperature: 0.3 },
+      onToken,
+    );
+  }
+
+  private generateWithTrust(
+    operation: GenerationOperation,
+    systemPrompt: string,
+    prompt: string,
+    options: Omit<GenerateOptions, "systemPrompt">,
+  ): Promise<string> {
+    return this.gateway.generate({ operation, systemPrompt, prompt }, options);
   }
 
   private renderTemplate(name: string, context: any): string {
