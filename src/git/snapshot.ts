@@ -224,7 +224,13 @@ export class GitSnapshotReader {
     candidates.push("origin/main", "main", "origin/master", "master", "HEAD~1");
     for (const candidate of candidates) {
       try {
-        return await this.resolveCommit(candidate, "PLAN_BASE_NOT_FOUND");
+        const resolved = await this.resolveCommit(
+          candidate,
+          "PLAN_BASE_NOT_FOUND",
+        );
+        if (resolved === head && !(await this.hasParent(head)))
+          return EMPTY_TREE;
+        return resolved;
       } catch {
         /* next */
       }
@@ -235,6 +241,14 @@ export class GitSnapshotReader {
       return EMPTY_TREE;
     }
     return head;
+  }
+  private async hasParent(commit: string): Promise<boolean> {
+    try {
+      await this.run(["rev-parse", "--verify", `${commit}^`]);
+      return true;
+    } catch {
+      return false;
+    }
   }
   private async committedDiff(
     base: string,
