@@ -14,7 +14,7 @@ trust_policy="${AIDOC_INPUT_TRUST_POLICY:-strict}"
 
 case "$trust_policy" in
   warn|redact|strict) ;;
-  *) echo "Unsupported aidoc trust policy: $trust_policy" >&2; exit 2 ;;
+  *) echo "Unsupported aidoc trust-policy input" >&2; exit 2 ;;
 esac
 
 export AIDOC_TRUST_POLICY="$trust_policy"
@@ -22,12 +22,12 @@ export AIDOC_ORIGIN="action"
 
 case "$mode" in
   generate|check) ;;
-  *) echo "Unsupported aidoc Action mode: $mode" >&2; exit 2 ;;
+  *) echo "Unsupported aidoc Action mode input" >&2; exit 2 ;;
 esac
 
 case "$dry_run" in
   true|false) ;;
-  *) echo "Unsupported aidoc dry-run value: $dry_run" >&2; exit 2 ;;
+  *) echo "Unsupported aidoc dry-run input" >&2; exit 2 ;;
 esac
 
 case "$provider" in
@@ -40,13 +40,13 @@ case "$provider" in
   ollama)
     ;;
   *)
-    echo "Unsupported aidoc provider: $provider" >&2
+    echo "Unsupported aidoc provider input" >&2
     exit 2
     ;;
 esac
 
 if [ "$mode" = "generate" ] && [ "$provider" != "ollama" ] && [ -z "$api_key" ]; then
-  echo "The $provider provider requires the api-key Action input" >&2
+  echo "The selected remote provider requires the api-key Action input" >&2
   exit 2
 fi
 
@@ -68,7 +68,7 @@ for raw_command in "${command_list[@]}"; do
     api) output_file="$output_dir/API.md" ;;
     changelog) output_file="./CHANGELOG.md" ;;
     diagram) output_file="$output_dir/architecture.md" ;;
-    *) echo "Unsupported aidoc command: $command_name" >&2; exit 2 ;;
+    *) echo "Unsupported aidoc command input" >&2; exit 2 ;;
   esac
 
   if [ "$mode" = "check" ]; then

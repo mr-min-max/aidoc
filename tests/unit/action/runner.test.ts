@@ -5,6 +5,7 @@ import { spawnSync } from "child_process";
 
 const runner = path.resolve("action/run.sh");
 const fakeOpenAiKey = ["fake", "openai", "key", "for", "tests"].join("-");
+const fakeValidationCredential = ["sk", "proj", "V".repeat(32)].join("-");
 
 function setupFakeAidoc(root: string): string {
   const bin = path.join(root, "bin");
@@ -36,6 +37,7 @@ fi
 function runRunner(overrides: NodeJS.ProcessEnv = {}): {
   status: number | null;
   log: string;
+  stderr: string;
   output: string;
   changedFiles: string;
 } {
@@ -70,6 +72,7 @@ function runRunner(overrides: NodeJS.ProcessEnv = {}): {
   const response = {
     status: result.status,
     log: fs.existsSync(log) ? fs.readFileSync(log, "utf8") : "",
+    stderr: result.stderr,
     output: fs.existsSync(githubOutput)
       ? fs.readFileSync(githubOutput, "utf8")
       : "",
@@ -83,8 +86,13 @@ function runRunner(overrides: NodeJS.ProcessEnv = {}): {
 
 describe("action/run.sh", () => {
   it("propagates generation failures", () => {
-    const result = runRunner({ AIDOC_FAKE_EXIT: "23" });
-    expect(result.status).toBe(23);
+    const result = runRunner({ AIDOC_FAKE_EXIT: "1" });
+    expect(result.status).toBe(1);
+  });
+
+  it("propagates a strict policy rejection from the aidoc CLI", () => {
+    const result = runRunner({ AIDOC_FAKE_EXIT: "2" });
+    expect(result.status).toBe(2);
   });
 
   it("fails generation when a remote provider credential is missing", () => {
@@ -105,6 +113,34 @@ describe("action/run.sh", () => {
 
     expect(result.status).toBe(2);
     expect(result.log).toBe("");
+  });
+
+  it.each([
+    ["trust-policy", { AIDOC_INPUT_TRUST_POLICY: fakeValidationCredential }],
+    ["mode", { AIDOC_INPUT_MODE: fakeValidationCredential }],
+    ["dry-run", { AIDOC_INPUT_DRY_RUN: fakeValidationCredential }],
+    ["provider", { AIDOC_INPUT_PROVIDER: fakeValidationCredential }],
+    ["command", { AIDOC_INPUT_COMMANDS: fakeValidationCredential }],
+  ])(
+    "does not echo an invalid %s input before aidoc starts",
+    (_branch, overrides) => {
+      const result = runRunner(overrides);
+
+      expect(result.status).toBe(2);
+      expect(result.log).toBe("");
+      expect(result.stderr).not.toContain(fakeValidationCredential);
+    },
+  );
+
+  it("does not echo unrelated hostile inputs when a remote credential is missing", () => {
+    const result = runRunner({
+      AIDOC_INPUT_API_KEY: "",
+      AIDOC_INPUT_COMMANDS: fakeValidationCredential,
+    });
+
+    expect(result.status).toBe(2);
+    expect(result.log).toBe("");
+    expect(result.stderr).not.toContain(fakeValidationCredential);
   });
 
   it("uses the real command path without --mock", () => {

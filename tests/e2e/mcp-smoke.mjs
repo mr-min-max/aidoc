@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
 import { execFileSync, spawn } from "node:child_process";
 import {
+  chmodSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -24,6 +25,7 @@ const fakeFormatterKey = ["sk", "proj", "F".repeat(32)].join("-");
 const root = mkdtempSync(join(tmpdir(), "aidoc-mcp-smoke-"));
 let client;
 let transport;
+let originalGitConfig;
 
 function createThrowingConfigFixture(name, source) {
   const directory = join(root, name);
@@ -153,18 +155,44 @@ try {
 
   const fixture = join(root, "fixture-repo");
   mkdirSync(join(fixture, "src"), { recursive: true });
+  const emptyGitTemplate = join(fixture, "empty-git-template");
+  const hostileHooks = join(fixture, "hostile-hooks");
+  const hostileGitConfig = join(fixture, "hostile.gitconfig");
+  mkdirSync(join(emptyGitTemplate, "hooks"), { recursive: true });
+  mkdirSync(hostileHooks);
+  writeFileSync(
+    join(hostileHooks, "pre-commit"),
+    "#!/usr/bin/env bash\nexit 1\n",
+  );
+  chmodSync(join(hostileHooks, "pre-commit"), 0o755);
+  writeFileSync(
+    hostileGitConfig,
+    `[commit]\n\tgpgSign = true\n[core]\n\thooksPath = ${hostileHooks}\n`,
+  );
+  originalGitConfig = process.env.GIT_CONFIG_GLOBAL;
+  process.env.GIT_CONFIG_GLOBAL = hostileGitConfig;
   writeFileSync(join(fixture, "README.md"), "# MCP fixture\n");
   writeFileSync(
     join(fixture, "src", "index.ts"),
     "export function api(): number { return 1; }\n",
   );
   const git = (...args) =>
-    execFileSync("git", args, {
-      cwd: fixture,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-    }).trim();
-  git("init", "--quiet");
+    execFileSync(
+      "git",
+      [
+        "-c",
+        "commit.gpgSign=false",
+        "-c",
+        `core.hooksPath=${join(emptyGitTemplate, "hooks")}`,
+        ...args,
+      ],
+      {
+        cwd: fixture,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    ).trim();
+  git("init", "--quiet", `--template=${emptyGitTemplate}`);
   git("config", "user.name", "aidoc test");
   git("config", "user.email", "aidoc-test@example.invalid");
   git("add", ".");
@@ -309,7 +337,7 @@ throw error;
       (item) => item.type === "text",
     );
     assert.ok(hostileText && "text" in hostileText);
-    assert.equal(hostileText.text, "Unknown MCP error.");
+    assert.equal(hostileText.text, "Unknown MCP error.", label);
     assert.equal(hostileText.text.includes(fakeFormatterKey), false);
   }
 
@@ -334,4 +362,9 @@ throw error;
   }
   await transport?.close().catch(() => {});
   rmSync(root, { recursive: true, force: true });
+  if (originalGitConfig === undefined) {
+    delete process.env.GIT_CONFIG_GLOBAL;
+  } else {
+    process.env.GIT_CONFIG_GLOBAL = originalGitConfig;
+  }
 }
