@@ -22,7 +22,7 @@ all succeed.
 - Retry logic with exponential backoff
 - Structured logging with `--verbose`
 - Documentation health scoring (`aidoc score`)
-- Live watch mode with streaming LLM output (`aidoc watch`)
+- Live watch mode with non-streaming LLM regeneration (`aidoc watch`)
 - Pluggable provider registry
 
 ## In progress
