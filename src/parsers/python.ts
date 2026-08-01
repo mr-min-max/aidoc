@@ -293,6 +293,34 @@ def is_overload_declaration(node):
         for decorator in node.decorator_list
     )
 
+def property_accessor_kind(node):
+    for decorator in node.decorator_list:
+        if decorator_terminal_name(decorator) == 'property':
+            return 'property'
+        if (
+            isinstance(decorator, ast.Attribute)
+            and decorator.attr in ('getter', 'setter', 'deleter')
+            and decorator_terminal_name(decorator.value) == node.name
+        ):
+            return decorator.attr
+    return None
+
+def effective_property_accessors(nodes):
+    accessors = {}
+    for node in nodes:
+        kind = property_accessor_kind(node)
+        if kind == 'property':
+            accessors = {'getter': node}
+        elif kind in ('getter', 'setter', 'deleter'):
+            accessors[kind] = node
+        else:
+            accessors = {}
+    return [
+        (kind, accessors[kind])
+        for kind in ('getter', 'setter', 'deleter')
+        if kind in accessors
+    ]
+
 def callable_contract_payloads(node, is_method=False):
     arguments = copy.deepcopy(node.args)
     if is_method and not is_static_method(node):
@@ -351,12 +379,21 @@ def sorted_unique_payloads(payloads):
         unique[canonical_payload(payload)] = payload
     return [unique[key] for key in sorted(unique)]
 
+def callable_group_contract_nodes(nodes, is_method=False):
+    overloads = [node for node in nodes if is_overload_declaration(node)]
+    if overloads:
+        return overloads
+    if is_method:
+        accessors = effective_property_accessors(nodes)
+        if len(accessors) > 1:
+            return [node for _, node in accessors]
+    return [nodes[-1]]
+
 def callable_group_contract_payloads(nodes, is_method=False):
     if len(nodes) == 1:
         return callable_contract_payloads(nodes[0], is_method)
 
-    overloads = [node for node in nodes if is_overload_declaration(node)]
-    contract_nodes = overloads if overloads else [nodes[-1]]
+    contract_nodes = callable_group_contract_nodes(nodes, is_method)
     contributions = [
         callable_contract_payloads(node, is_method)
         for node in contract_nodes
@@ -377,6 +414,17 @@ def callable_group_contract_payloads(nodes, is_method=False):
 
 def callable_group_implementation_payload(nodes, is_method=False):
     overloads = [node for node in nodes if is_overload_declaration(node)]
+    if is_method and not overloads:
+        accessors = effective_property_accessors(nodes)
+        if len(accessors) > 1:
+            return [
+                {
+                    'accessor': kind,
+                    'body': body_payload(node.body),
+                }
+                for kind, node in accessors
+            ]
+
     implementations = [
         node for node in nodes if not is_overload_declaration(node)
     ]
@@ -396,8 +444,7 @@ def callable_group_symbol(nodes, kind, qualified_name, is_method=False):
     if len(nodes) == 1:
         return callable_symbol(nodes[0], kind, qualified_name, is_method)
 
-    overloads = [node for node in nodes if is_overload_declaration(node)]
-    contract_nodes = overloads if overloads else [nodes[-1]]
+    contract_nodes = callable_group_contract_nodes(nodes, is_method)
     symbol = build_symbol(
         kind,
         qualified_name,
