@@ -55,9 +55,7 @@ export const annotateCommand = new Command("annotate")
         annotations = JSON.parse(stripCodeFences(response));
       } catch {
         throw new Error(
-          "LLM returned malformed JSON for annotations. Try again or use --mock. " +
-            "Raw response:\n" +
-            response.slice(0, 500),
+          "LLM returned malformed JSON for annotations. Try again or use --mock.",
         );
       }
       genSpinner.succeed(chalk.green("JSDoc comments generated!"));

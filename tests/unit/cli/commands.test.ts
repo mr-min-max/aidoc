@@ -2,10 +2,15 @@ import { readmeCommand } from "../../../src/cli/commands/readme";
 import { apiCommand } from "../../../src/cli/commands/api";
 import { changelogCommand } from "../../../src/cli/commands/changelog";
 import { diagramCommand } from "../../../src/cli/commands/diagram";
+import { annotateCommand } from "../../../src/cli/commands/annotate";
+import { MockGenerator } from "../../../src/cli/mock-generator";
+import { defaultConfig } from "../../../src/config/loader";
 import {
   hasGenerationInput,
   toWriteDocOptions,
 } from "../../../src/cli/context";
+import * as commandContext from "../../../src/cli/context";
+import * as analyzer from "../../../src/core/analyzer";
 import * as path from "path";
 import { Project, SyntaxKind } from "ts-morph";
 
@@ -77,4 +82,64 @@ describe("Action-compatible generation commands", () => {
       ).toBe(true);
     },
   );
+});
+
+describe("annotate command diagnostics", () => {
+  it("reports malformed annotation JSON without the raw provider response", async () => {
+    const fakeKey = ["sk", "proj", "A".repeat(32)].join("-");
+    const generator = new MockGenerator();
+    const generate = jest
+      .spyOn(generator, "generateJsDoc")
+      .mockResolvedValue(`not valid JSON ${fakeKey}`);
+    const loadContext = jest
+      .spyOn(commandContext, "loadCommandContext")
+      .mockResolvedValue({
+        config: defaultConfig,
+        cwd: process.cwd(),
+        generator,
+        isMock: true,
+      });
+    const analyze = jest.spyOn(analyzer, "analyzeCodebase").mockResolvedValue([
+      {
+        filePath: path.resolve("src/example.ts"),
+        language: "typescript",
+        functions: [
+          {
+            name: "example",
+            parameters: [],
+            returnType: "void",
+            isAsync: false,
+            isExported: true,
+            lineRange: [1, 1],
+            signature: "export function example(): void",
+          },
+        ],
+        classes: [],
+        types: [],
+        imports: [],
+      },
+    ]);
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const exit = jest
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+
+    try {
+      await annotateCommand.parseAsync(["--all"], { from: "user" });
+
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      expect(consoleError).toHaveBeenCalledWith(
+        "LLM returned malformed JSON for annotations. Try again or use --mock.",
+      );
+      expect(String(consoleError.mock.calls[0]?.[0])).not.toContain(fakeKey);
+    } finally {
+      generate.mockRestore();
+      loadContext.mockRestore();
+      analyze.mockRestore();
+      consoleError.mockRestore();
+      exit.mockRestore();
+    }
+  });
 });

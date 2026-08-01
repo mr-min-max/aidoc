@@ -1,4 +1,5 @@
 import { logger } from "./logger";
+import { sanitizeDiagnostic } from "../security/scanner";
 
 /** Options for configuring retry behavior. */
 export interface RetryOptions {
@@ -86,7 +87,7 @@ export async function withRetry<T>(
         : baseDelay;
 
       logger.warn(
-        `Attempt ${attempt + 1}/${opts.maxRetries + 1} failed: ${lastError.message}. ` +
+        `Attempt ${attempt + 1}/${opts.maxRetries + 1} failed: ${sanitizeDiagnostic(lastError.message)}. ` +
           `Retrying in ${Math.round(delay)}ms...`,
       );
 

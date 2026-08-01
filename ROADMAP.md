@@ -25,12 +25,18 @@ all succeed.
 - Live watch mode with streaming LLM output (`aidoc watch`)
 - Pluggable provider registry
 
-## Planned
+## In progress
 
-### v0.2.0 — Trust Gate (planned next)
+### v0.2.0-beta.1 — Trust Gate
 
 - Provider-context secret detection and redaction
+
+## Planned
+
+### v0.2.0 — Trust Gate follow-ups
+
 - Repository-contained atomic writes
+- MCP directory allowlisting
 - Security doctor and bounded run receipts
 
 ### v0.3.0 — ProofGraph

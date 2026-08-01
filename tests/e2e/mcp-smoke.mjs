@@ -19,9 +19,18 @@ import { getConfiguredSmokeTarball } from "./smoke-tarball.mjs";
 const PACK_TIMEOUT_MS = 120_000;
 const INSTALL_TIMEOUT_MS = 120_000;
 const MCP_OPERATION_TIMEOUT_MS = 5_000;
+const fakeProviderKey = ["sk", "proj", "M".repeat(32)].join("-");
+const fakeFormatterKey = ["sk", "proj", "F".repeat(32)].join("-");
 const root = mkdtempSync(join(tmpdir(), "aidoc-mcp-smoke-"));
 let client;
 let transport;
+
+function createThrowingConfigFixture(name, source) {
+  const directory = join(root, name);
+  mkdirSync(directory);
+  writeFileSync(join(directory, ".aidocrc.cjs"), source);
+  return directory;
+}
 
 function terminateProcessTree(child) {
   if (!child.pid) return;
@@ -213,6 +222,96 @@ try {
   assert.ok(text && "text" in text);
   const payload = JSON.parse(text.text);
   assert.ok(payload.totalModules >= 1);
+
+  const errorResult = await withTimeout(
+    client.callTool({
+      name: `unknown-${fakeProviderKey}`,
+      arguments: {},
+    }),
+    "MCP sanitized error",
+  );
+  assert.equal(errorResult.isError, true);
+  const errorText = errorResult.content.find((item) => item.type === "text");
+  assert.ok(errorText && "text" in errorText);
+  assert.match(errorText.text, /<AIDOC_REDACTED:OPENAI_API_KEY:1>/);
+  assert.equal(errorText.text.includes(fakeProviderKey), false);
+
+  const hostileConfigFixtures = [
+    {
+      label: "throwing message getter",
+      directory: createThrowingConfigFixture(
+        "hostile-message-getter",
+        `const error = new Error("unused");
+Object.defineProperty(error, "message", {
+  get() { throw new Error("${fakeFormatterKey}"); },
+});
+throw error;
+`,
+      ),
+    },
+    {
+      label: "throwing code getter",
+      directory: createThrowingConfigFixture(
+        "hostile-code-getter",
+        `const error = new Error("safe provider failure");
+let codeReads = 0;
+Object.defineProperty(error, "code", {
+  get() {
+    codeReads += 1;
+    if (codeReads <= 4) return "NOT_A_FILE_ERROR";
+    throw new Error("${fakeFormatterKey}");
+  },
+});
+throw error;
+`,
+      ),
+    },
+    {
+      label: "throwing instanceof check",
+      directory: createThrowingConfigFixture(
+        "hostile-instanceof",
+        `const target = new Error("unused");
+const error = new Proxy(target, {
+  get(current, property, receiver) {
+    if (property === "code") return "NOT_A_FILE_ERROR";
+    return Reflect.get(current, property, receiver);
+  },
+  getPrototypeOf() { throw new Error("${fakeFormatterKey}"); },
+});
+throw error;
+`,
+      ),
+    },
+    {
+      label: "non-string message",
+      directory: createThrowingConfigFixture(
+        "hostile-message-type",
+        `const error = new Error("unused");
+Object.defineProperty(error, "message", {
+  value: { secret: "${fakeFormatterKey}" },
+});
+throw error;
+`,
+      ),
+    },
+  ];
+
+  for (const { label, directory } of hostileConfigFixtures) {
+    const hostileResult = await withTimeout(
+      client.callTool({
+        name: "generate_readme",
+        arguments: { directory },
+      }),
+      `MCP ${label}`,
+    );
+    assert.equal(hostileResult.isError, true);
+    const hostileText = hostileResult.content.find(
+      (item) => item.type === "text",
+    );
+    assert.ok(hostileText && "text" in hostileText);
+    assert.equal(hostileText.text, "Unknown MCP error.");
+    assert.equal(hostileText.text.includes(fakeFormatterKey), false);
+  }
 
   const checkResult = await withTimeout(
     client.callTool({

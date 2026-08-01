@@ -25,7 +25,7 @@ It is specifically designed for **Open Source maintainers** who want to spend le
 - ⚡ **In-Process Caching** — Repeated analysis in one process, such as watch mode, can reuse AST parsing results.
 - 🔁 **Resilient** — Built-in retry with exponential backoff for API rate limits and transient errors (wired into every provider).
 - 📊 **Doc Health Scoring** — `aidoc score` grades documentation coverage 0–100 from the AST. No LLM, no API key, instant — with a CI gate (`--min`).
-- 👁️ **Live Watch Mode** — `aidoc watch` regenerates docs in real time as you save files. Streaming LLM output makes generation feel instant.
+- 👁️ **Live Watch Mode** — `aidoc watch` regenerates docs as you save files. Provider streams are buffered until the Trust Gate approves the completed output.
 - 🧩 **Pluggable Providers** — A provider registry lets you add Gemini/Mistral/vLLM without touching core.
 
 ## 🧰 Maintainer Workflows
@@ -76,15 +76,45 @@ Or create a `.aidocrc.json` in your project root:
 {
   "provider": "openai",
   "model": "gpt-4o-mini",
+  "trustPolicy": "redact",
   "include": ["src/**/*.ts", "src/**/*.py"],
   "exclude": ["**/node_modules/**", "**/*.test.ts"],
   "language": "en"
 }
 ```
 
+## 🛡️ Trust Gate beta
+
+The in-progress Trust Gate scans rendered provider input and completed provider
+output for high-confidence secrets. CLI and MCP configuration defaults to
+`redact`, which replaces detected values with typed placeholders before
+transport or return. Set `.aidocrc.json` `trustPolicy` to `strict` to block
+detected input or output. `warn` is explicitly permissive: it allows the
+original detected material to cross the provider boundary and reach consumers.
+
+The GitHub Action defaults to `strict` and exports its selected policy over
+project configuration. Override it explicitly when needed:
+
+```yaml
+with:
+  trust-policy: redact
+```
+
+Use provider-specific environment variables such as `OPENAI_API_KEY` and
+`ANTHROPIC_API_KEY` for credentials. The legacy `.aidocrc` `apiKey` field is
+deprecated, has lower precedence than environment credentials, and remains
+readable only for a beta compatibility window.
+
+Streaming responses are buffered until the complete output passes the same
+policy check, so progressive token display is temporarily unavailable. This
+beta does not yet provide filesystem containment, MCP directory allowlisting,
+`aidoc doctor --security`, or persisted receipts. Secret redaction is not a
+prompt-injection defense or an operating-system sandbox.
+
 ## 🛠️ Commands
 
 ### Generate README
+
 ```bash
 aidoc readme                          # Generate README.md
 aidoc readme --dry-run                # Preview without saving
@@ -92,38 +122,45 @@ aidoc readme --output docs/README.md  # Custom output path
 ```
 
 ### Generate API Docs
+
 ```bash
 aidoc api --output docs/API.md        # Generate API reference
 ```
 
 ### Auto-Annotate Code
+
 ```bash
 aidoc annotate --all                  # Add JSDoc to all undocumented functions
 aidoc annotate --file src/index.ts    # Annotate specific file
 ```
 
 ### Generate Changelog
+
 ```bash
 aidoc changelog --version v1.0.0      # From latest tag
 aidoc changelog --from HEAD~10        # From specific ref
 ```
 
 ### Generate Architecture Diagram
+
 ```bash
 aidoc diagram --output docs/arch.md   # Mermaid diagram
 ```
 
 ### Diff-Aware Update
+
 ```bash
 aidoc update --target README.md --since HEAD~5  # Give selected Git changes to the provider
 ```
 
 ### Debug Mode
+
 ```bash
 aidoc readme --verbose                # Enable debug logging
 ```
 
 ### Score Documentation Health
+
 ```bash
 aidoc score                        # 0-100 doc coverage report
 aidoc score --json                 # machine-readable (CI)
@@ -132,6 +169,7 @@ aidoc score -o docs/score.md       # write a report
 ```
 
 ### Watch Mode (live docs)
+
 ```bash
 aidoc watch                        # regenerate README on save
 aidoc watch --auto --target docs/README.md   # no prompts (great for demos)
@@ -219,13 +257,13 @@ aidoc --mcp
 
 ### Available MCP Tools
 
-| Tool | Description |
-|:-----|:------------|
-| `analyze_codebase` | Parse code and return structure (functions, classes, types) |
-| `generate_readme` | Generate README from code analysis |
-| `generate_api_docs` | Generate API reference documentation |
-| `generate_diagram` | Generate Mermaid architecture diagram |
-| `check_docs_freshness` | Run an AST-backed source/document co-change guard |
+| Tool                   | Description                                                 |
+| :--------------------- | :---------------------------------------------------------- |
+| `analyze_codebase`     | Parse code and return structure (functions, classes, types) |
+| `generate_readme`      | Generate README from code analysis                          |
+| `generate_api_docs`    | Generate API reference documentation                        |
+| `generate_diagram`     | Generate Mermaid architecture diagram                       |
+| `check_docs_freshness` | Run an AST-backed source/document co-change guard           |
 
 ## 🏗️ Architecture
 
