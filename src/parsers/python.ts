@@ -351,9 +351,9 @@ def sorted_unique_payloads(payloads):
         unique[canonical_payload(payload)] = payload
     return [unique[key] for key in sorted(unique)]
 
-def callable_group_symbol(nodes, kind, qualified_name, is_method=False):
+def callable_group_contract_payloads(nodes, is_method=False):
     if len(nodes) == 1:
-        return callable_symbol(nodes[0], kind, qualified_name, is_method)
+        return callable_contract_payloads(nodes[0], is_method)
 
     overloads = [node for node in nodes if is_overload_declaration(node)]
     contract_nodes = overloads if overloads else [nodes[-1]]
@@ -373,18 +373,36 @@ def callable_group_symbol(nodes, kind, qualified_name, is_method=False):
         contract_payloads['return'] = sorted_unique_payloads([
             contribution.get('return') for contribution in contributions
         ])
+    return contract_payloads
 
+def callable_group_implementation_payload(nodes, is_method=False):
+    overloads = [node for node in nodes if is_overload_declaration(node)]
     implementations = [
         node for node in nodes if not is_overload_declaration(node)
     ]
-    implementation = (
-        body_payload(implementations[-1].body) if implementations else []
-    )
+    if not implementations:
+        return []
+
+    implementation = implementations[-1]
+    body = body_payload(implementation.body)
+    if not overloads:
+        return body
+    return {
+        'signature': callable_contract_payloads(implementation, is_method),
+        'body': body,
+    }
+
+def callable_group_symbol(nodes, kind, qualified_name, is_method=False):
+    if len(nodes) == 1:
+        return callable_symbol(nodes[0], kind, qualified_name, is_method)
+
+    overloads = [node for node in nodes if is_overload_declaration(node)]
+    contract_nodes = overloads if overloads else [nodes[-1]]
     symbol = build_symbol(
         kind,
         qualified_name,
-        contract_payloads,
-        implementation,
+        callable_group_contract_payloads(nodes, is_method),
+        callable_group_implementation_payload(nodes, is_method),
         contract_nodes[0],
     )
     documentation = sorted_unique_payloads([
@@ -428,14 +446,15 @@ def public_assignment_names(target):
 
 def class_member_contracts(node):
     members = []
+    for name, nodes in group_public_callables(node.body).items():
+        members.append({
+            'kind': 'method',
+            'name': name,
+            'contract': callable_group_contract_payloads(nodes, True),
+        })
+
     for item in node.body:
-        if isinstance(item, CALLABLE_NODES) and not item.name.startswith('_'):
-            members.append({
-                'kind': 'method',
-                'name': item.name,
-                'contract': callable_contract_payloads(item, True),
-            })
-        elif isinstance(item, ast.AnnAssign):
+        if isinstance(item, ast.AnnAssign):
             for name in public_assignment_names(item.target):
                 members.append({
                     'kind': 'property',
@@ -470,13 +489,23 @@ def class_member_contracts(node):
 def class_implementation_payload(node):
     entries = []
     body = node.body[1:] if node.body and is_docstring_statement(node.body[0]) else node.body
+    grouped_methods = group_public_callables(body)
+    effective_methods = {}
+    for name, nodes in grouped_methods.items():
+        implementations = [
+            item for item in nodes if not is_overload_declaration(item)
+        ]
+        effective_node = implementations[-1] if implementations else nodes[-1]
+        effective_methods[id(effective_node)] = {
+            'kind': 'method',
+            'name': name,
+            'body': callable_group_implementation_payload(nodes, True),
+        }
+
     for item in body:
         if isinstance(item, CALLABLE_NODES) and not item.name.startswith('_'):
-            entries.append({
-                'kind': 'method',
-                'name': item.name,
-                'body': body_payload(item.body),
-            })
+            if id(item) in effective_methods:
+                entries.append(effective_methods[id(item)])
         elif isinstance(item, ast.AnnAssign):
             names = public_assignment_names(item.target)
             if names:

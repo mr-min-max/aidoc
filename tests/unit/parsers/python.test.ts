@@ -497,6 +497,134 @@ class Service:
     );
   });
 
+  // Break caught: an overload implementation default is absent from every emitted fingerprint.
+  it("fingerprints overload implementation defaults only as implementation details", async () => {
+    const first = await parser.snapshot(
+      "src/convert.py",
+      `from typing import overload
+
+@overload
+def convert(value: str) -> str: ...
+@overload
+def convert(value: int) -> int: ...
+def convert(value="first-runtime-default"):
+    return value
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/convert.py",
+      `from typing import overload
+
+@overload
+def convert(value: str) -> str: ...
+@overload
+def convert(value: int) -> int: ...
+def convert(value="second-runtime-default"):
+    return value
+`,
+    );
+
+    expect(changed.symbols[0].contractFacets).toEqual(
+      first.symbols[0].contractFacets,
+    );
+    expect(changed.symbols[0].contractFingerprint).toBe(
+      first.symbols[0].contractFingerprint,
+    );
+    expect(changed.symbols[0].implementationFingerprint).not.toBe(
+      first.symbols[0].implementationFingerprint,
+    );
+    for (const sourceValue of [
+      "first-runtime-default",
+      "second-runtime-default",
+    ]) {
+      expect(JSON.stringify(first)).not.toContain(sourceValue);
+      expect(JSON.stringify(changed)).not.toContain(sourceValue);
+    }
+  });
+
+  // Break caught: an overload method's body-bearing runtime signature is omitted or made public contract.
+  it("fingerprints overload runtime signatures only as implementation details", async () => {
+    const first = await parser.snapshot(
+      "src/service.py",
+      `from typing import overload
+
+class Service:
+    @overload
+    def run(self, value: str) -> str: ...
+    @overload
+    def run(self, value: int) -> int: ...
+    def run(self, value):
+        return value
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/service.py",
+      `from typing import overload
+
+class Service:
+    @overload
+    def run(self, value: str) -> str: ...
+    @overload
+    def run(self, value: int) -> int: ...
+    def run(self, value, *, trace=False):
+        return value
+`,
+    );
+    const originalClass = first.symbols.find(({ kind }) => kind === "class");
+    const changedClass = changed.symbols.find(({ kind }) => kind === "class");
+    const originalMethod = first.symbols.find(({ kind }) => kind === "method");
+    const changedMethod = changed.symbols.find(({ kind }) => kind === "method");
+
+    expect(changedMethod?.contractFacets).toEqual(
+      originalMethod?.contractFacets,
+    );
+    expect(changedMethod?.contractFingerprint).toBe(
+      originalMethod?.contractFingerprint,
+    );
+    expect(changedMethod?.implementationFingerprint).not.toBe(
+      originalMethod?.implementationFingerprint,
+    );
+    expect(changedClass?.contractFacets).toEqual(originalClass?.contractFacets);
+    expect(changedClass?.contractFingerprint).toBe(
+      originalClass?.contractFingerprint,
+    );
+    expect(changedClass?.implementationFingerprint).not.toBe(
+      originalClass?.implementationFingerprint,
+    );
+  });
+
+  // Break caught: a shadowed earlier method still contributes to its owning class fingerprints.
+  it("ignores shadowed repeated methods in method and class fingerprints", async () => {
+    const first = await parser.snapshot(
+      "src/service.py",
+      `class Service:
+    def run(self, obsolete: int = 1) -> int:
+        return obsolete + 1
+
+    def run(self, value: str) -> str:
+        return value.strip()
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/service.py",
+      `class Service:
+    async def run(self, obsolete: bytes = b"shadowed-secret") -> bytes:
+        return obsolete
+
+    def run(self, value: str) -> str:
+        return value.strip()
+`,
+    );
+    const originalClass = first.symbols.find(({ kind }) => kind === "class");
+    const changedClass = changed.symbols.find(({ kind }) => kind === "class");
+    const originalMethod = first.symbols.find(({ kind }) => kind === "method");
+    const changedMethod = changed.symbols.find(({ kind }) => kind === "method");
+
+    expect(changedMethod).toEqual(originalMethod);
+    expect(changedClass).toEqual(originalClass);
+    expect(JSON.stringify(changed)).not.toContain("shadowed-secret");
+  });
+
   // Break caught: a valid repeated class identity is rejected as malformed child output.
   it("snapshots the last effective repeated class declaration", async () => {
     const snapshot = await parser.snapshot(
