@@ -1,3 +1,5 @@
+import type { ParserModuleSnapshot } from "../impact/types";
+
 export interface ParameterInfo {
   name: string;
   type?: string;
@@ -68,4 +70,5 @@ export interface LanguageParser {
   readonly name: string;
   readonly supportedExtensions: string[];
   parse(filePath: string): Promise<ParsedModule>;
+  snapshot?(filePath: string, source: string): Promise<ParserModuleSnapshot>;
 }
