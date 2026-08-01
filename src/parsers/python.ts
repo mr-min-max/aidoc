@@ -16,6 +16,55 @@ import {
 } from "../impact/types";
 
 const PYTHON_UNAVAILABLE_CODES = new Set(["ENOENT"]);
+const SNAPSHOT_HASH_PATTERN = /^[0-9a-f]{64}$/u;
+const PYTHON_IDENTIFIER_PATTERN =
+  /^(?!_)(?:_|\p{ID_Start})(?:_|\p{ID_Continue})*$/u;
+const PYTHON_KEYWORDS = new Set([
+  "False",
+  "None",
+  "True",
+  "and",
+  "as",
+  "assert",
+  "async",
+  "await",
+  "break",
+  "class",
+  "continue",
+  "def",
+  "del",
+  "elif",
+  "else",
+  "except",
+  "finally",
+  "for",
+  "from",
+  "global",
+  "if",
+  "import",
+  "in",
+  "is",
+  "lambda",
+  "nonlocal",
+  "not",
+  "or",
+  "pass",
+  "raise",
+  "return",
+  "try",
+  "while",
+  "with",
+  "yield",
+]);
+const SNAPSHOT_SYMBOL_KEYS = [
+  "language",
+  "kind",
+  "qualifiedName",
+  "contractFacets",
+  "contractFingerprint",
+  "implementationFingerprint",
+  "documentationFingerprint",
+] as const;
 
 interface PythonProcessOptions {
   timeout: number;
@@ -29,30 +78,89 @@ type PythonProcessRunner = (
   options: PythonProcessOptions,
 ) => Promise<{ stdout: string; stderr: string }>;
 
-const runPythonProcess: PythonProcessRunner = (command, args, options) =>
-  new Promise((resolve, reject) => {
-    const child = execFile(
-      command,
-      args,
-      {
-        timeout: options.timeout,
-        maxBuffer: options.maxBuffer,
-        encoding: "utf8",
-      },
-      (error, stdout, stderr) => {
-        if (error) {
+/** Creates the process runner used by the parser's production constructor. */
+export function createPythonProcessRunner(): PythonProcessRunner {
+  return (command, args, options) =>
+    new Promise((resolve, reject) => {
+      const child = execFile(
+        command,
+        args,
+        {
+          timeout: options.timeout,
+          maxBuffer: options.maxBuffer,
+          encoding: "utf8",
+        },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve({ stdout, stderr });
+        },
+      );
+      if (child.stdin !== null) {
+        child.stdin.once("error", reject);
+        try {
+          child.stdin.end(options.input);
+        } catch (error: unknown) {
           reject(error);
-          return;
         }
-        resolve({ stdout, stderr });
-      },
-    );
-    child.stdin?.end(options.input);
-  });
+      }
+    });
+}
+
+const runPythonProcess = createPythonProcessRunner();
 
 /** Creates a fixed parser error without retaining untrusted process stderr as its cause. */
 function createSafeParserError(message: string, causeMessage: string): Error {
   return new Error(message, { cause: new Error(causeMessage) });
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasExactKeys(
+  value: Record<string, unknown>,
+  expectedKeys: readonly string[],
+): boolean {
+  const actualKeys = Object.keys(value).sort();
+  const expected = [...expectedKeys].sort();
+  return (
+    actualKeys.length === expected.length &&
+    actualKeys.every((key, index) => key === expected[index])
+  );
+}
+
+function isExactRecord(
+  value: unknown,
+  expectedKeys: readonly string[],
+): value is Record<string, unknown> {
+  return isRecord(value) && hasExactKeys(value, expectedKeys);
+}
+
+function isSnapshotHash(value: unknown): value is string {
+  return typeof value === "string" && SNAPSHOT_HASH_PATTERN.test(value);
+}
+
+function isPublicPythonIdentifier(value: string): boolean {
+  return PYTHON_IDENTIFIER_PATTERN.test(value) && !PYTHON_KEYWORDS.has(value);
+}
+
+function isSafeQualifiedName(
+  kind: "function" | "class" | "method",
+  value: unknown,
+): value is string {
+  if (typeof value !== "string") return false;
+  const parts = value.split(".");
+  if (kind === "method") {
+    return parts.length === 2 && parts.every(isPublicPythonIdentifier);
+  }
+  return parts.length === 1 && isPublicPythonIdentifier(parts[0]);
+}
+
+function invalidSnapshotOutput(): Error {
+  return new Error("Invalid Python snapshot output.");
 }
 
 /**
@@ -113,8 +221,7 @@ def body_payload(statements):
     return ast_payload(stripped)
 
 def node_without_documentation_payload(node):
-    module = ast.Module(body=[copy.deepcopy(node)], type_ignores=[])
-    stripped = DocumentationStripper().visit(module)
+    stripped = DocumentationStripper().visit(copy.deepcopy(node))
     return ast_payload(stripped)
 
 def documentation_fingerprint(node):
@@ -197,6 +304,8 @@ def callable_symbol(node, kind, qualified_name, is_method=False):
 def public_assignment_names(target):
     if isinstance(target, ast.Name) and not target.id.startswith('_'):
         return [target.id]
+    if isinstance(target, ast.Starred):
+        return public_assignment_names(target.value)
     if isinstance(target, (ast.Tuple, ast.List)):
         names = []
         for item in target.elts:
@@ -563,42 +672,79 @@ export class PythonParser implements LanguageParser {
   }
 
   private mapSnapshot(raw: unknown): ParserModuleSnapshot {
-    const data = raw as Record<string, unknown>;
+    if (
+      !isExactRecord(raw, ["language", "dependencyFingerprint", "symbols"]) ||
+      raw.language !== "python" ||
+      !isSnapshotHash(raw.dependencyFingerprint) ||
+      !Array.isArray(raw.symbols)
+    ) {
+      throw invalidSnapshotOutput();
+    }
+
+    const symbols = raw.symbols.map((symbol) => this.mapSnapshotSymbol(symbol));
+    for (let index = 1; index < symbols.length; index += 1) {
+      const previous = `${symbols[index - 1].kind}\u0000${symbols[index - 1].qualifiedName}`;
+      const current = `${symbols[index].kind}\u0000${symbols[index].qualifiedName}`;
+      if (current <= previous) throw invalidSnapshotOutput();
+    }
+
     return {
       language: "python",
-      dependencyFingerprint: data.dependencyFingerprint as string,
-      symbols: ((data.symbols as Array<Record<string, unknown>>) || []).map(
-        (symbol): ParserSymbolSnapshot => ({
-          language: "python",
-          kind: symbol.kind as ParserSymbolSnapshot["kind"],
-          qualifiedName: symbol.qualifiedName as string,
-          contractFacets: this.mapContractFacets(symbol.contractFacets),
-          contractFingerprint: symbol.contractFingerprint as string,
-          implementationFingerprint: symbol.implementationFingerprint as string,
-          documentationFingerprint:
-            symbol.documentationFingerprint === null
-              ? null
-              : (symbol.documentationFingerprint as string),
-        }),
-      ),
+      dependencyFingerprint: raw.dependencyFingerprint,
+      symbols,
+    };
+  }
+
+  private mapSnapshotSymbol(raw: unknown): ParserSymbolSnapshot {
+    if (
+      !isExactRecord(raw, SNAPSHOT_SYMBOL_KEYS) ||
+      raw.language !== "python" ||
+      (raw.kind !== "function" &&
+        raw.kind !== "class" &&
+        raw.kind !== "method") ||
+      !isSafeQualifiedName(raw.kind, raw.qualifiedName) ||
+      !isSnapshotHash(raw.contractFingerprint) ||
+      !isSnapshotHash(raw.implementationFingerprint) ||
+      (raw.documentationFingerprint !== null &&
+        !isSnapshotHash(raw.documentationFingerprint))
+    ) {
+      throw invalidSnapshotOutput();
+    }
+
+    return {
+      language: "python",
+      kind: raw.kind,
+      qualifiedName: raw.qualifiedName,
+      contractFacets: this.mapContractFacets(raw.kind, raw.contractFacets),
+      contractFingerprint: raw.contractFingerprint,
+      implementationFingerprint: raw.implementationFingerprint,
+      documentationFingerprint: raw.documentationFingerprint,
     };
   }
 
   private mapContractFacets(
+    kind: "function" | "class" | "method",
     raw: unknown,
   ): Partial<Record<ContractFacet, string>> {
-    const facets = raw as Record<string, unknown>;
+    const requiredFacets =
+      kind === "class"
+        ? (["inheritance", "members", "modifiers"] as const)
+        : (["parameters", "modifiers"] as const);
+    if (!isRecord(raw)) throw invalidSnapshotOutput();
+
+    const keys = Object.keys(raw);
+    const hasValidKeys =
+      kind === "class"
+        ? hasExactKeys(raw, requiredFacets)
+        : hasExactKeys(raw, requiredFacets) ||
+          hasExactKeys(raw, [...requiredFacets, "return"]);
+    if (!hasValidKeys || keys.some((facet) => !isSnapshotHash(raw[facet]))) {
+      throw invalidSnapshotOutput();
+    }
+
     const mapped: Partial<Record<ContractFacet, string>> = {};
-    for (const facet of [
-      "parameters",
-      "return",
-      "inheritance",
-      "members",
-      "modifiers",
-    ] as const) {
-      if (typeof facets[facet] === "string") {
-        mapped[facet] = facets[facet];
-      }
+    for (const facet of keys as ContractFacet[]) {
+      mapped[facet] = raw[facet] as string;
     }
     return mapped;
   }

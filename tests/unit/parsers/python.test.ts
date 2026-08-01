@@ -520,6 +520,36 @@ async def request(value: int) -> int:
     );
   });
 
+  // Break caught: starred public assignment targets disappear from class fingerprints.
+  it("fingerprints every public name in starred class assignments", async () => {
+    const first = await parser.snapshot(
+      "src/client.py",
+      `class Result:
+    head, *tail = values
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/client.py",
+      `class Result:
+    head, *items = values
+`,
+    );
+    const original = first.symbols[0];
+    const updated = changed.symbols[0];
+
+    expect(updated.contractFacets.members).not.toBe(
+      original.contractFacets.members,
+    );
+    expect(updated.contractFingerprint).not.toBe(original.contractFingerprint);
+    expect(updated.implementationFingerprint).not.toBe(
+      original.implementationFingerprint,
+    );
+    for (const sourceValue of ["values", "tail", "items"]) {
+      expect(JSON.stringify(first)).not.toContain(sourceValue);
+      expect(JSON.stringify(changed)).not.toContain(sourceValue);
+    }
+  });
+
   // Break caught: underscore-prefixed declarations become public symbols.
   it("excludes underscore-prefixed functions, classes, members, and dunder methods", async () => {
     const snapshot = await parser.snapshot(
@@ -675,6 +705,40 @@ def request() -> int:
     );
   });
 
+  // Break caught: a later class string expression is stripped as an artificial module docstring.
+  it("fingerprints non-docstring class string expressions as implementation", async () => {
+    const first = await parser.snapshot(
+      "src/client.py",
+      `class Service:
+    """stable class documentation"""
+    "first implementation sentinel"
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/client.py",
+      `class Service:
+    """stable class documentation"""
+    "second implementation sentinel"
+`,
+    );
+
+    expect(changed.symbols[0].contractFingerprint).toBe(
+      first.symbols[0].contractFingerprint,
+    );
+    expect(changed.symbols[0].documentationFingerprint).toBe(
+      first.symbols[0].documentationFingerprint,
+    );
+    expect(changed.symbols[0].implementationFingerprint).not.toBe(
+      first.symbols[0].implementationFingerprint,
+    );
+    expect(JSON.stringify(first)).not.toContain(
+      "first implementation sentinel",
+    );
+    expect(JSON.stringify(changed)).not.toContain(
+      "second implementation sentinel",
+    );
+  });
+
   // Break caught: in-memory syntax diagnostics expose source text.
   it("rejects snapshot syntax errors with a fixed safe message", async () => {
     const sourceSentinel = ["sk", "snapshot", "X".repeat(32)].join("-");
@@ -717,6 +781,180 @@ def request() -> int:
     expect(capturedArgs).not.toContain(sourceSentinel);
     expect(capturedArgs.join(" ")).not.toContain("stdin-only-sentinel");
     expect(capturedInput).toBe(sourceSentinel);
+  });
+
+  // Break caught: an early-closing real child emits an unhandled stdin EPIPE.
+  it("translates default-runner stdin failures without crashing the process", async () => {
+    type DefaultRunner = (
+      command: string,
+      args: string[],
+      options: { timeout: number; maxBuffer: number; input?: string },
+    ) => Promise<{ stdout: string; stderr: string }>;
+    const pythonModule = jest.requireActual(
+      "../../../src/parsers/python",
+    ) as typeof import("../../../src/parsers/python") & {
+      createPythonProcessRunner?: () => DefaultRunner;
+    };
+    const runnerFactory = pythonModule.createPythonProcessRunner;
+    if (runnerFactory === undefined) {
+      throw new Error("Default Python process runner factory is unavailable.");
+    }
+    const defaultRunner = runnerFactory();
+    const earlyClosingParser = new PythonParser((_command, _args, options) =>
+      defaultRunner("python3", ["-c", "import os; os._exit(0)"], options),
+    );
+    const sourceSentinel = ["sk", "stdin-lifecycle", "L".repeat(32)].join("-");
+    const largeSource = `# ${sourceSentinel}\n${"x".repeat(16 * 1024 * 1024)}`;
+
+    let thrown: unknown;
+    try {
+      await earlyClosingParser.snapshot("src/client.py", largeSource);
+    } catch (error: unknown) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toBe("Failed to parse Python source.");
+    expect(String(thrown)).not.toContain(sourceSentinel);
+    expect(String((thrown as Error).cause)).not.toContain(sourceSentinel);
+  });
+
+  // Break caught: malformed child JSON is trusted as a value-free snapshot.
+  it("rejects malformed child snapshots without retaining returned sentinels", async () => {
+    const hash = "a".repeat(64);
+    const sentinel = ["sk", "invalid-child-json", "J".repeat(32)].join("-");
+    const validSymbol = {
+      language: "python",
+      kind: "function",
+      qualifiedName: "request",
+      contractFacets: {
+        parameters: hash,
+        modifiers: hash,
+      },
+      contractFingerprint: hash,
+      implementationFingerprint: hash,
+      documentationFingerprint: null,
+    };
+    const validSnapshot = {
+      language: "python",
+      dependencyFingerprint: hash,
+      symbols: [validSymbol],
+    };
+    const invalidOutputs: Array<[string, unknown]> = [
+      ["unexpected root field", { ...validSnapshot, source: sentinel }],
+      ["invalid root language", { ...validSnapshot, language: sentinel }],
+      [
+        "invalid dependency hash",
+        { ...validSnapshot, dependencyFingerprint: sentinel },
+      ],
+      ["non-array symbols", { ...validSnapshot, symbols: sentinel }],
+      [
+        "unexpected symbol field",
+        {
+          ...validSnapshot,
+          symbols: [{ ...validSymbol, source: sentinel }],
+        },
+      ],
+      [
+        "invalid symbol language",
+        {
+          ...validSnapshot,
+          symbols: [{ ...validSymbol, language: sentinel }],
+        },
+      ],
+      [
+        "invalid symbol kind",
+        {
+          ...validSnapshot,
+          symbols: [{ ...validSymbol, kind: sentinel }],
+        },
+      ],
+      [
+        "unsafe qualified name",
+        {
+          ...validSnapshot,
+          symbols: [{ ...validSymbol, qualifiedName: sentinel }],
+        },
+      ],
+      [
+        "unexpected facet",
+        {
+          ...validSnapshot,
+          symbols: [
+            {
+              ...validSymbol,
+              contractFacets: {
+                ...validSymbol.contractFacets,
+                source: sentinel,
+              },
+            },
+          ],
+        },
+      ],
+      [
+        "invalid facet hash",
+        {
+          ...validSnapshot,
+          symbols: [
+            {
+              ...validSymbol,
+              contractFacets: {
+                ...validSymbol.contractFacets,
+                parameters: sentinel,
+              },
+            },
+          ],
+        },
+      ],
+      [
+        "invalid combined hash",
+        {
+          ...validSnapshot,
+          symbols: [{ ...validSymbol, contractFingerprint: sentinel }],
+        },
+      ],
+      [
+        "invalid implementation hash",
+        {
+          ...validSnapshot,
+          symbols: [{ ...validSymbol, implementationFingerprint: sentinel }],
+        },
+      ],
+      [
+        "invalid documentation string",
+        {
+          ...validSnapshot,
+          symbols: [{ ...validSymbol, documentationFingerprint: sentinel }],
+        },
+      ],
+      [
+        "invalid documentation type",
+        {
+          ...validSnapshot,
+          symbols: [{ ...validSymbol, documentationFingerprint: 1 }],
+        },
+      ],
+    ];
+
+    for (const [label, output] of invalidOutputs) {
+      const invalidParser = new PythonParser(async () => ({
+        stdout: JSON.stringify(output),
+        stderr: "",
+      }));
+      let thrown: unknown;
+      try {
+        await invalidParser.snapshot("src/client.py", "def request(): pass\n");
+      } catch (error: unknown) {
+        thrown = error;
+      }
+      if (thrown === undefined) {
+        thrown = new Error(`Accepted ${label}: ${sentinel}`);
+      }
+
+      expect((thrown as Error).message).toBe("Failed to parse Python source.");
+      expect(String(thrown)).not.toContain(sentinel);
+      expect(String((thrown as Error).cause)).not.toContain(sentinel);
+    }
   });
 
   // Break caught: child stderr or retained process errors expose in-memory source.
