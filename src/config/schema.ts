@@ -32,6 +32,7 @@ export const ConfigSchema = z.object({
     ]),
   language: z.string().default("en"),
   outputDir: z.string().default("./docs"),
+  maxContextBytes: z.number().int().min(1024).max(1048576).default(12000),
   templates: z.string().optional(),
   readme: z
     .object({
