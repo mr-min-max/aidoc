@@ -272,6 +272,38 @@ describe("TypeScriptParser", () => {
     );
   });
 
+  // Break caught: recursive body exclusion erases block-bodied default expressions from the contract.
+  it("keeps block-bodied function defaults in parameter and combined contract hashes", async () => {
+    const first = await parser.snapshot(
+      "src/default.ts",
+      `
+      export function configure(
+        callback = () => { return "default-one"; }
+      ): void {}
+      `,
+    );
+    const changed = await parser.snapshot(
+      "src/default.ts",
+      `
+      export function configure(
+        callback = () => { return "default-two"; }
+      ): void {}
+      `,
+    );
+    const original = first.symbols[0];
+    const updated = changed.symbols[0];
+
+    expect(updated.contractFacets.parameters).not.toBe(
+      original.contractFacets.parameters,
+    );
+    expect(updated.contractFingerprint).not.toBe(original.contractFingerprint);
+    expect(updated.implementationFingerprint).toBe(
+      original.implementationFingerprint,
+    );
+    expect(JSON.stringify(first)).not.toContain("default-one");
+    expect(JSON.stringify(changed)).not.toContain("default-two");
+  });
+
   // Break caught: implementation literals or operators contaminate the declared contract.
   it("changes only implementation fingerprints for function body changes", async () => {
     const baseline = await parser.snapshot(
@@ -329,6 +361,217 @@ describe("TypeScriptParser", () => {
     expect(initializerFirst.symbols[0].implementationFingerprint).not.toBe(
       conditionFirst.symbols[0].implementationFingerprint,
     );
+  });
+
+  // Break caught: sorting class implementation parts erases initializer and static-block execution order.
+  it("preserves execution order for class initializers and static blocks", async () => {
+    const first = await parser.snapshot(
+      "src/sequence.ts",
+      `
+      export class Sequence {
+        first = record("instance-first");
+        second = record("instance-second");
+        static { record("static-first"); }
+        static { record("static-second"); }
+      }
+      `,
+    );
+    const initializersSwapped = await parser.snapshot(
+      "src/sequence.ts",
+      `
+      export class Sequence {
+        second = record("instance-second");
+        first = record("instance-first");
+        static { record("static-first"); }
+        static { record("static-second"); }
+      }
+      `,
+    );
+    const staticBlocksSwapped = await parser.snapshot(
+      "src/sequence.ts",
+      `
+      export class Sequence {
+        first = record("instance-first");
+        second = record("instance-second");
+        static { record("static-second"); }
+        static { record("static-first"); }
+      }
+      `,
+    );
+    const original = first.symbols[0];
+
+    for (const changed of [initializersSwapped, staticBlocksSwapped]) {
+      expect(changed.symbols[0].contractFingerprint).toBe(
+        original.contractFingerprint,
+      );
+      expect(changed.symbols[0].implementationFingerprint).not.toBe(
+        original.implementationFingerprint,
+      );
+    }
+  });
+
+  // Break caught: runtime callable syntax and private defaults are absent from implementation hashes.
+  it("hashes body-bearing callable syntax and private defaults as implementation", async () => {
+    const baseline = await parser.snapshot(
+      "src/runtime.ts",
+      `
+      export function execute(value: string): unknown;
+      export function execute(value: string): unknown { return value; }
+      `,
+    );
+    const asyncImplementation = await parser.snapshot(
+      "src/runtime.ts",
+      `
+      export function execute(value: string): unknown;
+      export async function execute(value: string): Promise<unknown> { return value; }
+      `,
+    );
+    const generatorImplementation = await parser.snapshot(
+      "src/runtime.ts",
+      `
+      export function execute(value: string): unknown;
+      export function* execute(value: string): Generator<unknown> { return value; }
+      `,
+    );
+    const restImplementation = await parser.snapshot(
+      "src/runtime.ts",
+      `
+      export function execute(value: string): unknown;
+      export function execute(...[value]: [string]): unknown { return value; }
+      `,
+    );
+    const destructuredImplementation = await parser.snapshot(
+      "src/runtime.ts",
+      `
+      export function execute(value: string): unknown;
+      export function execute([value]: [string]): unknown { return value; }
+      `,
+    );
+    const original = baseline.symbols[0];
+
+    for (const changed of [
+      asyncImplementation,
+      generatorImplementation,
+      restImplementation,
+      destructuredImplementation,
+    ]) {
+      expect(changed.symbols[0].contractFingerprint).toBe(
+        original.contractFingerprint,
+      );
+      expect(changed.symbols[0].implementationFingerprint).not.toBe(
+        original.implementationFingerprint,
+      );
+    }
+
+    const privateDefault = await parser.snapshot(
+      "src/private.ts",
+      `
+      export class Worker {
+        private work(value = "private-default-one"): string { return value; }
+      }
+      `,
+    );
+    const privateDefaultChanged = await parser.snapshot(
+      "src/private.ts",
+      `
+      export class Worker {
+        private work(value = "private-default-two"): string { return value; }
+      }
+      `,
+    );
+
+    expect(privateDefaultChanged.symbols[0].contractFingerprint).toBe(
+      privateDefault.symbols[0].contractFingerprint,
+    );
+    expect(privateDefaultChanged.symbols[0].implementationFingerprint).not.toBe(
+      privateDefault.symbols[0].implementationFingerprint,
+    );
+    expect(JSON.stringify(privateDefault)).not.toContain("private-default-one");
+    expect(JSON.stringify(privateDefaultChanged)).not.toContain(
+      "private-default-two",
+    );
+  });
+
+  // Break caught: hidden decorators and accessor staticness are omitted from runtime shape.
+  it("hashes hidden decorators and accessor staticness as implementation", async () => {
+    const baseline = await parser.snapshot(
+      "src/hidden-runtime.ts",
+      `
+      declare const firstMethodDecorator: any;
+      declare const secondMethodDecorator: any;
+      declare const firstAccessorDecorator: any;
+      declare const secondAccessorDecorator: any;
+      export class Worker {
+        @firstMethodDecorator
+        private work(value: string): string { return value; }
+
+        @firstAccessorDecorator
+        private get secret(): string { return "secret"; }
+      }
+      `,
+    );
+    const methodDecoratorChanged = await parser.snapshot(
+      "src/hidden-runtime.ts",
+      `
+      declare const firstMethodDecorator: any;
+      declare const secondMethodDecorator: any;
+      declare const firstAccessorDecorator: any;
+      declare const secondAccessorDecorator: any;
+      export class Worker {
+        @secondMethodDecorator
+        private work(value: string): string { return value; }
+
+        @firstAccessorDecorator
+        private get secret(): string { return "secret"; }
+      }
+      `,
+    );
+    const accessorDecoratorChanged = await parser.snapshot(
+      "src/hidden-runtime.ts",
+      `
+      declare const firstMethodDecorator: any;
+      declare const secondMethodDecorator: any;
+      declare const firstAccessorDecorator: any;
+      declare const secondAccessorDecorator: any;
+      export class Worker {
+        @firstMethodDecorator
+        private work(value: string): string { return value; }
+
+        @secondAccessorDecorator
+        private get secret(): string { return "secret"; }
+      }
+      `,
+    );
+    const accessorBecameStatic = await parser.snapshot(
+      "src/hidden-runtime.ts",
+      `
+      declare const firstMethodDecorator: any;
+      declare const secondMethodDecorator: any;
+      declare const firstAccessorDecorator: any;
+      declare const secondAccessorDecorator: any;
+      export class Worker {
+        @firstMethodDecorator
+        private work(value: string): string { return value; }
+
+        @firstAccessorDecorator
+        private static get secret(): string { return "secret"; }
+      }
+      `,
+    );
+    const original = baseline.symbols[0];
+
+    for (const changed of [
+      methodDecoratorChanged,
+      accessorDecoratorChanged,
+      accessorBecameStatic,
+    ]) {
+      expect(changed.symbols[0].contractFingerprint).toBe(
+        original.contractFingerprint,
+      );
+      expect(changed.symbols[0].implementationFingerprint).not.toBe(
+        original.implementationFingerprint,
+      );
+    }
   });
 
   // Break caught: trivia or source positions enter contract, implementation, or dependency hashes.
@@ -394,6 +637,84 @@ describe("TypeScriptParser", () => {
     expect(JSON.stringify(changed)).not.toContain("revised request docs");
   });
 
+  // Break caught: public member docs never reach their owning class, interface, or enum snapshot.
+  it("aggregates public member documentation into owning declaration hashes", async () => {
+    const first = await parser.snapshot(
+      "src/member-docs.ts",
+      `
+      export class Service {
+        /** property-doc-one */
+        value: string;
+        /** constructor-doc-one */
+        constructor() {}
+        /** accessor-doc-one */
+        get status(): string { return this.value; }
+      }
+      export interface Config {
+        /** interface-property-doc-one */
+        enabled: boolean;
+      }
+      export enum Mode {
+        /** enum-member-doc-one */
+        Active = "active"
+      }
+      `,
+    );
+    const changed = await parser.snapshot(
+      "src/member-docs.ts",
+      `
+      export class Service {
+        /** property-doc-two */
+        value: string;
+        /** constructor-doc-two */
+        constructor() {}
+        /** accessor-doc-two */
+        get status(): string { return this.value; }
+      }
+      export interface Config {
+        /** interface-property-doc-two */
+        enabled: boolean;
+      }
+      export enum Mode {
+        /** enum-member-doc-two */
+        Active = "active"
+      }
+      `,
+    );
+
+    for (const qualifiedName of ["Service", "Config", "Mode"]) {
+      const original = first.symbols.find(
+        (symbol) => symbol.qualifiedName === qualifiedName,
+      );
+      const updated = changed.symbols.find(
+        (symbol) => symbol.qualifiedName === qualifiedName,
+      );
+      expect(updated?.contractFingerprint).toBe(original?.contractFingerprint);
+      expect(updated?.implementationFingerprint).toBe(
+        original?.implementationFingerprint,
+      );
+      expect(original?.documentationFingerprint).not.toBeNull();
+      expect(updated?.documentationFingerprint).not.toBe(
+        original?.documentationFingerprint,
+      );
+    }
+    for (const documentation of [
+      "property-doc-one",
+      "constructor-doc-one",
+      "accessor-doc-one",
+      "interface-property-doc-one",
+      "enum-member-doc-one",
+      "property-doc-two",
+      "constructor-doc-two",
+      "accessor-doc-two",
+      "interface-property-doc-two",
+      "enum-member-doc-two",
+    ]) {
+      expect(JSON.stringify(first)).not.toContain(documentation);
+      expect(JSON.stringify(changed)).not.toContain(documentation);
+    }
+  });
+
   // Break caught: module specifier values leak into symbols or fail to affect dependency identity.
   it("isolates import module specifier changes to the dependency fingerprint", async () => {
     const first = await parser.snapshot(
@@ -440,6 +761,89 @@ describe("TypeScriptParser", () => {
       { kind: "class", qualifiedName: "Vault" },
       { kind: "method", qualifiedName: "Vault.open" },
     ]);
+  });
+
+  // Break caught: literal or computed method source text leaks through qualified identities.
+  it("uses value-free stable identities for literal and computed method names", async () => {
+    const first = await parser.snapshot(
+      "src/computed.ts",
+      `
+      const secretKey = "top-secret-key";
+      export class Vault {
+        ["secret-literal"](): void {}
+        "quoted-secret"(): void {}
+        [secretKey + "class-suffix"](): void {}
+      }
+      export interface Vault {
+        ["secret-literal"](): void;
+        "quoted-secret"(): void;
+        [secretKey + "class-suffix"](): void;
+      }
+      `,
+    );
+    const formatted = await parser.snapshot(
+      "src/computed.ts",
+      `
+      const secretKey = "top-secret-key";
+      export class Vault {
+        [ 'secret\\x2dliteral' ] ( ): void { }
+        'quoted\\x2dsecret' ( ): void { }
+        [ secretKey + 'class\\x2dsuffix' ] ( ): void { }
+      }
+      export interface Vault {
+        [ 'secret\\x2dliteral' ] ( ): void;
+        'quoted\\x2dsecret' ( ): void;
+        [ secretKey + 'class\\x2dsuffix' ] ( ): void;
+      }
+      `,
+    );
+    const methodNames = first.symbols
+      .filter(({ kind }) => kind === "method")
+      .map(({ qualifiedName }) => qualifiedName);
+    const formattedNames = formatted.symbols
+      .filter(({ kind }) => kind === "method")
+      .map(({ qualifiedName }) => qualifiedName);
+
+    expect(methodNames).toHaveLength(3);
+    expect(new Set(methodNames)).toHaveProperty("size", 3);
+    expect(methodNames).toEqual(formattedNames);
+    expect(formatted.symbols).toEqual(first.symbols);
+    for (const qualifiedName of methodNames) {
+      expect(qualifiedName).toMatch(/^Vault\.\[computed:[0-9a-f]{64}\]$/);
+    }
+    for (const sourceValue of [
+      "secret-literal",
+      "quoted-secret",
+      "top-secret-key",
+      "secretKey",
+      "class-suffix",
+    ]) {
+      expect(JSON.stringify(first)).not.toContain(sourceValue);
+    }
+  });
+
+  // Break caught: equivalent numeric spellings create different hashed method identities.
+  it("uses semantic identities for numeric method names", async () => {
+    const first = await parser.snapshot(
+      "src/numeric-methods.ts",
+      `
+      export class NumericMethods {
+        1(): void {}
+        [0x10](): void {}
+      }
+      `,
+    );
+    const equivalent = await parser.snapshot(
+      "src/numeric-methods.ts",
+      `
+      export class NumericMethods {
+        1.0(): void {}
+        [16](): void {}
+      }
+      `,
+    );
+
+    expect(equivalent.symbols).toEqual(first.symbols);
   });
 
   // Break caught: an exported declaration kind is silently excluded from the snapshot boundary.
@@ -651,6 +1055,58 @@ describe("TypeScriptParser", () => {
       "Api",
     ]);
     expect(reordered.symbols).toEqual(first.symbols);
+  });
+
+  // Break caught: merged-interface hashes encode declaration partition boundaries instead of effective shape.
+  it("normalizes equivalent merged interfaces across declaration repartitioning", async () => {
+    const combined = await parser.snapshot(
+      "src/partition.ts",
+      `
+      export interface Api<T> extends Base<T> {
+        first: string;
+        second: number;
+      }
+      `,
+    );
+    const partitioned = await parser.snapshot(
+      "src/partition.ts",
+      `
+      export interface Api<T> extends Base<T> {
+        first: string;
+      }
+      export interface Api<T> {
+        second: number;
+      }
+      `,
+    );
+
+    expect(partitioned.symbols).toEqual(combined.symbols);
+    expect(partitioned.dependencyFingerprint).toBe(
+      combined.dependencyFingerprint,
+    );
+  });
+
+  // Break caught: individual heritage entries retain their original declaration grouping.
+  it("normalizes merged interface heritage across declaration repartitioning", async () => {
+    const combined = await parser.snapshot(
+      "src/heritage.ts",
+      `
+      export interface Api extends FirstBase, SecondBase {
+        value: string;
+      }
+      `,
+    );
+    const partitioned = await parser.snapshot(
+      "src/heritage.ts",
+      `
+      export interface Api extends FirstBase {
+        value: string;
+      }
+      export interface Api extends SecondBase {}
+      `,
+    );
+
+    expect(partitioned.symbols).toEqual(combined.symbols);
   });
 
   // Break caught: class/interface merging emits duplicate method identities or drops implementation changes.

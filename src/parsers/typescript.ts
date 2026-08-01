@@ -292,21 +292,13 @@ export class TypeScriptParser implements LanguageParser {
 
 type AstTuple = [kind: number, text: string | null, children: AstTuple[]];
 type CallableDeclaration = FunctionDeclaration | MethodDeclaration;
+type PublicMethodDeclaration = MethodDeclaration | MethodSignature;
 type PublicClassMember =
   | ConstructorDeclaration
   | GetAccessorDeclaration
   | MethodDeclaration
   | PropertyDeclaration
   | SetAccessorDeclaration;
-type DocumentedDeclaration =
-  | ClassDeclaration
-  | EnumDeclaration
-  | FunctionDeclaration
-  | InterfaceDeclaration
-  | MethodDeclaration
-  | MethodSignature
-  | TypeAliasDeclaration;
-
 const CONTRACT_FACET_ORDER: ContractFacet[] = [
   "parameters",
   "return",
@@ -314,10 +306,7 @@ const CONTRACT_FACET_ORDER: ContractFacet[] = [
   "members",
   "modifiers",
 ];
-const SIGNATURE_EXCLUSIONS = new Set<SyntaxKind>([
-  SyntaxKind.Block,
-  SyntaxKind.JSDoc,
-]);
+const DOCUMENTATION_EXCLUSIONS = new Set<SyntaxKind>([SyntaxKind.JSDoc]);
 
 function extractSnapshotSymbols(
   sourceFile: SourceFile,
@@ -345,13 +334,15 @@ function extractSnapshotSymbols(
     symbols.push(classSnapshot(declaration, className));
 
     const publicMethods = declaration.getMethods().filter(isPublicClassMember);
-    for (const methods of groupByName(publicMethods).values()) {
+    for (const [methodIdentity, methods] of groupByMethodIdentity(
+      publicMethods,
+    )) {
       const overloadGroup = expandCallableDeclarations(methods);
       addMethodContribution(
         methodContributions,
         callableSnapshot(
           "method",
-          `${className}.${overloadGroup[0].getName()}`,
+          `${className}.${methodIdentity}`,
           overloadGroup,
         ),
         true,
@@ -364,15 +355,12 @@ function extractSnapshotSymbols(
   ).values()) {
     const interfaceName = declarations[0].getName();
     symbols.push(interfaceSnapshot(declarations));
-    for (const methods of groupByName(
+    for (const [methodIdentity, methods] of groupByMethodIdentity(
       declarations.flatMap((declaration) => declaration.getMethods()),
-    ).values()) {
+    )) {
       addMethodContribution(
         methodContributions,
-        interfaceMethodSnapshot(
-          `${interfaceName}.${methods[0].getName()}`,
-          methods,
-        ),
+        interfaceMethodSnapshot(`${interfaceName}.${methodIdentity}`, methods),
         false,
       );
     }
@@ -509,9 +497,7 @@ function callableSnapshot(
     ]),
   );
   const signatureShapes = sortNormalized(
-    contractDeclarations.map((declaration) =>
-      normalizeAst(declaration, SIGNATURE_EXCLUSIONS),
-    ),
+    contractDeclarations.map(normalizeDeclarationContract),
   );
   const contractFacets: Partial<Record<ContractFacet, string>> = {
     parameters: fingerprint(parameterShapes),
@@ -529,23 +515,22 @@ function callableSnapshot(
     qualifiedName,
     contractFacets,
     contractFingerprint: fingerprint(["callable", signatureShapes]),
-    implementationFingerprint: fingerprint([
-      "bodies",
+    implementationFingerprint: fingerprint(
       sortNormalized(
-        declarations
-          .map((declaration) => declaration.getBody())
-          .filter(isPresent)
-          .map((body) => normalizeAst(body)),
+        declarations.flatMap((declaration) => {
+          const body = declaration.getBody();
+          if (body === undefined) return [];
+          return [
+            [
+              contractDeclarations.length === declarations.length
+                ? null
+                : runtimeCallableDeclarationShape(declaration),
+              normalizeAst(body),
+            ],
+          ];
+        }),
       ),
-      "overloadImplementationDefaults",
-      contractDeclarations.length === declarations.length
-        ? []
-        : sortNormalized(
-            declarations
-              .filter((declaration) => declaration.getBody() !== undefined)
-              .flatMap(executableParameterInitializers),
-          ),
-    ]),
+    ),
     documentationFingerprint: documentationFingerprint(declarations),
   };
 }
@@ -574,9 +559,7 @@ function interfaceMethodSnapshot(
     ]),
   );
   const signatureShapes = sortNormalized(
-    declarations.map((declaration) =>
-      normalizeAst(declaration, SIGNATURE_EXCLUSIONS),
-    ),
+    declarations.map(normalizeDeclarationContract),
   );
   const contractFacets: Partial<Record<ContractFacet, string>> = {
     parameters: fingerprint(parameterShapes),
@@ -625,33 +608,42 @@ function classSnapshot(
     implementationFingerprint: fingerprint(
       classImplementationShape(declaration),
     ),
-    documentationFingerprint: documentationFingerprint([declaration]),
+    documentationFingerprint: documentationFingerprint([
+      declaration,
+      ...expandCallableDeclarations(
+        declaration.getMethods().filter(isPublicClassMember),
+      ),
+      ...declaration.getProperties().filter(isPublicClassMember),
+      ...declaration.getGetAccessors().filter(isPublicClassMember),
+      ...declaration.getSetAccessors().filter(isPublicClassMember),
+      ...expandConstructorDeclarations(
+        declaration.getConstructors().filter(isPublicClassMember),
+      ),
+    ]),
   };
 }
 
 function interfaceSnapshot(
   declarations: InterfaceDeclaration[],
 ): ParserSymbolSnapshot {
-  const modifiers = sortNormalized(
-    declarations.map((declaration) =>
+  const modifiers = uniqueNormalized(
+    declarations.flatMap((declaration) =>
       declaration.getModifiers().map((modifier) => normalizeAst(modifier)),
     ),
   );
-  const inheritance = sortNormalized(
+  const inheritance = uniqueNormalized(
     declarations.flatMap((declaration) =>
-      declaration.getHeritageClauses().map((clause) => normalizeAst(clause)),
+      declaration
+        .getExtends()
+        .map((heritageType) => normalizeAst(heritageType)),
     ),
   );
-  const members = sortNormalized(
-    declarations.map((declaration) => [
-      declaration
+  const members = uniqueNormalized(
+    declarations.flatMap((declaration) => [
+      ...declaration
         .getTypeParameters()
         .map((parameter) => normalizeAst(parameter)),
-      sortNormalized(
-        declaration
-          .getMembers()
-          .map((member) => normalizeAst(member, SIGNATURE_EXCLUSIONS)),
-      ),
+      ...declaration.getMembers().map(normalizeDeclarationContract),
     ]),
   );
   const contractFacets: Partial<Record<ContractFacet, string>> = {
@@ -666,7 +658,12 @@ function interfaceSnapshot(
     "interface",
     declarations[0].getName(),
     contractFacets,
-    documentationFingerprint(declarations),
+    documentationFingerprint(
+      declarations.flatMap((declaration) => [
+        declaration,
+        ...declaration.getMembers(),
+      ]),
+    ),
   );
 }
 
@@ -697,9 +694,7 @@ function enumSnapshot(declarations: EnumDeclaration[]): ParserSymbolSnapshot {
     members: fingerprint(
       sortNormalized(
         declarations.map((declaration) =>
-          declaration
-            .getMembers()
-            .map((member) => normalizeAst(member, SIGNATURE_EXCLUSIONS)),
+          declaration.getMembers().map(normalizeDeclarationContract),
         ),
       ),
     ),
@@ -715,7 +710,12 @@ function enumSnapshot(declarations: EnumDeclaration[]): ParserSymbolSnapshot {
     "enum",
     declarations[0].getName(),
     contractFacets,
-    documentationFingerprint(declarations),
+    documentationFingerprint(
+      declarations.flatMap((declaration) => [
+        declaration,
+        ...declaration.getMembers(),
+      ]),
+    ),
   );
 }
 
@@ -746,19 +746,17 @@ function publicClassMemberShapes(declaration: ClassDeclaration): unknown[] {
     ],
   ];
 
-  for (const methods of groupByName(
+  for (const [methodIdentity, methods] of groupByMethodIdentity(
     declaration.getMethods().filter(isPublicClassMember),
-  ).values()) {
+  )) {
     const overloadGroup = expandCallableDeclarations(methods);
     const contracts = overloadGroup.some((method) => method.isOverload())
       ? overloadGroup.filter((method) => method.isOverload())
       : overloadGroup;
     shapes.push([
       "method",
-      methods[0].getName(),
-      sortNormalized(
-        contracts.map((method) => normalizeAst(method, SIGNATURE_EXCLUSIONS)),
-      ),
+      methodIdentity,
+      sortNormalized(contracts.map(normalizeDeclarationContract)),
     ]);
   }
   for (const property of declaration
@@ -779,10 +777,7 @@ function publicClassMemberShapes(declaration: ClassDeclaration): unknown[] {
     ...declaration.getGetAccessors(),
     ...declaration.getSetAccessors(),
   ].filter(isPublicClassMember)) {
-    shapes.push([
-      accessor.getKind(),
-      normalizeAst(accessor, SIGNATURE_EXCLUSIONS),
-    ]);
+    shapes.push([accessor.getKind(), normalizeDeclarationContract(accessor)]);
   }
   const constructors = declaration
     .getConstructors()
@@ -796,11 +791,7 @@ function publicClassMemberShapes(declaration: ClassDeclaration): unknown[] {
       : overloadGroup;
     shapes.push([
       "constructor",
-      sortNormalized(
-        contracts.map((constructor) =>
-          normalizeAst(constructor, SIGNATURE_EXCLUSIONS),
-        ),
-      ),
+      sortNormalized(contracts.map(normalizeDeclarationContract)),
     ]);
   }
 
@@ -809,50 +800,63 @@ function publicClassMemberShapes(declaration: ClassDeclaration): unknown[] {
 
 function classImplementationShape(declaration: ClassDeclaration): unknown[] {
   const parts: unknown[] = [];
-  for (const method of declaration.getMethods()) {
-    const body = method.getBody();
-    if (body !== undefined) {
-      parts.push(["method", method.getName(), normalizeAst(body)]);
-    }
-    if (method.getOverloads().length > 0) {
+  for (const member of declaration.getMembers()) {
+    if (Node.isMethodDeclaration(member)) {
+      const body = member.getBody();
+      if (body === undefined) continue;
       parts.push([
-        "methodDefaults",
-        method.getName(),
-        executableParameterInitializers(method),
+        "method",
+        normalizeAst(member.getNameNode()),
+        !isPublicClassMember(member) || member.getOverloads().length > 0
+          ? runtimeCallableDeclarationShape(member)
+          : null,
+        normalizeAst(body),
       ]);
+      continue;
     }
-  }
-  for (const constructor of declaration.getConstructors()) {
-    const body = constructor.getBody();
-    if (body !== undefined) {
-      parts.push(["constructor", normalizeAst(body)]);
-    }
-    if (constructor.getOverloads().length > 0) {
+    if (Node.isConstructorDeclaration(member)) {
+      const body = member.getBody();
+      if (body === undefined) continue;
       parts.push([
-        "constructorDefaults",
-        executableParameterInitializers(constructor),
+        "constructor",
+        !isPublicClassMember(member) || member.getOverloads().length > 0
+          ? runtimeCallableDeclarationShape(member)
+          : null,
+        normalizeAst(body),
       ]);
+      continue;
+    }
+    if (
+      Node.isGetAccessorDeclaration(member) ||
+      Node.isSetAccessorDeclaration(member)
+    ) {
+      const body = member.getBody();
+      if (body === undefined) continue;
+      parts.push([
+        member.getKind(),
+        normalizeAst(member.getNameNode()),
+        isPublicClassMember(member)
+          ? null
+          : runtimeAccessorDeclarationShape(member),
+        normalizeAst(body),
+      ]);
+      continue;
+    }
+    if (Node.isPropertyDeclaration(member)) {
+      const initializer = member.getInitializer();
+      parts.push([
+        "property",
+        normalizeAst(member.getNameNode()),
+        member.isStatic(),
+        initializer === undefined ? null : normalizeAst(initializer),
+      ]);
+      continue;
+    }
+    if (Node.isClassStaticBlockDeclaration(member)) {
+      parts.push(["static", normalizeAst(member.getBody())]);
     }
   }
-  for (const accessor of [
-    ...declaration.getGetAccessors(),
-    ...declaration.getSetAccessors(),
-  ]) {
-    const body = accessor.getBody();
-    if (body !== undefined) {
-      parts.push([accessor.getKind(), accessor.getName(), normalizeAst(body)]);
-    }
-  }
-  for (const property of declaration.getProperties()) {
-    const initializer = property.getInitializer();
-    if (initializer !== undefined) {
-      parts.push(["property", property.getName(), normalizeAst(initializer)]);
-    }
-  }
-  for (const staticBlock of declaration.getStaticBlocks()) {
-    parts.push(["static", normalizeAst(staticBlock.getBody())]);
-  }
-  return sortNormalized(parts);
+  return parts;
 }
 
 function combinedContractFingerprint(
@@ -867,11 +871,9 @@ function combinedContractFingerprint(
   ]);
 }
 
-function documentationFingerprint(
-  declarations: DocumentedDeclaration[],
-): string | null {
-  const docs = declarations
-    .flatMap((declaration) => declaration.getLeadingCommentRanges())
+function documentationFingerprint(nodes: Node[]): string | null {
+  const docs = nodes
+    .flatMap((node) => node.getLeadingCommentRanges())
     .map((comment) => comment.getText())
     .sort(compareText);
   return docs.length === 0 ? null : fingerprint(docs);
@@ -896,6 +898,25 @@ function groupByName<T extends { getName(): string | undefined }>(
     else group.push(declaration);
   }
   return groups;
+}
+
+function groupByMethodIdentity<T extends PublicMethodDeclaration>(
+  declarations: T[],
+): Map<string, T[]> {
+  const groups = new Map<string, T[]>();
+  for (const declaration of declarations) {
+    const identity = safeMethodIdentity(declaration);
+    const group = groups.get(identity);
+    if (group === undefined) groups.set(identity, [declaration]);
+    else group.push(declaration);
+  }
+  return groups;
+}
+
+function safeMethodIdentity(declaration: PublicMethodDeclaration): string {
+  const name = declaration.getNameNode();
+  if (Node.isIdentifier(name)) return name.getText();
+  return `[computed:${fingerprint(["methodName", normalizeAst(name)])}]`;
 }
 
 function expandCallableDeclarations(
@@ -926,20 +947,58 @@ function uniqueNodes<T extends Node>(nodes: T[]): T[] {
   return [...unique.values()];
 }
 
-function executableParameterInitializers(
+function runtimeCallableDeclarationShape(
   declaration: CallableDeclaration | ConstructorDeclaration,
 ): unknown[] {
-  return declaration.getParameters().flatMap((parameter, index) => {
+  return [
+    Node.isAsyncable(declaration) && declaration.isAsync(),
+    Node.isGeneratorable(declaration) && declaration.isGenerator(),
+    Node.isStaticable(declaration) && declaration.isStatic(),
+    Node.isDecoratable(declaration)
+      ? declaration.getDecorators().map((decorator) => normalizeAst(decorator))
+      : [],
+    runtimeParameterShapes(declaration.getParameters()),
+  ];
+}
+
+function runtimeAccessorDeclarationShape(
+  declaration: GetAccessorDeclaration | SetAccessorDeclaration,
+): unknown[] {
+  return [
+    declaration.isStatic(),
+    declaration.getDecorators().map((decorator) => normalizeAst(decorator)),
+    runtimeParameterShapes(declaration.getParameters()),
+  ];
+}
+
+function runtimeParameterShapes(parameters: ParameterDeclaration[]): unknown[] {
+  return parameters.map((parameter) => {
     const initializer = parameter.getInitializer();
-    return initializer === undefined
-      ? []
-      : [[index, normalizeAst(initializer)]];
+    return [
+      normalizeAst(parameter.getNameNode()),
+      parameter.isRestParameter(),
+      initializer === undefined ? null : normalizeAst(initializer),
+      parameter.getDecorators().map((decorator) => normalizeAst(decorator)),
+      parameter.isParameterProperty()
+        ? parameter.getModifiers().map((modifier) => normalizeAst(modifier))
+        : [],
+    ];
   });
+}
+
+function normalizeDeclarationContract(node: Node): AstTuple {
+  const body = Node.isBodyable(node) ? node.getBody() : undefined;
+  return normalizeAst(
+    node,
+    DOCUMENTATION_EXCLUSIONS,
+    body === undefined ? new Set() : new Set([body]),
+  );
 }
 
 function normalizeAst(
   node: Node,
   exclusions: ReadonlySet<SyntaxKind> = new Set(),
+  excludedNodes: ReadonlySet<Node> = new Set(),
 ): AstTuple {
   const candidates = node
     .getChildren()
@@ -947,7 +1006,8 @@ function normalizeAst(
       (child) =>
         (child.getKind() !== SyntaxKind.SemicolonToken ||
           node.getKind() === SyntaxKind.ForStatement) &&
-        !exclusions.has(child.getKind()),
+        !exclusions.has(child.getKind()) &&
+        !excludedNodes.has(child),
     );
   const children = candidates
     .filter(
@@ -955,12 +1015,25 @@ function normalizeAst(
         child.getKind() !== SyntaxKind.CommaToken ||
         index !== candidates.length - 1,
     )
-    .map((child) => normalizeAst(child, exclusions));
+    .map((child) => normalizeAst(child, exclusions, excludedNodes));
   return [
     node.getKind(),
-    children.length === 0 ? node.getText() : null,
+    children.length === 0 ? normalizedLeafText(node) : null,
     children,
   ];
+}
+
+function normalizedLeafText(node: Node): string {
+  if (
+    Node.isStringLiteral(node) ||
+    Node.isNoSubstitutionTemplateLiteral(node)
+  ) {
+    return node.getLiteralText();
+  }
+  if (Node.isNumericLiteral(node) || Node.isBigIntLiteral(node)) {
+    return String(node.getLiteralValue());
+  }
+  return node.getText();
 }
 
 function fingerprint(value: unknown): string {
@@ -971,6 +1044,14 @@ function sortNormalized<T>(values: T[]): T[] {
   return values.sort((left, right) =>
     compareText(JSON.stringify(left), JSON.stringify(right)),
   );
+}
+
+function uniqueNormalized<T>(values: T[]): T[] {
+  const unique = new Map<string, T>();
+  for (const value of values) unique.set(JSON.stringify(value), value);
+  return [...unique.entries()]
+    .sort(([left], [right]) => compareText(left, right))
+    .map(([, value]) => value);
 }
 
 function uniqueSorted(values: string[]): string[] {
