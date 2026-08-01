@@ -638,14 +638,21 @@ function interfaceSnapshot(
         .map((heritageType) => normalizeAst(heritageType)),
     ),
   );
-  const members = uniqueNormalized(
-    declarations.flatMap((declaration) => [
-      ...declaration
-        .getTypeParameters()
-        .map((parameter) => normalizeAst(parameter)),
-      ...declaration.getMembers().map(normalizeDeclarationContract),
-    ]),
+  const typeParameterLists = uniqueNormalized(
+    declarations
+      .map((declaration) =>
+        declaration
+          .getTypeParameters()
+          .map((parameter) => normalizeAst(parameter)),
+      )
+      .filter((parameters) => parameters.length > 0),
   );
+  const members = uniqueNormalized([
+    ...typeParameterLists.map((parameters) => ["typeParameters", parameters]),
+    ...declarations.flatMap((declaration) =>
+      declaration.getMembers().map(normalizeDeclarationContract),
+    ),
+  ]);
   const contractFacets: Partial<Record<ContractFacet, string>> = {
     members: fingerprint(members),
     modifiers: fingerprint(modifiers),

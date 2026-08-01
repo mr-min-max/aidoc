@@ -1086,6 +1086,41 @@ describe("TypeScriptParser", () => {
     );
   });
 
+  // Break caught: sorting interface type parameters erases their positional meaning.
+  it("preserves multi-parameter generic order in interface contracts", async () => {
+    const ordered = await parser.snapshot(
+      "src/generic-order.ts",
+      `
+      export interface Pair<Left, Right> {
+        map(value: Left): Right;
+      }
+      `,
+    );
+    const reordered = await parser.snapshot(
+      "src/generic-order.ts",
+      `
+      export interface Pair<Right, Left> {
+        map(value: Left): Right;
+      }
+      `,
+    );
+    const original = ordered.symbols.find(
+      ({ kind, qualifiedName }) =>
+        kind === "interface" && qualifiedName === "Pair",
+    );
+    const changed = reordered.symbols.find(
+      ({ kind, qualifiedName }) =>
+        kind === "interface" && qualifiedName === "Pair",
+    );
+
+    expect(changed?.contractFacets.members).not.toBe(
+      original?.contractFacets.members,
+    );
+    expect(changed?.contractFingerprint).not.toBe(
+      original?.contractFingerprint,
+    );
+  });
+
   // Break caught: individual heritage entries retain their original declaration grouping.
   it("normalizes merged interface heritage across declaration repartitioning", async () => {
     const combined = await parser.snapshot(
