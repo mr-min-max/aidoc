@@ -144,7 +144,11 @@ function isSnapshotHash(value: unknown): value is string {
 }
 
 function isPublicPythonIdentifier(value: string): boolean {
-  return PYTHON_IDENTIFIER_PATTERN.test(value) && !PYTHON_KEYWORDS.has(value);
+  return (
+    value.normalize("NFKC") === value &&
+    PYTHON_IDENTIFIER_PATTERN.test(value) &&
+    !PYTHON_KEYWORDS.has(value)
+  );
 }
 
 function isSafeQualifiedName(
@@ -157,6 +161,32 @@ function isSafeQualifiedName(
     return parts.length === 2 && parts.every(isPublicPythonIdentifier);
   }
   return parts.length === 1 && isPublicPythonIdentifier(parts[0]);
+}
+
+function compareUnicodeCodePoints(left: string, right: string): number {
+  const leftPoints = Array.from(left, (character) => character.codePointAt(0)!);
+  const rightPoints = Array.from(
+    right,
+    (character) => character.codePointAt(0)!,
+  );
+  const sharedLength = Math.min(leftPoints.length, rightPoints.length);
+  for (let index = 0; index < sharedLength; index += 1) {
+    if (leftPoints[index] !== rightPoints[index]) {
+      return leftPoints[index] < rightPoints[index] ? -1 : 1;
+    }
+  }
+  if (leftPoints.length === rightPoints.length) return 0;
+  return leftPoints.length < rightPoints.length ? -1 : 1;
+}
+
+function compareSnapshotSymbolIdentity(
+  left: ParserSymbolSnapshot,
+  right: ParserSymbolSnapshot,
+): number {
+  return (
+    compareUnicodeCodePoints(left.kind, right.kind) ||
+    compareUnicodeCodePoints(left.qualifiedName, right.qualifiedName)
+  );
 }
 
 function invalidSnapshotOutput(): Error {
@@ -257,6 +287,12 @@ def is_static_method(node):
         for decorator in node.decorator_list
     )
 
+def is_overload_declaration(node):
+    return any(
+        decorator_terminal_name(decorator) == 'overload'
+        for decorator in node.decorator_list
+    )
+
 def callable_contract_payloads(node, is_method=False):
     arguments = copy.deepcopy(node.args)
     if is_method and not is_static_method(node):
@@ -300,6 +336,83 @@ def callable_symbol(node, kind, qualified_name, is_method=False):
         body_payload(node.body),
         node,
     )
+
+def canonical_payload(payload):
+    return json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(',', ':')
+    )
+
+def sorted_unique_payloads(payloads):
+    unique = {}
+    for payload in payloads:
+        unique[canonical_payload(payload)] = payload
+    return [unique[key] for key in sorted(unique)]
+
+def callable_group_symbol(nodes, kind, qualified_name, is_method=False):
+    if len(nodes) == 1:
+        return callable_symbol(nodes[0], kind, qualified_name, is_method)
+
+    overloads = [node for node in nodes if is_overload_declaration(node)]
+    contract_nodes = overloads if overloads else [nodes[-1]]
+    contributions = [
+        callable_contract_payloads(node, is_method)
+        for node in contract_nodes
+    ]
+    contract_payloads = {
+        'parameters': sorted_unique_payloads([
+            contribution['parameters'] for contribution in contributions
+        ]),
+        'modifiers': sorted_unique_payloads([
+            contribution['modifiers'] for contribution in contributions
+        ]),
+    }
+    if any('return' in contribution for contribution in contributions):
+        contract_payloads['return'] = sorted_unique_payloads([
+            contribution.get('return') for contribution in contributions
+        ])
+
+    implementations = [
+        node for node in nodes if not is_overload_declaration(node)
+    ]
+    implementation = (
+        body_payload(implementations[-1].body) if implementations else []
+    )
+    symbol = build_symbol(
+        kind,
+        qualified_name,
+        contract_payloads,
+        implementation,
+        contract_nodes[0],
+    )
+    documentation = sorted_unique_payloads([
+        value
+        for value in (
+            ast.get_docstring(node, clean=False) for node in nodes
+        )
+        if value is not None
+    ])
+    symbol['documentationFingerprint'] = (
+        hash_payload({'documentation': documentation})
+        if documentation else None
+    )
+    return symbol
+
+def group_public_callables(nodes):
+    groups = {}
+    for node in nodes:
+        if isinstance(node, CALLABLE_NODES) and not node.name.startswith('_'):
+            groups.setdefault(node.name, []).append(node)
+    return groups
+
+def group_public_classes(nodes):
+    groups = {}
+    for node in nodes:
+        if isinstance(node, ast.ClassDef) and not node.name.startswith('_'):
+            groups.setdefault(node.name, []).append(node)
+    return groups
 
 def public_assignment_names(target):
     if isinstance(target, ast.Name) and not target.id.startswith('_'):
@@ -424,24 +537,21 @@ def dependency_modules(tree):
 def snapshot_source(filepath, source):
     tree = ast.parse(source, filename=filepath)
     symbols = []
-    for node in tree.body:
-        if isinstance(node, CALLABLE_NODES):
-            if not node.name.startswith('_'):
-                symbols.append(callable_symbol(node, 'function', node.name))
-        elif isinstance(node, ast.ClassDef):
-            if node.name.startswith('_'):
-                continue
-            symbols.append(class_symbol(node))
-            for item in node.body:
-                if isinstance(item, CALLABLE_NODES) and not item.name.startswith('_'):
-                    symbols.append(
-                        callable_symbol(
-                            item,
-                            'method',
-                            node.name + '.' + item.name,
-                            True,
-                        )
-                    )
+    for name, nodes in group_public_callables(tree.body).items():
+        symbols.append(callable_group_symbol(nodes, 'function', name))
+
+    for class_nodes in group_public_classes(tree.body).values():
+        effective_class = class_nodes[-1]
+        symbols.append(class_symbol(effective_class))
+        for name, nodes in group_public_callables(effective_class.body).items():
+            symbols.append(
+                callable_group_symbol(
+                    nodes,
+                    'method',
+                    effective_class.name + '.' + name,
+                    True,
+                )
+            )
 
     symbols.sort(key=lambda item: (item['kind'], item['qualifiedName']))
     return {
@@ -683,9 +793,11 @@ export class PythonParser implements LanguageParser {
 
     const symbols = raw.symbols.map((symbol) => this.mapSnapshotSymbol(symbol));
     for (let index = 1; index < symbols.length; index += 1) {
-      const previous = `${symbols[index - 1].kind}\u0000${symbols[index - 1].qualifiedName}`;
-      const current = `${symbols[index].kind}\u0000${symbols[index].qualifiedName}`;
-      if (current <= previous) throw invalidSnapshotOutput();
+      if (
+        compareSnapshotSymbolIdentity(symbols[index - 1], symbols[index]) >= 0
+      ) {
+        throw invalidSnapshotOutput();
+      }
     }
 
     return {

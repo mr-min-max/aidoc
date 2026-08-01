@@ -207,6 +207,24 @@ def request( value: str="stable" )->int:
     expect(moved).toEqual(compact);
   });
 
+  // Break caught: Python code-point symbol order is rejected using JavaScript UTF-16 order.
+  it("accepts Python-sorted BMP and supplementary-plane identifiers", async () => {
+    const snapshot = await parser.snapshot(
+      "src/unicode.py",
+      `def \uFA0E():
+    return 1
+
+def \u{10400}():
+    return 2
+`,
+    );
+
+    expect(snapshot.symbols.map(({ qualifiedName }) => qualifiedName)).toEqual([
+      "\uFA0E",
+      "\u{10400}",
+    ]);
+  });
+
   // Break caught: Python argument categories collapse into one positional list.
   it("fingerprints positional-only parameter changes", async () => {
     const positionalOnly = await parser.snapshot(
@@ -392,6 +410,116 @@ async def request(value: int) -> int:
     }
     expect(JSON.stringify(first)).not.toContain("first-route");
     expect(JSON.stringify(decoratorChanged)).not.toContain("second-route");
+  });
+
+  // Break caught: valid Python overload declarations become duplicate snapshot identities.
+  it("groups Python overloads into deterministic function and method symbols", async () => {
+    const first = await parser.snapshot(
+      "src/convert.py",
+      `from typing import overload
+
+@overload
+def convert(value: str) -> str: ...
+@overload
+def convert(value: int) -> int: ...
+def convert(value):
+    return value
+
+class Service:
+    @overload
+    def run(self, value: str) -> str: ...
+    @overload
+    def run(self, value: int) -> int: ...
+    def run(self, value):
+        return value
+`,
+    );
+    const reordered = await parser.snapshot(
+      "src/convert.py",
+      `from typing import overload
+
+@overload
+def convert(value: int) -> int: ...
+@overload
+def convert(value: str) -> str: ...
+def convert(value):
+    return value
+
+class Service:
+    @overload
+    def run(self, value: int) -> int: ...
+    @overload
+    def run(self, value: str) -> str: ...
+    def run(self, value):
+        return value
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/convert.py",
+      `from typing import overload
+
+@overload
+def convert(value: bytes) -> str: ...
+@overload
+def convert(value: int) -> int: ...
+def convert(value):
+    return value
+
+class Service:
+    @overload
+    def run(self, value: str) -> str: ...
+    @overload
+    def run(self, value: int) -> int: ...
+    def run(self, value):
+        return value
+`,
+    );
+
+    expect(
+      first.symbols.map(({ kind, qualifiedName }) => ({ kind, qualifiedName })),
+    ).toEqual([
+      { kind: "class", qualifiedName: "Service" },
+      { kind: "function", qualifiedName: "convert" },
+      { kind: "method", qualifiedName: "Service.run" },
+    ]);
+    expect(reordered).toEqual(first);
+    const originalFunction = first.symbols.find(
+      ({ kind }) => kind === "function",
+    );
+    const changedFunction = changed.symbols.find(
+      ({ kind }) => kind === "function",
+    );
+    expect(changedFunction?.contractFacets.parameters).not.toBe(
+      originalFunction?.contractFacets.parameters,
+    );
+    expect(changedFunction?.contractFingerprint).not.toBe(
+      originalFunction?.contractFingerprint,
+    );
+  });
+
+  // Break caught: a valid repeated class identity is rejected as malformed child output.
+  it("snapshots the last effective repeated class declaration", async () => {
+    const snapshot = await parser.snapshot(
+      "src/service.py",
+      `class Service:
+    def replaced(self) -> int:
+        return 1
+
+class Service:
+    def current(self) -> int:
+        return 2
+`,
+    );
+
+    expect(
+      snapshot.symbols.map(({ kind, qualifiedName }) => ({
+        kind,
+        qualifiedName,
+      })),
+    ).toEqual([
+      { kind: "class", qualifiedName: "Service" },
+      { kind: "method", qualifiedName: "Service.current" },
+    ]);
   });
 
   // Break caught: class bases are omitted from the inheritance facet.
@@ -849,6 +977,10 @@ def request() -> int:
       ],
       ["non-array symbols", { ...validSnapshot, symbols: sentinel }],
       [
+        "duplicate symbol identities",
+        { ...validSnapshot, symbols: [validSymbol, { ...validSymbol }] },
+      ],
+      [
         "unexpected symbol field",
         {
           ...validSnapshot,
@@ -874,6 +1006,13 @@ def request() -> int:
         {
           ...validSnapshot,
           symbols: [{ ...validSymbol, qualifiedName: sentinel }],
+        },
+      ],
+      [
+        "non-XID qualified name",
+        {
+          ...validSnapshot,
+          symbols: [{ ...validSymbol, qualifiedName: "\u037A" }],
         },
       ],
       [
