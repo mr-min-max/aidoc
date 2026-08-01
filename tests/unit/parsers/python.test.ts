@@ -809,6 +809,80 @@ class Service:
     }
   });
 
+  // Break caught: property accessor aggregation takes precedence over overload declarations.
+  it("preserves overload precedence in mixed property accessor chains", async () => {
+    const first = await parser.snapshot(
+      "src/service.py",
+      `from typing import overload
+
+class Service:
+    @overload
+    @property
+    def value(self) -> "overload-int-secret": ...
+
+    @property
+    def value(self) -> str:
+        return self._value
+
+    @value.setter
+    def value(self, updated: str) -> None:
+        self._value = updated
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/service.py",
+      `from typing import overload
+
+class Service:
+    @overload
+    @property
+    def value(self) -> "overload-bytes-secret": ...
+
+    @property
+    def value(self) -> str:
+        return self._value
+
+    @value.setter
+    def value(self, updated: str) -> None:
+        self._value = updated
+`,
+    );
+    const originalClass = first.symbols.find(({ kind }) => kind === "class");
+    const changedClass = changed.symbols.find(({ kind }) => kind === "class");
+    const originalMethod = first.symbols.find(({ kind }) => kind === "method");
+    const changedMethod = changed.symbols.find(({ kind }) => kind === "method");
+
+    expect(changed).not.toEqual(first);
+    expect(changedMethod?.contractFingerprint).not.toBe(
+      originalMethod?.contractFingerprint,
+    );
+    expect(changedClass?.contractFacets.members).not.toBe(
+      originalClass?.contractFacets.members,
+    );
+    expect(changedClass?.contractFingerprint).not.toBe(
+      originalClass?.contractFingerprint,
+    );
+    expect(changedMethod?.implementationFingerprint).toBe(
+      originalMethod?.implementationFingerprint,
+    );
+    expect(changedClass?.implementationFingerprint).toBe(
+      originalClass?.implementationFingerprint,
+    );
+    expect(changedMethod?.documentationFingerprint).toBe(
+      originalMethod?.documentationFingerprint,
+    );
+    expect(changedClass?.documentationFingerprint).toBe(
+      originalClass?.documentationFingerprint,
+    );
+    for (const sourceValue of [
+      "overload-int-secret",
+      "overload-bytes-secret",
+    ]) {
+      expect(JSON.stringify(first)).not.toContain(sourceValue);
+      expect(JSON.stringify(changed)).not.toContain(sourceValue);
+    }
+  });
+
   // Break caught: a shadowed earlier method still contributes to its owning class fingerprints.
   it("ignores shadowed repeated methods in method and class fingerprints", async () => {
     const first = await parser.snapshot(

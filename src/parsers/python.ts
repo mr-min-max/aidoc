@@ -419,7 +419,9 @@ def callable_group_contract_payloads(nodes, is_method=False):
     if len(nodes) == 1:
         return callable_contract_payloads(nodes[0], is_method)
 
-    if is_method:
+    if is_method and not any(
+        is_overload_declaration(node) for node in nodes
+    ):
         accessors = effective_property_accessors(nodes)
         if len(accessors) > 1:
             return property_contract_payloads(accessors, is_method)
