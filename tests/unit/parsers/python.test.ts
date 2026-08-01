@@ -152,4 +152,598 @@ describe("PythonParser", () => {
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
+
+  // Break caught: raw defaults or docstrings cross the snapshot boundary.
+  it("returns value-free hashes for an in-memory public function", async () => {
+    const snapshot = await parser.snapshot(
+      "src/client.py",
+      `
+def request(value: str = "secret-default") -> int:
+    """secret docs"""
+    return len(value) + 1
+`,
+    );
+
+    expect(snapshot).toMatchObject({
+      language: "python",
+      dependencyFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      symbols: [
+        {
+          language: "python",
+          kind: "function",
+          qualifiedName: "request",
+          contractFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/u),
+          implementationFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/u),
+          documentationFingerprint: expect.stringMatching(/^[0-9a-f]{64}$/u),
+        },
+      ],
+    });
+    expect(JSON.stringify(snapshot)).not.toContain("secret-default");
+    expect(JSON.stringify(snapshot)).not.toContain("secret docs");
+  });
+
+  // Break caught: source positions, comments, or whitespace participate in fingerprints.
+  it("keeps snapshots stable across formatting and line movement", async () => {
+    const compact = await parser.snapshot(
+      "src/client.py",
+      `def request(value: str = "stable") -> int:
+    """stable docs"""
+    return len(value) + 1
+`,
+    );
+    const moved = await parser.snapshot(
+      "src/client.py",
+      `
+# unrelated comment
+
+
+def request( value: str="stable" )->int:
+    """stable docs"""
+
+    return len(value)+1  # formatting only
+`,
+    );
+
+    expect(moved).toEqual(compact);
+  });
+
+  // Break caught: Python argument categories collapse into one positional list.
+  it("fingerprints positional-only parameter changes", async () => {
+    const positionalOnly = await parser.snapshot(
+      "src/client.py",
+      `def request(value: int, /, label: str) -> int:
+    return 1
+`,
+    );
+    const positionalOrKeyword = await parser.snapshot(
+      "src/client.py",
+      `def request(value: int, label: str) -> int:
+    return 1
+`,
+    );
+
+    expect(positionalOrKeyword.symbols[0].contractFacets.parameters).not.toBe(
+      positionalOnly.symbols[0].contractFacets.parameters,
+    );
+    expect(positionalOrKeyword.symbols[0].contractFingerprint).not.toBe(
+      positionalOnly.symbols[0].contractFingerprint,
+    );
+    expect(positionalOrKeyword.symbols[0].implementationFingerprint).toBe(
+      positionalOnly.symbols[0].implementationFingerprint,
+    );
+  });
+
+  // Break caught: keyword-only parameters are treated as positional parameters.
+  it("fingerprints keyword-only parameter changes", async () => {
+    const positional = await parser.snapshot(
+      "src/client.py",
+      `def request(value: int, label: str) -> int:
+    return 1
+`,
+    );
+    const keywordOnly = await parser.snapshot(
+      "src/client.py",
+      `def request(value: int, *, label: str) -> int:
+    return 1
+`,
+    );
+
+    expect(keywordOnly.symbols[0].contractFacets.parameters).not.toBe(
+      positional.symbols[0].contractFacets.parameters,
+    );
+    expect(keywordOnly.symbols[0].implementationFingerprint).toBe(
+      positional.symbols[0].implementationFingerprint,
+    );
+  });
+
+  // Break caught: variadic parameters are absent from the callable contract.
+  it("fingerprints variadic parameter changes", async () => {
+    const first = await parser.snapshot(
+      "src/client.py",
+      `def request(*values: bytes, **options: str) -> int:
+    return 1
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/client.py",
+      `def request(*items: bytes, **metadata: str) -> int:
+    return 1
+`,
+    );
+
+    expect(changed.symbols[0].contractFacets.parameters).not.toBe(
+      first.symbols[0].contractFacets.parameters,
+    );
+    expect(changed.symbols[0].contractFingerprint).not.toBe(
+      first.symbols[0].contractFingerprint,
+    );
+  });
+
+  // Break caught: annotations, defaults, or returns do not reach their matching facets.
+  it("separates annotation, default, and return contract changes", async () => {
+    const baseline = await parser.snapshot(
+      "src/client.py",
+      `def request(value: str = "first-default") -> int:
+    return 1
+`,
+    );
+    const annotationChanged = await parser.snapshot(
+      "src/client.py",
+      `def request(value: bytes = "first-default") -> int:
+    return 1
+`,
+    );
+    const defaultChanged = await parser.snapshot(
+      "src/client.py",
+      `def request(value: str = "second-default") -> int:
+    return 1
+`,
+    );
+    const returnChanged = await parser.snapshot(
+      "src/client.py",
+      `def request(value: str = "first-default") -> str:
+    return 1
+`,
+    );
+
+    for (const changed of [annotationChanged, defaultChanged]) {
+      expect(changed.symbols[0].contractFacets.parameters).not.toBe(
+        baseline.symbols[0].contractFacets.parameters,
+      );
+      expect(changed.symbols[0].contractFacets.return).toBe(
+        baseline.symbols[0].contractFacets.return,
+      );
+      expect(changed.symbols[0].implementationFingerprint).toBe(
+        baseline.symbols[0].implementationFingerprint,
+      );
+    }
+    expect(returnChanged.symbols[0].contractFacets.return).not.toBe(
+      baseline.symbols[0].contractFacets.return,
+    );
+    expect(returnChanged.symbols[0].contractFacets.parameters).toBe(
+      baseline.symbols[0].contractFacets.parameters,
+    );
+    for (const sourceValue of ["first-default", "second-default"]) {
+      expect(JSON.stringify(baseline)).not.toContain(sourceValue);
+      expect(JSON.stringify(defaultChanged)).not.toContain(sourceValue);
+    }
+  });
+
+  // Break caught: executable body mutations are mistaken for contract changes.
+  it("changes only implementation fingerprints for body mutations", async () => {
+    const first = await parser.snapshot(
+      "src/client.py",
+      `def calculate(value: int) -> int:
+    return value + 1
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/client.py",
+      `def calculate(value: int) -> int:
+    return value * 2
+`,
+    );
+
+    expect(changed.symbols[0].contractFacets).toEqual(
+      first.symbols[0].contractFacets,
+    );
+    expect(changed.symbols[0].contractFingerprint).toBe(
+      first.symbols[0].contractFingerprint,
+    );
+    expect(changed.symbols[0].implementationFingerprint).not.toBe(
+      first.symbols[0].implementationFingerprint,
+    );
+  });
+
+  // Break caught: decorators and async syntax are omitted from the modifiers facet.
+  it("fingerprints decorators and callable modifiers", async () => {
+    const first = await parser.snapshot(
+      "src/client.py",
+      `@route("first-route")
+def request(value: int) -> int:
+    return value
+`,
+    );
+    const decoratorChanged = await parser.snapshot(
+      "src/client.py",
+      `@route("second-route")
+def request(value: int) -> int:
+    return value
+`,
+    );
+    const asyncChanged = await parser.snapshot(
+      "src/client.py",
+      `@route("first-route")
+async def request(value: int) -> int:
+    return value
+`,
+    );
+
+    for (const changed of [decoratorChanged, asyncChanged]) {
+      expect(changed.symbols[0].contractFacets.modifiers).not.toBe(
+        first.symbols[0].contractFacets.modifiers,
+      );
+      expect(changed.symbols[0].contractFingerprint).not.toBe(
+        first.symbols[0].contractFingerprint,
+      );
+      expect(changed.symbols[0].implementationFingerprint).toBe(
+        first.symbols[0].implementationFingerprint,
+      );
+    }
+    expect(JSON.stringify(first)).not.toContain("first-route");
+    expect(JSON.stringify(decoratorChanged)).not.toContain("second-route");
+  });
+
+  // Break caught: class bases are omitted from the inheritance facet.
+  it("fingerprints class inheritance changes", async () => {
+    const first = await parser.snapshot(
+      "src/client.py",
+      `class Service(Base, Protocol):
+    pass
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/client.py",
+      `class Service(OtherBase, Protocol):
+    pass
+`,
+    );
+
+    expect(changed.symbols[0].kind).toBe("class");
+    expect(changed.symbols[0].contractFacets.inheritance).not.toBe(
+      first.symbols[0].contractFacets.inheritance,
+    );
+    expect(changed.symbols[0].contractFingerprint).not.toBe(
+      first.symbols[0].contractFingerprint,
+    );
+    expect(changed.symbols[0].implementationFingerprint).toBe(
+      first.symbols[0].implementationFingerprint,
+    );
+  });
+
+  // Break caught: public class methods lack stable qualified symbol identities.
+  it("emits qualified public class methods", async () => {
+    const snapshot = await parser.snapshot(
+      "src/client.py",
+      `class Service:
+    def request(self, value: str) -> int:
+        """method documentation sentinel"""
+        return len(value)
+`,
+    );
+
+    expect(
+      snapshot.symbols.map(({ kind, qualifiedName }) => ({
+        kind,
+        qualifiedName,
+      })),
+    ).toEqual([
+      { kind: "class", qualifiedName: "Service" },
+      { kind: "method", qualifiedName: "Service.request" },
+    ]);
+    expect(snapshot.symbols[1].documentationFingerprint).toMatch(
+      /^[0-9a-f]{64}$/u,
+    );
+    expect(JSON.stringify(snapshot)).not.toContain(
+      "method documentation sentinel",
+    );
+  });
+
+  // Break caught: a static method parameter named self is mistaken for a bound receiver.
+  it("preserves every declared static method parameter in contract hashes", async () => {
+    const withSelfParameter = await parser.snapshot(
+      "src/client.py",
+      `class Service:
+    @staticmethod
+    def request(self: str, value: int) -> int:
+        return value
+`,
+    );
+    const withoutSelfParameter = await parser.snapshot(
+      "src/client.py",
+      `class Service:
+    @staticmethod
+    def request(value: int) -> int:
+        return value
+`,
+    );
+    const originalClass = withSelfParameter.symbols.find(
+      ({ kind }) => kind === "class",
+    );
+    const changedClass = withoutSelfParameter.symbols.find(
+      ({ kind }) => kind === "class",
+    );
+    const originalMethod = withSelfParameter.symbols.find(
+      ({ kind }) => kind === "method",
+    );
+    const changedMethod = withoutSelfParameter.symbols.find(
+      ({ kind }) => kind === "method",
+    );
+
+    expect(changedMethod?.contractFacets.parameters).not.toBe(
+      originalMethod?.contractFacets.parameters,
+    );
+    expect(changedMethod?.contractFingerprint).not.toBe(
+      originalMethod?.contractFingerprint,
+    );
+    expect(changedClass?.contractFacets.members).not.toBe(
+      originalClass?.contractFacets.members,
+    );
+  });
+
+  // Break caught: renaming a bound instance receiver creates a false API change.
+  it("excludes the bound instance receiver regardless of its local name", async () => {
+    const first = await parser.snapshot(
+      "src/client.py",
+      `class Service:
+    def request(receiver, value: int) -> int:
+        return value
+`,
+    );
+    const renamed = await parser.snapshot(
+      "src/client.py",
+      `class Service:
+    def request(instance, value: int) -> int:
+        return value
+`,
+    );
+    const firstClass = first.symbols.find(({ kind }) => kind === "class");
+    const renamedClass = renamed.symbols.find(({ kind }) => kind === "class");
+    const firstMethod = first.symbols.find(({ kind }) => kind === "method");
+    const renamedMethod = renamed.symbols.find(({ kind }) => kind === "method");
+
+    expect(renamedMethod?.contractFingerprint).toBe(
+      firstMethod?.contractFingerprint,
+    );
+    expect(renamedClass?.contractFacets.members).toBe(
+      firstClass?.contractFacets.members,
+    );
+  });
+
+  // Break caught: underscore-prefixed declarations become public symbols.
+  it("excludes underscore-prefixed functions, classes, members, and dunder methods", async () => {
+    const snapshot = await parser.snapshot(
+      "src/client.py",
+      `def exposed():
+    return 1
+
+def _hidden_function():
+    return "hidden-function-value"
+
+class _HiddenClass:
+    def visible_inside_private_class(self):
+        return "hidden-class-value"
+
+class Visible:
+    def public(self):
+        return 1
+
+    def _private(self):
+        return "private-value"
+
+    def __init__(self):
+        self.value = "dunder-init-value"
+
+    def __str__(self):
+        return "dunder-str-value"
+`,
+    );
+
+    expect(
+      snapshot.symbols.map(({ kind, qualifiedName }) => ({
+        kind,
+        qualifiedName,
+      })),
+    ).toEqual([
+      { kind: "class", qualifiedName: "Visible" },
+      { kind: "function", qualifiedName: "exposed" },
+      { kind: "method", qualifiedName: "Visible.public" },
+    ]);
+  });
+
+  // Break caught: import module values leak or fail to affect module dependency identity.
+  it("isolates import changes to the dependency fingerprint", async () => {
+    const first = await parser.snapshot(
+      "src/client.py",
+      `import first_secret_dependency as dependency
+from first_secret_package import Client
+
+def request() -> int:
+    return dependency.call()
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/client.py",
+      `import second_secret_dependency as dependency
+from second_secret_package import Client
+
+def request() -> int:
+    return dependency.call()
+`,
+    );
+
+    expect(changed.dependencyFingerprint).not.toBe(first.dependencyFingerprint);
+    expect(changed.symbols).toEqual(first.symbols);
+    for (const sourceValue of [
+      "first_secret_dependency",
+      "first_secret_package",
+      "second_secret_dependency",
+      "second_secret_package",
+    ]) {
+      expect(JSON.stringify(first)).not.toContain(sourceValue);
+      expect(JSON.stringify(changed)).not.toContain(sourceValue);
+    }
+  });
+
+  // Break caught: imports beneath control flow or private scopes vanish from dependencies.
+  it("fingerprints conditional and nested import module specifiers", async () => {
+    const first = await parser.snapshot(
+      "src/client.py",
+      `if TYPE_CHECKING:
+    import first_conditional_dependency
+
+class _PrivateService:
+    import first_class_dependency
+
+def _private_helper():
+    import first_function_dependency
+
+def request() -> int:
+    return 1
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/client.py",
+      `if TYPE_CHECKING:
+    import second_conditional_dependency
+
+class _PrivateService:
+    import second_class_dependency
+
+def _private_helper():
+    import second_function_dependency
+
+def request() -> int:
+    return 1
+`,
+    );
+
+    expect(changed.dependencyFingerprint).not.toBe(first.dependencyFingerprint);
+    expect(changed.symbols).toEqual(first.symbols);
+    for (const sourceValue of [
+      "first_conditional_dependency",
+      "first_class_dependency",
+      "first_function_dependency",
+      "second_conditional_dependency",
+      "second_class_dependency",
+      "second_function_dependency",
+    ]) {
+      expect(JSON.stringify(first)).not.toContain(sourceValue);
+      expect(JSON.stringify(changed)).not.toContain(sourceValue);
+    }
+  });
+
+  // Break caught: docstring expressions contaminate contract or implementation hashes.
+  it("changes only documentation fingerprints for docstring mutations", async () => {
+    const first = await parser.snapshot(
+      "src/client.py",
+      `def request() -> int:
+    """first documentation sentinel"""
+    return 1
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/client.py",
+      `def request() -> int:
+    """second documentation sentinel"""
+    return 1
+`,
+    );
+
+    expect(changed.symbols[0].contractFingerprint).toBe(
+      first.symbols[0].contractFingerprint,
+    );
+    expect(changed.symbols[0].implementationFingerprint).toBe(
+      first.symbols[0].implementationFingerprint,
+    );
+    expect(changed.symbols[0].documentationFingerprint).not.toBe(
+      first.symbols[0].documentationFingerprint,
+    );
+    expect(JSON.stringify(first)).not.toContain("first documentation sentinel");
+    expect(JSON.stringify(changed)).not.toContain(
+      "second documentation sentinel",
+    );
+  });
+
+  // Break caught: in-memory syntax diagnostics expose source text.
+  it("rejects snapshot syntax errors with a fixed safe message", async () => {
+    const sourceSentinel = ["sk", "snapshot", "X".repeat(32)].join("-");
+
+    let thrown: unknown;
+    try {
+      await parser.snapshot("src/broken.py", `def broken(${sourceSentinel}:\n`);
+    } catch (error: unknown) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toBe("Failed to parse Python source.");
+    expect((thrown as Error).message).not.toContain(sourceSentinel);
+    expect((thrown as Error).cause).toEqual(new Error("Python parser failed."));
+  });
+
+  // Break caught: snapshot source is placed in argv instead of child stdin.
+  it("sends snapshot source through child stdin without placing it in argv", async () => {
+    const sourceSentinel = `def request():\n    return "stdin-only-sentinel"\n`;
+    let capturedArgs: string[] = [];
+    let capturedInput: string | undefined;
+    const hash = "0".repeat(64);
+    const injectedParser = new PythonParser(async (_command, args, options) => {
+      capturedArgs = args;
+      capturedInput = (options as typeof options & { input?: string }).input;
+      return {
+        stdout: JSON.stringify({
+          language: "python",
+          dependencyFingerprint: hash,
+          symbols: [],
+        }),
+        stderr: "",
+      };
+    });
+
+    await injectedParser.snapshot("src/client.py", sourceSentinel);
+
+    expect(capturedArgs.slice(2)).toEqual(["snapshot", "src/client.py"]);
+    expect(capturedArgs).not.toContain(sourceSentinel);
+    expect(capturedArgs.join(" ")).not.toContain("stdin-only-sentinel");
+    expect(capturedInput).toBe(sourceSentinel);
+  });
+
+  // Break caught: child stderr or retained process errors expose in-memory source.
+  it("sanitizes snapshot runner failures without retaining source or stderr", async () => {
+    const sourceSentinel = ["sk", "runner-source", "R".repeat(32)].join("-");
+    const stderrSentinel = ["sk", "runner-stderr", "S".repeat(32)].join("-");
+    const failingParser = new PythonParser(async () => {
+      throw Object.assign(new Error(`failure: ${sourceSentinel}`), {
+        stderr: `traceback: ${stderrSentinel}`,
+      });
+    });
+
+    let thrown: unknown;
+    try {
+      await failingParser.snapshot(
+        "src/client.py",
+        `def request():\n    return "${sourceSentinel}"\n`,
+      );
+    } catch (error: unknown) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toBe("Failed to parse Python source.");
+    expect(String(thrown)).not.toContain(sourceSentinel);
+    expect(String(thrown)).not.toContain(stderrSentinel);
+    expect(String((thrown as Error).cause)).not.toContain(sourceSentinel);
+    expect(String((thrown as Error).cause)).not.toContain(stderrSentinel);
+  });
 });
