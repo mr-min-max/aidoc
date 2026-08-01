@@ -389,9 +389,40 @@ def callable_group_contract_nodes(nodes, is_method=False):
             return [node for _, node in accessors]
     return [nodes[-1]]
 
+def property_contract_payloads(accessors, is_method=False):
+    contributions = [
+        (kind, callable_contract_payloads(node, is_method))
+        for kind, node in accessors
+    ]
+    contract_payloads = {
+        name: sorted_unique_payloads([
+            {
+                'accessor': kind,
+                'value': contribution[name],
+            }
+            for kind, contribution in contributions
+        ])
+        for name in ('parameters', 'modifiers')
+    }
+    if any('return' in contribution for _, contribution in contributions):
+        contract_payloads['return'] = sorted_unique_payloads([
+            {
+                'accessor': kind,
+                'value': contribution['return'],
+            }
+            for kind, contribution in contributions
+            if 'return' in contribution
+        ])
+    return contract_payloads
+
 def callable_group_contract_payloads(nodes, is_method=False):
     if len(nodes) == 1:
         return callable_contract_payloads(nodes[0], is_method)
+
+    if is_method:
+        accessors = effective_property_accessors(nodes)
+        if len(accessors) > 1:
+            return property_contract_payloads(accessors, is_method)
 
     contract_nodes = callable_group_contract_nodes(nodes, is_method)
     contributions = [

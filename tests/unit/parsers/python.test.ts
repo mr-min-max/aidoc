@@ -736,6 +736,79 @@ class Service:
     }
   });
 
+  // Break caught: independent accessor contract facets collide when getter and setter returns swap.
+  it("preserves accessor roles in aggregated contracts", async () => {
+    const first = await parser.snapshot(
+      "src/service.py",
+      `class Service:
+    @property
+    def value(self) -> "getter-contract-secret":
+        return self._value
+
+    @value.setter
+    def value(self, updated: str) -> "setter-contract-secret":
+        self._value = updated
+
+    @value.deleter
+    def value(self) -> None:
+        del self._value
+`,
+    );
+    const swapped = await parser.snapshot(
+      "src/service.py",
+      `class Service:
+    @property
+    def value(self) -> "setter-contract-secret":
+        return self._value
+
+    @value.setter
+    def value(self, updated: str) -> "getter-contract-secret":
+        self._value = updated
+
+    @value.deleter
+    def value(self) -> None:
+        del self._value
+`,
+    );
+    const originalClass = first.symbols.find(({ kind }) => kind === "class");
+    const changedClass = swapped.symbols.find(({ kind }) => kind === "class");
+    const originalMethod = first.symbols.find(({ kind }) => kind === "method");
+    const changedMethod = swapped.symbols.find(({ kind }) => kind === "method");
+
+    expect(swapped).not.toEqual(first);
+    expect(changedMethod?.contractFacets).not.toEqual(
+      originalMethod?.contractFacets,
+    );
+    expect(changedMethod?.contractFingerprint).not.toBe(
+      originalMethod?.contractFingerprint,
+    );
+    expect(changedClass?.contractFacets.members).not.toBe(
+      originalClass?.contractFacets.members,
+    );
+    expect(changedClass?.contractFingerprint).not.toBe(
+      originalClass?.contractFingerprint,
+    );
+    expect(changedMethod?.implementationFingerprint).toBe(
+      originalMethod?.implementationFingerprint,
+    );
+    expect(changedClass?.implementationFingerprint).toBe(
+      originalClass?.implementationFingerprint,
+    );
+    expect(changedMethod?.documentationFingerprint).toBe(
+      originalMethod?.documentationFingerprint,
+    );
+    expect(changedClass?.documentationFingerprint).toBe(
+      originalClass?.documentationFingerprint,
+    );
+    for (const sourceValue of [
+      "getter-contract-secret",
+      "setter-contract-secret",
+    ]) {
+      expect(JSON.stringify(first)).not.toContain(sourceValue);
+      expect(JSON.stringify(swapped)).not.toContain(sourceValue);
+    }
+  });
+
   // Break caught: a shadowed earlier method still contributes to its owning class fingerprints.
   it("ignores shadowed repeated methods in method and class fingerprints", async () => {
     const first = await parser.snapshot(
