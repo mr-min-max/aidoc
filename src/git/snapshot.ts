@@ -189,6 +189,7 @@ export class GitSnapshotReader {
   }
   private async resolveBase(ref: string): Promise<string> {
     this.validateRef(ref);
+    if (ref === EMPTY_TREE) return ref;
     try {
       return await this.resolveCommit(ref, "PLAN_BASE_NOT_FOUND");
     } catch {
@@ -244,18 +245,25 @@ export class GitSnapshotReader {
       "supported" | "excluded" | "beforeSource" | "afterSource"
     >[]
   > {
-    const output = await this.run([
-      "diff-tree",
-      "--root",
-      "--name-status",
-      "-r",
-      "-M",
-      "-z",
-      base,
-      head,
-      "--",
-    ]);
-    return parseStatus(output);
+    try {
+      const output = await this.run([
+        "diff-tree",
+        "--root",
+        "--name-status",
+        "-r",
+        "-M",
+        "-z",
+        base,
+        head,
+        "--",
+      ]);
+      return parseStatus(output);
+    } catch {
+      throw new PlanFailure(
+        "PLAN_SOURCE_READ_FAILED",
+        "Unable to read repository snapshot.",
+      );
+    }
   }
   private async workingDiff(
     base: string,
@@ -265,14 +273,21 @@ export class GitSnapshotReader {
       "supported" | "excluded" | "beforeSource" | "afterSource"
     >[]
   > {
-    const [tracked, untracked] = await Promise.all([
-      this.run(["diff", "--name-status", "-M", base, "--"]),
-      this.run(["ls-files", "--others", "--exclude-standard", "--"]),
-    ]);
-    const result = parseStatus(tracked);
-    for (const path of untracked.split(/\r?\n/u).filter(Boolean))
-      result.push({ status: "added", afterPath: path });
-    return result;
+    try {
+      const [tracked, untracked] = await Promise.all([
+        this.run(["diff", "--name-status", "-M", base, "--"]),
+        this.run(["ls-files", "--others", "--exclude-standard", "--"]),
+      ]);
+      const result = parseStatus(tracked);
+      for (const path of untracked.split(/\r?\n/u).filter(Boolean))
+        result.push({ status: "added", afterPath: path });
+      return result;
+    } catch {
+      throw new PlanFailure(
+        "PLAN_SOURCE_READ_FAILED",
+        "Unable to read repository snapshot.",
+      );
+    }
   }
   private async blob(commit: string, path: string): Promise<string> {
     try {
