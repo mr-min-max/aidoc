@@ -14,6 +14,10 @@ import {
   validateChangelogEntry,
 } from "../../output/markdown";
 import { getCommitsSince, getLatestTag } from "../../git/history";
+import {
+  getSafeErrorDiagnostic,
+  getTrustErrorExitCode,
+} from "../../security/diagnostics";
 
 export const changelogCommand = new Command("changelog")
   .description("Generate CHANGELOG from git history")
@@ -74,9 +78,9 @@ export const changelogCommand = new Command("changelog")
         content,
         toWriteDocOptions(options, options.output),
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to generate CHANGELOG"));
-      console.error(chalk.red(error.message));
-      process.exit(1);
+      console.error(chalk.red(getSafeErrorDiagnostic(error).message));
+      process.exit(getTrustErrorExitCode(error));
     }
   });

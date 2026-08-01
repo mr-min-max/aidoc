@@ -5,7 +5,6 @@ import {
   MethodDeclaration,
   ParameterDeclaration,
   FileSystemRefreshResult,
-  ts,
 } from "ts-morph";
 import {
   LanguageParser,
@@ -58,18 +57,10 @@ export class TypeScriptParser implements LanguageParser {
       .getProgram()
       .getSyntacticDiagnostics(sourceFile);
     if (diagnostics.length > 0) {
-      const details = diagnostics
-        .map((diagnostic) => {
-          const line = diagnostic.getLineNumber();
-          const message = ts.flattenDiagnosticMessageText(
-            diagnostic.compilerObject.messageText,
-            "\n",
-          );
-          return line === undefined ? message : `line ${line}: ${message}`;
-        })
-        .join("; ");
       project.removeSourceFile(sourceFile);
-      throw new Error(`TypeScript syntax error in ${filePath}: ${details}`);
+      // Compiler diagnostics can quote source fragments. Keep the parser boundary
+      // value-free so analyzer, freshness, CLI, and MCP consumers stay safe.
+      throw new Error("TypeScript syntax error.");
     }
 
     return {

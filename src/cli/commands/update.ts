@@ -6,6 +6,10 @@ import { loadCommandContext, writeDoc } from "../context";
 import { readExistingMarkdown } from "../../output/markdown";
 import { getChangedFiles, getDiff } from "../../git/history";
 import { buildUpdateContext } from "../../core/differ";
+import {
+  getSafeErrorDiagnostic,
+  getTrustErrorExitCode,
+} from "../../security/diagnostics";
 
 export const updateCommand = new Command("update")
   .description(
@@ -67,9 +71,9 @@ export const updateCommand = new Command("update")
         dryRun: options.dryRun,
         label: options.target,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to update documentation"));
-      console.error(chalk.red(error.message));
-      process.exit(1);
+      console.error(chalk.red(getSafeErrorDiagnostic(error).message));
+      process.exit(getTrustErrorExitCode(error));
     }
   });

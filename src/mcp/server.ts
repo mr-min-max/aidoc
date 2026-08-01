@@ -25,7 +25,11 @@ import { readProjectInfo } from "../cli/context";
 import { checkDocumentationFreshness } from "../core/freshness";
 import { readPackageVersion } from "../core/package-meta";
 import { resolveTemplatesDir } from "../core/templates";
-import { sanitizeDiagnostic } from "../security/scanner";
+import {
+  getSafeErrorDiagnostic,
+  inspectSafeAllowlistedErrorCode,
+  UNKNOWN_ERROR_DIAGNOSTIC,
+} from "../security/diagnostics";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -36,6 +40,7 @@ import {
 
 const SAFE_MCP_ERROR_CODES = new Set([
   "TRUST_SECRET_BLOCKED",
+  "TRUST_INVALID_PROVIDER_OUTPUT",
   "TRUST_PATH_OUTSIDE_ROOT",
   "TRUST_UNSAFE_SYMLINK",
   "TRUST_INVALID_TARGET_TYPE",
@@ -46,22 +51,24 @@ const SAFE_MCP_ERROR_CODES = new Set([
 ]);
 const UNKNOWN_MCP_ERROR = "Unknown MCP error.";
 
-function formatMCPError(error: unknown): string {
-  try {
-    if (typeof error === "string") return sanitizeDiagnostic(error);
-    if (!(error instanceof Error)) return UNKNOWN_MCP_ERROR;
-
-    const message = error.message;
-    if (typeof message !== "string") return UNKNOWN_MCP_ERROR;
-
-    const sanitizedMessage = sanitizeDiagnostic(message);
-    const code = (error as Error & { code?: unknown }).code;
-    return typeof code === "string" && SAFE_MCP_ERROR_CODES.has(code)
-      ? `${code}: ${sanitizedMessage}`
-      : sanitizedMessage;
-  } catch {
+export function formatMCPError(error: unknown): string {
+  const diagnostic = getSafeErrorDiagnostic(error);
+  if (diagnostic.message === UNKNOWN_ERROR_DIAGNOSTIC) {
     return UNKNOWN_MCP_ERROR;
   }
+
+  const { code, hasUntrustedCode } = inspectSafeAllowlistedErrorCode(
+    error,
+    SAFE_MCP_ERROR_CODES,
+  );
+  if (!code) {
+    return hasUntrustedCode ? UNKNOWN_MCP_ERROR : diagnostic.message;
+  }
+
+  const prefix = `${code}:`;
+  return diagnostic.message.startsWith(prefix)
+    ? diagnostic.message
+    : `${prefix} ${diagnostic.message}`;
 }
 
 /** Available MCP tools */

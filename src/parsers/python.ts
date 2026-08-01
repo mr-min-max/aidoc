@@ -9,8 +9,10 @@ import {
 import { execFile } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs";
+import { getSafeAllowlistedErrorCode } from "../security/diagnostics";
 
 const execFileAsync = promisify(execFile);
+const PYTHON_UNAVAILABLE_CODES = new Set(["ENOENT"]);
 
 type PythonProcessRunner = (
   command: string,
@@ -23,6 +25,11 @@ const runPythonProcess: PythonProcessRunner = async (command, args, options) =>
     stdout: string;
     stderr: string;
   };
+
+/** Creates a fixed parser error without retaining untrusted process stderr as its cause. */
+function createSafeParserError(message: string, causeMessage: string): Error {
+  return new Error(message, { cause: new Error(causeMessage) });
+}
 
 /**
  * Python AST analysis script.
@@ -189,20 +196,21 @@ export class PythonParser implements LanguageParser {
         imports: (data.imports || []).map(this.mapImport),
       };
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      const code =
-        typeof error === "object" && error !== null && "code" in error
-          ? String((error as { code?: unknown }).code)
-          : undefined;
-      if (code === "ENOENT") {
-        throw new Error(
+      if (
+        getSafeAllowlistedErrorCode(error, PYTHON_UNAVAILABLE_CODES) ===
+        "ENOENT"
+      ) {
+        throw createSafeParserError(
           "Python parser unavailable: python3 executable was not found",
-          { cause: error },
+          "Python executable unavailable.",
         );
       }
-      throw new Error(`Failed to parse Python file ${filePath}: ${message}`, {
-        cause: error,
-      });
+      // Preserve the error chain without retaining the child-process error,
+      // whose stderr may contain untrusted source text.
+      throw createSafeParserError(
+        "Failed to parse Python source.",
+        "Python parser failed.",
+      );
     }
   }
 

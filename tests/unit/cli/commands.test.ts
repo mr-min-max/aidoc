@@ -3,8 +3,10 @@ import { apiCommand } from "../../../src/cli/commands/api";
 import { changelogCommand } from "../../../src/cli/commands/changelog";
 import { diagramCommand } from "../../../src/cli/commands/diagram";
 import { annotateCommand } from "../../../src/cli/commands/annotate";
+import { updateCommand } from "../../../src/cli/commands/update";
 import { MockGenerator } from "../../../src/cli/mock-generator";
 import { defaultConfig } from "../../../src/config/loader";
+import { TrustViolationError } from "../../../src/security/types";
 import {
   hasGenerationInput,
   toWriteDocOptions,
@@ -138,6 +140,91 @@ describe("annotate command diagnostics", () => {
       generate.mockRestore();
       loadContext.mockRestore();
       analyze.mockRestore();
+      consoleError.mockRestore();
+      exit.mockRestore();
+    }
+  });
+
+  it("uses a fixed diagnostic when a command error message getter throws", async () => {
+    const hostileSecret = ["sk", "proj", "C".repeat(32)].join("-");
+    const hostileError = new Error("unused");
+    Object.defineProperty(hostileError, "message", {
+      get: () => {
+        throw new Error(hostileSecret);
+      },
+    });
+    const loadContext = jest
+      .spyOn(commandContext, "loadCommandContext")
+      .mockRejectedValue(hostileError);
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const exit = jest
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+
+    try {
+      await expect(
+        annotateCommand.parseAsync(["--all"], { from: "user" }),
+      ).resolves.toBe(annotateCommand);
+      expect(consoleError).toHaveBeenCalledWith("Unknown error.");
+      expect(exit).toHaveBeenCalledWith(1);
+    } finally {
+      loadContext.mockRestore();
+      consoleError.mockRestore();
+      exit.mockRestore();
+    }
+  });
+});
+
+describe("generation command Trust Gate exits", () => {
+  it.each([
+    ["readme", readmeCommand],
+    ["api", apiCommand],
+    ["changelog", changelogCommand],
+    ["diagram", diagramCommand],
+    ["update", updateCommand],
+    ["annotate", annotateCommand],
+  ])(
+    "maps a strict %s policy rejection to exit status 2",
+    async (_, command) => {
+      const loadContext = jest
+        .spyOn(commandContext, "loadCommandContext")
+        .mockRejectedValue(new TrustViolationError([]));
+      const consoleError = jest
+        .spyOn(console, "error")
+        .mockImplementation(() => undefined);
+      const exit = jest
+        .spyOn(process, "exit")
+        .mockImplementation((() => undefined) as never);
+
+      try {
+        await command.parseAsync([], { from: "user" });
+        expect(exit).toHaveBeenCalledWith(2);
+      } finally {
+        loadContext.mockRestore();
+        consoleError.mockRestore();
+        exit.mockRestore();
+      }
+    },
+  );
+
+  it("maps an ordinary generation failure to exit status 1", async () => {
+    const loadContext = jest
+      .spyOn(commandContext, "loadCommandContext")
+      .mockRejectedValue(new Error("provider unavailable"));
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const exit = jest
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+
+    try {
+      await readmeCommand.parseAsync([], { from: "user" });
+      expect(exit).toHaveBeenCalledWith(1);
+    } finally {
+      loadContext.mockRestore();
       consoleError.mockRestore();
       exit.mockRestore();
     }

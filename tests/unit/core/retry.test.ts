@@ -89,4 +89,23 @@ describe("withRetry", () => {
     const result = await withRetry(fn, { baseDelayMs: 10 });
     expect(result).toBe("recovered");
   });
+
+  it("uses a fixed diagnostic when a retry error message getter throws", async () => {
+    const hostileSecret = ["sk", "proj", "Q".repeat(32)].join("-");
+    const hostileError = new Error("unused");
+    Object.defineProperty(hostileError, "message", {
+      get: () => {
+        throw new Error(hostileSecret);
+      },
+    });
+
+    await expect(
+      withRetry(
+        async () => {
+          throw hostileError;
+        },
+        { maxRetries: 0, jitter: false },
+      ),
+    ).rejects.toMatchObject({ message: "Unknown error." });
+  });
 });

@@ -42,6 +42,10 @@ const credentialUrlPattern =
   /\b[a-z][a-z0-9+.-]*:\/\/[^\s/:@]+:[^@\s/]+@[^\s/]+(?:\/[^\s]*)?/gi;
 const namedSecretPattern =
   /(?<![A-Za-z0-9_$])["']?(?:apiKey|api_key|api-key|accessToken|access_token|access-token|authToken|auth_token|auth-token|clientSecret|client_secret|client-secret|password|passphrase|secret|token|privateKey|private_key|private-key)["']?(?![A-Za-z0-9_$])\s*(?:=|:)\s*(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)'|([^\s,;}\]\r\n]+))/gi;
+const canonicalPrefixedSecretPattern =
+  /(?<![A-Za-z0-9_$])["']?(?:JWT_SECRET|GITHUB_TOKEN|OPENAI_API_KEY|ANTHROPIC_API_KEY)["']?(?![A-Za-z0-9_$])\s*(?:=|:)\s*(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)'|([^\s,;}\]\r\n]+))/gi;
+const redactionPlaceholderPrefix = "<AIDOC_REDACTED:";
+const redactionPlaceholderPattern = /^<AIDOC_REDACTED:[A-Z_]+:\d+>$/;
 const sensitiveBasenamePattern =
   /(?<![A-Za-z0-9._-])(?:\.env(?:\.(?!example(?=$|[\\/\s,;:)"'\]}`<>]))[A-Za-z0-9_.-]+)?|\.npmrc|\.pypirc|\.netrc|id_(?:rsa|dsa|ecdsa|ed25519))(?=$|[\\/\s,;:)"'\]}`<>])/g;
 const awsCredentialsPattern =
@@ -115,6 +119,7 @@ function collectMatches(text: string): SecretMatch[] {
     ...collectPatternMatches(text, "private_key", privateKeyPattern, 40),
     ...collectProviderMatches(text),
     ...collectPatternMatches(text, "credential_url", credentialUrlPattern, 25),
+    ...collectAssignmentMatches(text, canonicalPrefixedSecretPattern, 20),
     ...collectNamedSecretMatches(text),
     ...collectPatternMatches(
       text,
@@ -158,12 +163,32 @@ function collectPatternMatches(
 }
 
 function collectNamedSecretMatches(text: string): SecretMatch[] {
+  return collectAssignmentMatches(text, namedSecretPattern, 15);
+}
+
+function collectAssignmentMatches(
+  text: string,
+  pattern: RegExp,
+  priority: number,
+): SecretMatch[] {
   const matches: SecretMatch[] = [];
-  const matcher = freshGlobalPattern(namedSecretPattern);
+  const matcher = freshGlobalPattern(pattern);
 
   for (let match = matcher.exec(text); match; match = matcher.exec(text)) {
+    if (
+      text.slice(
+        Math.max(0, match.index - redactionPlaceholderPrefix.length),
+        match.index,
+      ) === redactionPlaceholderPrefix &&
+      redactionPlaceholderPattern.test(
+        `${redactionPlaceholderPrefix}${match[0]}`,
+      )
+    ) {
+      continue;
+    }
+
     const value = match[1] ?? match[2] ?? match[3];
-    if (!value) continue;
+    if (!value || redactionPlaceholderPattern.test(value)) continue;
 
     const valueOffset = match[0].lastIndexOf(value);
     matches.push({
@@ -171,7 +196,7 @@ function collectNamedSecretMatches(text: string): SecretMatch[] {
       start: match.index + valueOffset,
       end: match.index + valueOffset + value.length,
       value,
-      priority: 15,
+      priority,
     });
   }
 

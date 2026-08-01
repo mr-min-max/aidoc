@@ -11,6 +11,10 @@ import {
   writeDoc,
 } from "../context";
 import { validateMermaidSource } from "../../output/markdown";
+import {
+  getSafeErrorDiagnostic,
+  getTrustErrorExitCode,
+} from "../../security/diagnostics";
 
 export const diagramCommand = new Command("diagram")
   .description("Generate architecture diagram (Mermaid) from code analysis")
@@ -56,9 +60,9 @@ export const diagramCommand = new Command("diagram")
         output,
         toWriteDocOptions(options, options.output),
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to generate diagram"));
-      console.error(chalk.red(error.message));
-      process.exit(1);
+      console.error(chalk.red(getSafeErrorDiagnostic(error).message));
+      process.exit(getTrustErrorExitCode(error));
     }
   });

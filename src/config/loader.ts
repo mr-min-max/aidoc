@@ -38,10 +38,22 @@ export function loadConfig(
     }
   }
 
-  return ConfigSchema.parse({
+  const envConfig = environmentConfig(env);
+  const fileProvider = fileConfig.provider;
+  const effectiveConfig = ConfigSchema.parse({
     ...fileConfig,
-    ...environmentConfig(env),
+    ...envConfig,
   });
+
+  // A generic legacy apiKey belongs only to the provider recorded in the file.
+  // If the environment selects another provider, do not transport that file key
+  // across provider boundaries; provider-specific environment keys still win in
+  // the registry for the selected provider.
+  if (envConfig.provider && envConfig.provider !== fileProvider) {
+    return { ...effectiveConfig, apiKey: undefined };
+  }
+
+  return effectiveConfig;
 }
 
 export { defaultConfig, ConfigSchema, AidocConfig };

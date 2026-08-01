@@ -27,6 +27,16 @@ function moduleWithSecret(secret: string): ParsedModule {
   };
 }
 
+function boundarySpanningPrivateKey(): string {
+  const delimiter = "-".repeat(5);
+  const label = ["PRIVATE", "KEY"].join(" ");
+  return [
+    `${delimiter}BEGIN ${label}${delimiter}`,
+    "fixture-key-body",
+    `${delimiter}END ${label}${delimiter}`,
+  ].join("\n");
+}
+
 class MockProvider implements LLMProvider {
   readonly name = "mock";
   lastPrompt = "";
@@ -165,6 +175,44 @@ describe("Generator", () => {
       expect(provider.lastPrompt).toContain("# Old Doc");
       expect(provider.lastPrompt).toContain("src/index.ts");
       expect(provider.lastPrompt).not.toContain(fakeSecret);
+    });
+
+    it("redacts a complete diff fragment before applying the update limit", async () => {
+      const privateKey = boundarySpanningPrivateKey();
+      const rawDiff = `${"x".repeat(2950)}${privateKey}`;
+
+      await generator.generateUpdate({
+        existingDoc: "# Existing\n",
+        changedFiles: ["src/index.ts"],
+        diffSummary: rawDiff,
+      });
+
+      expect(provider.calls).toHaveLength(1);
+      expect(provider.lastPrompt).not.toContain(privateKey.slice(0, 16));
+      expect(provider.lastPrompt).not.toContain("fixture-key-body");
+      expect(provider.lastPrompt).toContain("<AIDOC_REDACTED:PRIVATE_KEY:1>");
+      const transportedDiff = provider.lastPrompt
+        .split("--- DIFF SUMMARY ---\n")[1]
+        .split("\n\nRequirements:")[0];
+      expect(transportedDiff.length).toBeLessThanOrEqual(3000);
+    });
+
+    it("blocks a boundary-spanning update secret before calling a strict provider", async () => {
+      const strictGenerator = new Generator(provider, templatesDir, {
+        policy: "strict",
+        origin: "cli",
+      });
+      const rawDiff = `${"x".repeat(2950)}${boundarySpanningPrivateKey()}`;
+
+      await expect(
+        strictGenerator.generateUpdate({
+          existingDoc: "# Existing\n",
+          changedFiles: ["src/index.ts"],
+          diffSummary: rawDiff,
+        }),
+      ).rejects.toMatchObject({ code: "TRUST_SECRET_BLOCKED" });
+
+      expect(provider.calls).toHaveLength(0);
     });
   });
 

@@ -12,6 +12,10 @@ import {
   writeDoc,
 } from "../context";
 import { validateGeneratedContent } from "../../output/markdown";
+import {
+  getSafeErrorDiagnostic,
+  getTrustErrorExitCode,
+} from "../../security/diagnostics";
 
 export const readmeCommand = new Command("readme")
   .description("Generate README.md from code analysis")
@@ -92,9 +96,9 @@ export const readmeCommand = new Command("readme")
         readme,
         toWriteDocOptions(options, options.output),
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to generate README"));
-      console.error(chalk.red(error.message));
-      process.exit(1);
+      console.error(chalk.red(getSafeErrorDiagnostic(error).message));
+      process.exit(getTrustErrorExitCode(error));
     }
   });

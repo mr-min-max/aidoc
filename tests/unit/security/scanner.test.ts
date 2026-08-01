@@ -207,4 +207,55 @@ describe("applySecretPolicy", () => {
     expect(safe).toContain("<AIDOC_REDACTED:OPENAI_API_KEY:1>");
     expect(safe).not.toContain(fakeOpenAiKey);
   });
+
+  it("does not re-redact an opaque Trust Gate placeholder", () => {
+    const placeholder = ["<AIDOC_REDACTED:", "PRIVATE_KEY", ":1>"].join("");
+
+    expect(
+      applySecretPolicy(placeholder, "redact", new RedactionSession()),
+    ).toEqual({ text: placeholder, findings: [], action: "allowed" });
+  });
+
+  it("does not re-redact an opaque placeholder used as a named field value", () => {
+    const session = new RedactionSession();
+    const initial = applySecretPolicy(
+      `JWT_SECRET=${["opaque", "jwt", "value"].join("-")}`,
+      "redact",
+      session,
+    );
+
+    expect(applySecretPolicy(initial.text, "redact", session)).toEqual({
+      text: initial.text,
+      findings: [],
+      action: "allowed",
+    });
+  });
+
+  it("redacts canonical prefixed environment and serialized secret fields", () => {
+    const jwtValue = ["opaque", "jwt", "value"].join("-");
+    const githubValue = ["opaque", "github", "value"].join("-");
+    const openAiValue = ["opaque", "openai", "value"].join("-");
+    const input = [
+      `JWT_SECRET=${jwtValue}`,
+      `GITHUB_TOKEN: ${githubValue}`,
+      `{"OPENAI_API_KEY":"${openAiValue}"}`,
+    ].join("\n");
+
+    const result = applySecretPolicy(input, "redact", new RedactionSession());
+
+    expect(result.findings).toEqual([{ kind: "named_secret", count: 3 }]);
+    expect(result.text).not.toContain(jwtValue);
+    expect(result.text).not.toContain(githubValue);
+    expect(result.text).not.toContain(openAiValue);
+  });
+
+  it("does not treat canonical field prefixes as a secret field match", () => {
+    const input = ["TOKEN_COUNT=42", "JWT_SECRET_NAME=metadata"].join("\n");
+
+    expect(applySecretPolicy(input, "redact", new RedactionSession())).toEqual({
+      text: input,
+      findings: [],
+      action: "allowed",
+    });
+  });
 });

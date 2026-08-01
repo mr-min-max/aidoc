@@ -11,6 +11,10 @@ import {
   writeDoc,
 } from "../context";
 import { validateGeneratedContent } from "../../output/markdown";
+import {
+  getSafeErrorDiagnostic,
+  getTrustErrorExitCode,
+} from "../../security/diagnostics";
 
 export const apiCommand = new Command("api")
   .description("Generate API documentation from code analysis")
@@ -55,9 +59,9 @@ export const apiCommand = new Command("api")
         apiDocs,
         toWriteDocOptions(options, options.output),
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to generate API docs"));
-      console.error(chalk.red(error.message));
-      process.exit(1);
+      console.error(chalk.red(getSafeErrorDiagnostic(error).message));
+      process.exit(getTrustErrorExitCode(error));
     }
   });

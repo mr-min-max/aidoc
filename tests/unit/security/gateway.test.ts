@@ -4,6 +4,7 @@ import {
   TrustGateway,
 } from "../../../src/security/gateway";
 import { GenerateOptions, LLMProvider } from "../../../src/providers/types";
+import * as scanner from "../../../src/security/scanner";
 
 const fakeSecret = ["sk", "proj", "D".repeat(32)].join("-");
 
@@ -350,5 +351,164 @@ describe("TrustGateway", () => {
     );
     expect((thrown as Error).message).not.toContain(fakeSecret);
     expect(provider.calls).toHaveLength(1);
+  });
+
+  it("rejects a non-string custom-provider result before it can be serialized", async () => {
+    let serializationCalls = 0;
+    const unsafeOutput = {
+      toString: () => "# harmless",
+      toJSON: () => {
+        serializationCalls += 1;
+        return fakeSecret;
+      },
+    };
+    const provider: LLMProvider = {
+      name: "object-result-provider",
+      generate: async () => unsafeOutput as unknown as string,
+    };
+    const gateway = new TrustGateway(provider, {
+      policy: "redact",
+      origin: "mcp",
+    });
+
+    await expect(
+      gateway.generate({
+        operation: "readme",
+        systemPrompt: "safe",
+        prompt: "safe",
+      }),
+    ).rejects.toMatchObject({ code: "TRUST_INVALID_PROVIDER_OUTPUT" });
+
+    expect(serializationCalls).toBe(0);
+  });
+
+  it("rejects a non-string streamed custom-provider result before the callback", async () => {
+    let serializationCalls = 0;
+    const unsafeOutput = {
+      toString: () => "# harmless",
+      toJSON: () => {
+        serializationCalls += 1;
+        return fakeSecret;
+      },
+    };
+    const provider: LLMProvider = {
+      name: "object-stream-provider",
+      generate: async () => "# unused",
+      generateStream: async () => unsafeOutput as unknown as string,
+    };
+    const gateway = new TrustGateway(provider, {
+      policy: "redact",
+      origin: "mcp",
+    });
+    const approved: string[] = [];
+
+    await expect(
+      gateway.generateStream(
+        {
+          operation: "readme",
+          systemPrompt: "safe",
+          prompt: "safe",
+        },
+        {},
+        (content) => approved.push(content),
+      ),
+    ).rejects.toMatchObject({ code: "TRUST_INVALID_PROVIDER_OUTPUT" });
+
+    expect(approved).toEqual([]);
+    expect(serializationCalls).toBe(0);
+  });
+
+  it("uses a fixed diagnostic when a provider message getter throws", async () => {
+    const provider = new RecordingProvider();
+    const hostileSecret = ["sk", "proj", "H".repeat(32)].join("-");
+    const hostileError = new Error("unused");
+    Object.defineProperty(hostileError, "message", {
+      get: () => {
+        throw new Error(hostileSecret);
+      },
+    });
+    provider.failure = hostileError;
+    const gateway = new TrustGateway(provider, {
+      policy: "redact",
+      origin: "cli",
+    });
+
+    await expect(
+      gateway.generate({
+        operation: "readme",
+        systemPrompt: "safe",
+        prompt: "safe",
+      }),
+    ).rejects.toMatchObject({ message: "Unknown error." });
+  });
+
+  it("uses a fixed diagnostic when a provider proxy rejects prototype inspection", async () => {
+    const provider = new RecordingProvider();
+    const hostileSecret = ["sk", "proj", "P".repeat(32)].join("-");
+    provider.failure = new Proxy(new Error("safe provider failure"), {
+      getPrototypeOf: () => {
+        throw new Error(hostileSecret);
+      },
+    }) as Error;
+    const gateway = new TrustGateway(provider, {
+      policy: "redact",
+      origin: "cli",
+    });
+
+    await expect(
+      gateway.generate({
+        operation: "readme",
+        systemPrompt: "safe",
+        prompt: "safe",
+      }),
+    ).rejects.toMatchObject({ message: "Unknown error." });
+  });
+
+  it("uses a fixed diagnostic for a non-string provider message", async () => {
+    const provider = new RecordingProvider();
+    const hostileError = new Error("unused");
+    Object.defineProperty(hostileError, "message", {
+      value: { secret: ["sk", "proj", "N".repeat(32)].join("-") },
+    });
+    provider.failure = hostileError;
+    const gateway = new TrustGateway(provider, {
+      policy: "redact",
+      origin: "cli",
+    });
+
+    await expect(
+      gateway.generate({
+        operation: "readme",
+        systemPrompt: "safe",
+        prompt: "safe",
+      }),
+    ).rejects.toMatchObject({ message: "Unknown error." });
+  });
+
+  it("uses a fixed diagnostic when diagnostic sanitization fails", async () => {
+    const provider = new RecordingProvider();
+    const hostileSecret = ["sk", "proj", "Z".repeat(32)].join("-");
+    provider.failure = new Error("safe provider failure");
+    const sanitize = jest
+      .spyOn(scanner, "sanitizeDiagnostic")
+      .mockImplementation(() => {
+        throw new Error(hostileSecret);
+      });
+    const gateway = new TrustGateway(provider, {
+      policy: "redact",
+      origin: "cli",
+    });
+
+    try {
+      await expect(
+        gateway.generate({
+          operation: "readme",
+          systemPrompt: "safe",
+          prompt: "safe",
+        }),
+      ).rejects.toMatchObject({ message: "Unknown error." });
+    } finally {
+      sanitize.mockRestore();
+    }
   });
 });

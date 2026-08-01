@@ -175,3 +175,29 @@ it("returns unknown when Python runtime execution is unavailable", async () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+it("does not return malformed Python source through freshness diagnostics", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-freshness-"));
+  const fakeSourceSecret = ["sk", "proj", "W".repeat(32)].join("-");
+  try {
+    fs.mkdirSync(path.join(root, "src"));
+    fs.writeFileSync(
+      path.join(root, "src", "broken.py"),
+      `def broken(${fakeSourceSecret}:\n`,
+    );
+    fs.writeFileSync(path.join(root, "README.md"), "# Docs\n");
+    (getChangedFiles as jest.Mock).mockResolvedValue(["src/broken.py"]);
+
+    const report = await checkDocumentationFreshness(
+      root,
+      "README.md",
+      "HEAD~1",
+    );
+
+    expect(report.status).toBe("unknown");
+    expect(report.message).not.toContain(fakeSourceSecret);
+    expect(report.message).toContain("Failed to parse Python source.");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

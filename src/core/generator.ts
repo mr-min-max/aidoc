@@ -114,10 +114,14 @@ export class Generator {
     changedFiles: string[];
     diffSummary: string;
   }): Promise<string> {
+    const approvedDiffSummary = this.gateway.approveInputFragment(
+      "update",
+      context.diffSummary,
+    );
     const prompt = this.renderTemplate("update", {
       existingDoc: context.existingDoc,
       changedFiles: context.changedFiles,
-      diffSummary: context.diffSummary.substring(0, 3000),
+      diffSummary: approvedDiffSummary.substring(0, 3000),
     });
     return this.generateWithTrust(
       "update",

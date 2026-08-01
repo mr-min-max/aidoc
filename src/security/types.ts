@@ -42,3 +42,13 @@ export class TrustViolationError extends Error {
     this.name = "TrustViolationError";
   }
 }
+
+/** Signals that an untyped JavaScript provider returned a value that cannot cross the Trust Gate. */
+export class TrustInvalidProviderOutputError extends Error {
+  readonly code = "TRUST_INVALID_PROVIDER_OUTPUT" as const;
+
+  constructor() {
+    super("Trust Gate rejected a non-string provider output.");
+    this.name = "TrustInvalidProviderOutputError";
+  }
+}

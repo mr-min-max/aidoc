@@ -130,4 +130,26 @@ describe("PythonParser", () => {
       fs.rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("does not expose malformed Python source through parser diagnostics", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-python-error-"));
+    const fakeSourceSecret = ["sk", "proj", "Y".repeat(32)].join("-");
+    const brokenFile = path.join(root, "broken.py");
+    fs.writeFileSync(brokenFile, `def broken(${fakeSourceSecret}:\n`);
+
+    try {
+      let thrown: unknown;
+      try {
+        await parser.parse(brokenFile);
+      } catch (error: unknown) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(Error);
+      expect((thrown as Error).message).not.toContain(fakeSourceSecret);
+      expect((thrown as Error).message).toBe("Failed to parse Python source.");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

@@ -19,7 +19,7 @@ jest.mock("../../../src/core/generator", () => ({
 import { analyzeCodebase } from "../../../src/core/analyzer";
 import { Generator } from "../../../src/core/generator";
 import { loadConfig } from "../../../src/config/loader";
-import { handleToolCall } from "../../../src/mcp/server";
+import { formatMCPError, handleToolCall } from "../../../src/mcp/server";
 import { createProvider } from "../../../src/providers/registry";
 
 const analyzeCodebaseMock = analyzeCodebase as jest.MockedFunction<
@@ -63,5 +63,24 @@ describe("MCP Trust Gate wiring", () => {
       policy: "strict",
       origin: "mcp",
     });
+  });
+
+  it("does not double-prefix an already-prefixed allowlisted error", () => {
+    const error = Object.assign(
+      new Error("TRUST_SECRET_BLOCKED: Trust Gate rejected input."),
+      { code: "TRUST_SECRET_BLOCKED" },
+    );
+
+    expect(formatMCPError(error)).toBe(
+      "TRUST_SECRET_BLOCKED: Trust Gate rejected input.",
+    );
+  });
+
+  it("fails closed when an error exposes an unallowlisted code", () => {
+    const error = Object.assign(new Error("safe-looking failure"), {
+      code: "UNTRUSTED_CODE",
+    });
+
+    expect(formatMCPError(error)).toBe("Unknown MCP error.");
   });
 });

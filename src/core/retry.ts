@@ -1,5 +1,5 @@
 import { logger } from "./logger";
-import { sanitizeDiagnostic } from "../security/scanner";
+import { getSafeErrorDiagnostic } from "../security/diagnostics";
 
 /** Options for configuring retry behavior. */
 export interface RetryOptions {
@@ -24,26 +24,26 @@ const DEFAULT_RETRY_OPTIONS: RetryOptions = {
  * Determines if an error is retryable.
  * Rate limits (429), server errors (5xx), and network errors are retryable.
  */
-function isRetryableError(error: unknown): boolean {
-  if (error instanceof Error) {
-    const message = error.message.toLowerCase();
-    // Rate limit errors
-    if (message.includes("429") || message.includes("rate limit")) return true;
-    // Server errors
-    if (
-      message.includes("500") ||
-      message.includes("502") ||
-      message.includes("503")
-    )
-      return true;
-    // Network errors
-    if (
-      message.includes("econnreset") ||
-      message.includes("econnrefused") ||
-      message.includes("timeout")
-    )
-      return true;
-  }
+function isRetryableDiagnostic(message: string): boolean {
+  const normalized = message.toLowerCase();
+  // Rate limit errors
+  if (normalized.includes("429") || normalized.includes("rate limit"))
+    return true;
+  // Server errors
+  if (
+    normalized.includes("500") ||
+    normalized.includes("502") ||
+    normalized.includes("503")
+  )
+    return true;
+  // Network errors
+  if (
+    normalized.includes("econnreset") ||
+    normalized.includes("econnrefused") ||
+    normalized.includes("timeout")
+  )
+    return true;
+
   return false;
 }
 
@@ -72,9 +72,13 @@ export async function withRetry<T>(
     try {
       return await fn();
     } catch (error: unknown) {
-      lastError = error instanceof Error ? error : new Error(String(error));
+      const diagnostic = getSafeErrorDiagnostic(error);
+      lastError = new Error(diagnostic.message);
 
-      if (attempt === opts.maxRetries || !isRetryableError(error)) {
+      if (
+        attempt === opts.maxRetries ||
+        !isRetryableDiagnostic(diagnostic.message)
+      ) {
         throw lastError;
       }
 
@@ -87,7 +91,7 @@ export async function withRetry<T>(
         : baseDelay;
 
       logger.warn(
-        `Attempt ${attempt + 1}/${opts.maxRetries + 1} failed: ${sanitizeDiagnostic(lastError.message)}. ` +
+        `Attempt ${attempt + 1}/${opts.maxRetries + 1} failed: ${diagnostic.message}. ` +
           `Retrying in ${Math.round(delay)}ms...`,
       );
 

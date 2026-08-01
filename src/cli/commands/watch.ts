@@ -6,6 +6,7 @@ import { loadCommandContext, writeDoc, readProjectInfo } from "../context";
 import { analyzeCodebase } from "../../core/analyzer";
 import { debounce, isRelevantChange } from "../../core/watcher";
 import { logger } from "../../core/logger";
+import { getSafeErrorDiagnostic } from "../../security/diagnostics";
 
 export const watchCommand = new Command("watch")
   .description("Watch source files and regenerate docs live on save")
@@ -50,8 +51,10 @@ export const watchCommand = new Command("watch")
           label: options.target,
         });
         console.log(chalk.green(`✔ Regenerated in ${Date.now() - start}ms`));
-      } catch (error: any) {
-        logger.error(`Regeneration failed: ${error.message}`);
+      } catch (error: unknown) {
+        logger.error(
+          `Regeneration failed: ${getSafeErrorDiagnostic(error).message}`,
+        );
       }
     }, 300);
 

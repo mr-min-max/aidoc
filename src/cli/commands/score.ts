@@ -8,6 +8,10 @@ import { analyzeCodebase } from "../../core/analyzer";
 import { scoreModules, BAND_META } from "../../core/score";
 import { writeDoc } from "../context";
 import { loadConfig } from "../../config/loader";
+import {
+  getSafeErrorDiagnostic,
+  getTrustErrorExitCode,
+} from "../../security/diagnostics";
 
 export const scoreCommand = new Command("score")
   .description("Score documentation health (0-100) from AST coverage")
@@ -83,9 +87,9 @@ export const scoreCommand = new Command("score")
         );
         process.exit(1);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to score documentation"));
-      console.error(chalk.red(error.message));
-      process.exit(1);
+      console.error(chalk.red(getSafeErrorDiagnostic(error).message));
+      process.exit(getTrustErrorExitCode(error));
     }
   });

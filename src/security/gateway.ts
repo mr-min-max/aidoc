@@ -1,13 +1,11 @@
 import { GenerateOptions, LLMProvider } from "../providers/types";
-import {
-  RedactionSession,
-  applySecretPolicy,
-  sanitizeDiagnostic,
-} from "./scanner";
+import { RedactionSession, applySecretPolicy } from "./scanner";
+import { getSafeErrorDiagnostic } from "./diagnostics";
 import {
   FindingSummary,
   TrustPolicy,
   TrustTextResult,
+  TrustInvalidProviderOutputError,
   TrustViolationError,
 } from "./types";
 
@@ -108,7 +106,7 @@ export class TrustGateway {
       return approvedOutput;
     }
 
-    let output: string;
+    let output: unknown;
     try {
       output = await this.provider.generateStream(
         input.prompt,
@@ -122,6 +120,24 @@ export class TrustGateway {
     const approvedOutput = this.approveOutput(envelope, output);
     onApprovedOutput(approvedOutput);
     return approvedOutput;
+  }
+
+  /**
+   * Approves a raw input fragment before its owning generator narrows it.
+   *
+   * This deliberately exposes no callback or arbitrary transform: callers receive only
+   * policy-approved text and must still route the complete rendered prompt through
+   * generate()/generateStream() before provider transport.
+   */
+  approveInputFragment(operation: GenerationOperation, text: string): string {
+    try {
+      return applySecretPolicy(text, this.policy, this.session).text;
+    } catch (error: unknown) {
+      if (error instanceof TrustViolationError) {
+        this.emit("input", { operation }, "blocked", error.findings);
+      }
+      throw error;
+    }
   }
 
   private approveInput(envelope: ContextEnvelope): ApprovedInput {
@@ -182,7 +198,7 @@ export class TrustGateway {
     envelope: ContextEnvelope,
     input: ApprovedInput,
     options: Omit<GenerateOptions, "systemPrompt">,
-  ): Promise<string> {
+  ): Promise<unknown> {
     try {
       return await this.provider.generate(input.prompt, {
         ...options,
@@ -193,7 +209,11 @@ export class TrustGateway {
     }
   }
 
-  private approveOutput(envelope: ContextEnvelope, output: string): string {
+  private approveOutput(envelope: ContextEnvelope, output: unknown): string {
+    if (typeof output !== "string") {
+      throw new TrustInvalidProviderOutputError();
+    }
+
     try {
       const result = applySecretPolicy(output, this.policy, this.session);
       this.emit("output", envelope, result.action, result.findings);
@@ -210,19 +230,14 @@ export class TrustGateway {
     envelope: ContextEnvelope,
     error: unknown,
   ): never {
-    const diagnostic = error instanceof Error ? error.message : String(error);
-    const findings = applySecretPolicy(
-      diagnostic,
-      "redact",
-      new RedactionSession(),
-    ).findings;
-    this.emit("error", envelope, "blocked", findings);
-    throw new Error(sanitizeDiagnostic(diagnostic));
+    const diagnostic = getSafeErrorDiagnostic(error);
+    this.emit("error", envelope, "blocked", diagnostic.findings);
+    throw new Error(diagnostic.message);
   }
 
   private emit(
     stage: TrustEvent["stage"],
-    envelope: ContextEnvelope,
+    envelope: Pick<ContextEnvelope, "operation">,
     action: TrustEvent["action"],
     findings: FindingSummary[],
   ): void {

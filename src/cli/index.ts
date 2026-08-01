@@ -12,6 +12,10 @@ import { watchCommand } from "./commands/watch";
 import { checkCommand } from "./commands/check";
 import { setLogLevel } from "../core/logger";
 import { readPackageVersion } from "../core/package-meta";
+import {
+  getSafeErrorDiagnostic,
+  getTrustErrorExitCode,
+} from "../security/diagnostics";
 
 dotenv.config({ quiet: true });
 
@@ -50,15 +54,13 @@ const args = process.argv.slice(2);
 if (args.includes("--mcp")) {
   import("../mcp/server").then(({ startMCPServer }) => {
     startMCPServer().catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(message);
-      process.exitCode = 1;
+      console.error(getSafeErrorDiagnostic(error).message);
+      process.exitCode = getTrustErrorExitCode(error);
     });
   });
 } else {
   program.parseAsync().catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error(message);
-    process.exitCode = 1;
+    console.error(getSafeErrorDiagnostic(error).message);
+    process.exitCode = getTrustErrorExitCode(error);
   });
 }

@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { getChangedFiles } from "../git/history";
 import { getParserForFile } from "../parsers/registry";
+import { getSafeErrorDiagnostic } from "../security/diagnostics";
 
 export type DocumentationCheckStatus =
   | "clean"
@@ -118,13 +119,13 @@ export async function checkDocumentationFreshness(
       fs.existsSync(absoluteTarget),
     );
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
+    const diagnostic = getSafeErrorDiagnostic(error);
     return {
       status: "unknown",
       target: relativeTarget,
       targetChanged: false,
       sourceFiles: [],
-      message: `Could not evaluate documentation freshness: ${message}`,
+      message: `Could not evaluate documentation freshness: ${diagnostic.message}`,
     };
   }
 }
