@@ -4,6 +4,7 @@ import {
   sanitizeDiagnostic,
 } from "./scanner";
 import { FindingSummary } from "./types";
+import { PLAN_ERROR_CODES, type PlanErrorCode } from "../impact/types";
 
 /** Stable, value-free diagnostic used when unknown errors cannot be inspected safely. */
 export const UNKNOWN_ERROR_DIAGNOSTIC = "Unknown error.";
@@ -50,6 +51,15 @@ export function getSafeAllowlistedErrorCode(
   allowedCodes: ReadonlySet<string>,
 ): string | undefined {
   return inspectSafeAllowlistedErrorCode(error, allowedCodes).code;
+}
+
+/** Safely returns a stable documentation-impact planning error code. */
+export function getSafePlanErrorCode(
+  error: unknown,
+): PlanErrorCode | undefined {
+  return getSafeAllowlistedErrorCode(error, PLAN_ERROR_CODES) as
+    | PlanErrorCode
+    | undefined;
 }
 
 /**
