@@ -80,7 +80,11 @@ function canonicalize(
 
   try {
     if (Array.isArray(value)) {
-      return value.map((entry) => canonicalize(entry, ancestors, true));
+      const canonical: unknown[] = [];
+      for (let index = 0; index < value.length; index += 1) {
+        canonical.push(canonicalize(value[index], ancestors, true));
+      }
+      return canonical;
     }
 
     const canonical: Record<string, unknown> = Object.create(null);
@@ -110,7 +114,11 @@ function serializeCanonical(value: unknown): string {
     return String(value);
   }
   if (Array.isArray(value)) {
-    return `[${value.map(serializeCanonical).join(",")}]`;
+    const entries: string[] = [];
+    for (let index = 0; index < value.length; index += 1) {
+      entries.push(index in value ? serializeCanonical(value[index]) : "null");
+    }
+    return `[${entries.join(",")}]`;
   }
 
   const object = value as Record<string, unknown>;

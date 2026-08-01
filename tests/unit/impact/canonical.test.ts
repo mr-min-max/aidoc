@@ -25,6 +25,16 @@ describe("impact canonical contracts", () => {
     );
   });
 
+  it("encodes sparse array holes as null to produce valid JSON", () => {
+    const sparse = new Array<string>(2);
+    sparse[1] = "kept";
+
+    const serialized = canonicalStringify(sparse);
+
+    expect(serialized).toBe('[null,"kept"]');
+    expect(JSON.parse(serialized)).toEqual([null, "kept"]);
+  });
+
   it("rejects values that cannot have a stable JSON representation", () => {
     expect(() => canonicalStringify(Number.POSITIVE_INFINITY)).toThrow(
       "Cannot canonicalize non-finite number.",
