@@ -1,4 +1,4 @@
-import { promises as fs } from "node:fs";
+import { constants as fsConstants, promises as fs, Stats } from "node:fs";
 import { isAbsolute, posix, resolve, relative, sep } from "node:path";
 import { loadPlanningConfig } from "../config/planning";
 import { GitSnapshotReader, type SnapshotFileChange } from "../git/snapshot";
@@ -26,6 +26,11 @@ export interface ImpactPlanOptions {
   base?: string;
   head?: string;
   maxContextBytes?: unknown;
+}
+
+interface ValidatedExistingPath {
+  absolute: string;
+  stat: Stats;
 }
 
 /**
@@ -171,27 +176,54 @@ async function loadDocumentationFiles(
   const files: DocumentationFile[] = [];
   for (const path of [...candidates].sort(compareStrings)) {
     if (matchesAny(path, exclude)) continue;
-    const absolute = await safeExistingAbsolutePath(root, path);
-    if (absolute === undefined) continue;
-    try {
-      const stat = await fs.lstat(absolute);
-      if (!stat.isFile() || stat.isSymbolicLink()) continue;
-      const content = await fs.readFile(absolute, "utf8");
-      files.push({ path, content });
-    } catch {
-      // Documentation files are optional. A file disappearing during a plan
-      // should not expose the underlying path/error or abort source analysis.
-    }
+    const content = await readSafeDocumentationFile(root, path);
+    if (content !== undefined) files.push({ path, content });
   }
   return files;
+}
+
+async function readSafeDocumentationFile(
+  root: string,
+  path: string,
+): Promise<string | undefined> {
+  const validated = await safeExistingAbsolutePath(root, path);
+  if (validated === undefined) return undefined;
+  try {
+    const beforeOpen = await fs.lstat(validated.absolute);
+    if (
+      !beforeOpen.isFile() ||
+      beforeOpen.isSymbolicLink() ||
+      !sameFileIdentity(validated.stat, beforeOpen)
+    )
+      return undefined;
+    const handle = await fs.open(
+      validated.absolute,
+      fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+    );
+    try {
+      const beforeRead = await handle.stat();
+      if (!beforeRead.isFile() || !sameFileIdentity(beforeOpen, beforeRead))
+        return undefined;
+      const content = await handle.readFile({ encoding: "utf8" });
+      const afterRead = await handle.stat();
+      return sameFileSnapshot(beforeRead, afterRead) ? content : undefined;
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    // Documentation files are optional. A file disappearing during a plan
+    // should not expose the underlying path/error or abort source analysis.
+    return undefined;
+  }
 }
 
 async function markdownFilesUnder(
   root: string,
   directory: string,
 ): Promise<string[]> {
-  const absolute = await safeExistingAbsolutePath(root, directory);
-  if (absolute === undefined) return [];
+  const validated = await safeExistingAbsolutePath(root, directory);
+  if (validated === undefined) return [];
+  const { absolute } = validated;
   const result: string[] = [];
   const walk = async (current: string): Promise<void> => {
     let entries;
@@ -217,12 +249,8 @@ async function markdownFilesUnder(
       }
     }
   };
-  try {
-    const stat = await fs.lstat(absolute);
-    if (stat.isDirectory() && !stat.isSymbolicLink()) await walk(absolute);
-  } catch {
-    return [];
-  }
+  if (validated.stat.isDirectory() && !validated.stat.isSymbolicLink())
+    await walk(absolute);
   return result;
 }
 
@@ -254,17 +282,20 @@ function safeAbsolutePath(root: string, path: string): string | undefined {
 async function safeExistingAbsolutePath(
   root: string,
   path: string,
-): Promise<string | undefined> {
+): Promise<ValidatedExistingPath | undefined> {
   const absolute = safeAbsolutePath(root, path);
   if (absolute === undefined) return undefined;
   const absoluteRoot = resolve(root);
   let current = absoluteRoot;
+  let stat: Stats | undefined;
   try {
     for (const component of relative(absoluteRoot, absolute).split(sep)) {
       if (component.length === 0) continue;
       current = resolve(current, component);
-      if ((await fs.lstat(current)).isSymbolicLink()) return undefined;
+      stat = await fs.lstat(current);
+      if (stat.isSymbolicLink()) return undefined;
     }
+    if (stat === undefined) return undefined;
     const [realRoot, realPath] = await Promise.all([
       fs.realpath(absoluteRoot),
       fs.realpath(absolute),
@@ -274,11 +305,28 @@ async function safeExistingAbsolutePath(
       (!realRelative.startsWith(`..${sep}`) &&
         realRelative !== ".." &&
         !isAbsolute(realRelative))
-      ? absolute
+      ? { absolute, stat }
       : undefined;
   } catch {
     return undefined;
   }
+}
+
+function sameFileIdentity(left: Stats, right: Stats): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    (left.mode & 0o170000) === (right.mode & 0o170000)
+  );
+}
+
+function sameFileSnapshot(left: Stats, right: Stats): boolean {
+  return (
+    sameFileIdentity(left, right) &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs
+  );
 }
 
 function isSafeRelativePath(path: string): boolean {

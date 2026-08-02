@@ -3,11 +3,12 @@ import {
   mkdirSync,
   promises as fs,
   readFileSync,
+  renameSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createImpactPlan } from "../../../src/impact/planner";
 import {
@@ -142,6 +143,65 @@ describe("createImpactPlan", () => {
 
     expect(JSON.stringify(result.plan.documentation)).not.toContain(
       "bridge/sub/API.md",
+    );
+  });
+
+  // Break caught: a validated documentation directory is swapped for an
+  // external symlink after lstat and the subsequent read follows it.
+  test("skips documentation when its parent directory is swapped before read", async () => {
+    const root = repository();
+    const docs = join(root, "docs");
+    const parkedDocs = join(root, "docs-before-swap");
+    const externalDocs = mkdtempSync(join(tmpdir(), "aidoc-external-swap-"));
+    const documentationPath = join(docs, "API.md");
+    mkdirSync(docs);
+    writeFileSync(documentationPath, "# Internal notes\nNo public API here.\n");
+    writeFileSync(
+      join(externalDocs, "API.md"),
+      "# API\n`swappedApi`\nEXTERNAL_DOCUMENTATION_SENTINEL\n",
+    );
+    writeFileSync(
+      join(root, "api.ts"),
+      "export function swappedApi(value: string) { return value; }\n",
+    );
+    commit(root, "initial");
+    writeFileSync(
+      join(root, "api.ts"),
+      "export function swappedApi(value: number) { return value; }\n",
+    );
+
+    const originalLstat = fs.lstat.bind(fs);
+    let targetLstatCalls = 0;
+    let swapped = false;
+    const lstatSpy = jest.spyOn(fs, "lstat").mockImplementation((async (
+      path,
+      options,
+    ) => {
+      const stat =
+        options === undefined
+          ? await originalLstat(path)
+          : await originalLstat(path, options);
+      if (String(path).endsWith(`${sep}docs${sep}API.md`)) {
+        targetLstatCalls += 1;
+        if (targetLstatCalls === 2) {
+          renameSync(docs, parkedDocs);
+          symlinkSync(externalDocs, docs, "dir");
+          swapped = true;
+        }
+      }
+      return stat;
+    }) as typeof fs.lstat);
+
+    let result;
+    try {
+      result = await createImpactPlan({ cwd: root });
+    } finally {
+      lstatSpy.mockRestore();
+    }
+
+    expect(swapped).toBe(true);
+    expect(JSON.stringify(result.plan.documentation)).not.toContain(
+      "docs/API.md",
     );
   });
 
