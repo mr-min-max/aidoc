@@ -1,5 +1,7 @@
-import { constants as fsConstants, promises as fs, Stats } from "node:fs";
+import { execFile as execFileCallback } from "node:child_process";
+import { promises as fs, type BigIntStats } from "node:fs";
 import { isAbsolute, posix, resolve, relative, sep } from "node:path";
+import { promisify } from "node:util";
 import { loadPlanningConfig } from "../config/planning";
 import { GitSnapshotReader, type SnapshotFileChange } from "../git/snapshot";
 import { getSnapshotParserForFile } from "../parsers/registry";
@@ -30,8 +32,72 @@ export interface ImpactPlanOptions {
 
 interface ValidatedExistingPath {
   absolute: string;
-  stat: Stats;
+  stat: BigIntStats;
+  parentAbsolute: string;
+  parentIdentity: DirectoryIdentity;
 }
+
+interface DirectoryIdentity {
+  dev: string;
+  ino: string;
+  type: string;
+}
+
+const execFile = promisify(execFileCallback);
+const DOCUMENTATION_READ_TIMEOUT_MS = 5_000;
+const DOCUMENTATION_READ_MAX_BUFFER = 10 * 1024 * 1024;
+const DOCUMENTATION_READER_SCRIPT = String.raw`
+const fs = require("node:fs");
+const [leaf, expectedDev, expectedIno, expectedType] = process.argv.slice(1);
+let descriptor;
+
+function identity(stat) {
+  return {
+    dev: stat.dev.toString(),
+    ino: stat.ino.toString(),
+    type: (stat.mode & 0o170000n).toString(),
+  };
+}
+
+function sameSnapshot(left, right) {
+  const leftIdentity = identity(left);
+  const rightIdentity = identity(right);
+  return leftIdentity.dev === rightIdentity.dev &&
+    leftIdentity.ino === rightIdentity.ino &&
+    leftIdentity.type === rightIdentity.type &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs;
+}
+
+try {
+  if (typeof leaf !== "string" || leaf.length === 0 || leaf === "." ||
+      leaf === ".." || leaf.includes("/") || leaf.includes("\\") ||
+      leaf.includes("\0")) throw new Error();
+  const parent = fs.lstatSync(".", { bigint: true });
+  const parentIdentity = identity(parent);
+  if (!parent.isDirectory() || parent.isSymbolicLink() ||
+      parentIdentity.dev !== expectedDev ||
+      parentIdentity.ino !== expectedIno ||
+      parentIdentity.type !== expectedType) throw new Error();
+  descriptor = fs.openSync(
+    leaf,
+    fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+  );
+  const before = fs.fstatSync(descriptor, { bigint: true });
+  if (!before.isFile() || before.isSymbolicLink()) throw new Error();
+  const content = fs.readFileSync(descriptor, { encoding: "utf8" });
+  const after = fs.fstatSync(descriptor, { bigint: true });
+  if (!sameSnapshot(before, after)) throw new Error();
+  process.stdout.write(JSON.stringify({ ok: true, content }));
+} catch {
+  process.stdout.write('{"ok":false}');
+} finally {
+  if (descriptor !== undefined) {
+    try { fs.closeSync(descriptor); } catch {}
+  }
+}
+`;
 
 /**
  * Builds the value-free impact plan shared by CLI, MCP, and update flows.
@@ -189,32 +255,51 @@ async function readSafeDocumentationFile(
   const validated = await safeExistingAbsolutePath(root, path);
   if (validated === undefined) return undefined;
   try {
-    const beforeOpen = await fs.lstat(validated.absolute);
-    if (
-      !beforeOpen.isFile() ||
-      beforeOpen.isSymbolicLink() ||
-      !sameFileIdentity(validated.stat, beforeOpen)
-    )
-      return undefined;
-    const handle = await fs.open(
-      validated.absolute,
-      fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+    const result = await execFile(
+      process.execPath,
+      [
+        "-e",
+        DOCUMENTATION_READER_SCRIPT,
+        "--",
+        posix.basename(path),
+        validated.parentIdentity.dev,
+        validated.parentIdentity.ino,
+        validated.parentIdentity.type,
+      ],
+      {
+        cwd: validated.parentAbsolute,
+        encoding: "utf8",
+        timeout: DOCUMENTATION_READ_TIMEOUT_MS,
+        maxBuffer: DOCUMENTATION_READ_MAX_BUFFER,
+        windowsHide: true,
+      },
     );
-    try {
-      const beforeRead = await handle.stat();
-      if (!beforeRead.isFile() || !sameFileIdentity(beforeOpen, beforeRead))
-        return undefined;
-      const content = await handle.readFile({ encoding: "utf8" });
-      const afterRead = await handle.stat();
-      return sameFileSnapshot(beforeRead, afterRead) ? content : undefined;
-    } finally {
-      await handle.close();
-    }
+    return parseDocumentationRead(result.stdout);
   } catch {
     // Documentation files are optional. A file disappearing during a plan
     // should not expose the underlying path/error or abort source analysis.
     return undefined;
   }
+}
+
+function parseDocumentationRead(value: string): string | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+    return undefined;
+  const record = parsed as Record<string, unknown>;
+  const keys = Object.keys(record);
+  return record.ok === true &&
+    typeof record.content === "string" &&
+    keys.length === 2 &&
+    keys.includes("ok") &&
+    keys.includes("content")
+    ? record.content
+    : undefined;
 }
 
 async function markdownFilesUnder(
@@ -287,15 +372,23 @@ async function safeExistingAbsolutePath(
   if (absolute === undefined) return undefined;
   const absoluteRoot = resolve(root);
   let current = absoluteRoot;
-  let stat: Stats | undefined;
   try {
-    for (const component of relative(absoluteRoot, absolute).split(sep)) {
+    let stat = await fs.lstat(absoluteRoot, { bigint: true });
+    if (!stat.isDirectory() || stat.isSymbolicLink()) return undefined;
+    let parentAbsolute = absoluteRoot;
+    let parentIdentity = directoryIdentity(stat);
+    const components = relative(absoluteRoot, absolute).split(sep);
+    for (const [index, component] of components.entries()) {
       if (component.length === 0) continue;
       current = resolve(current, component);
-      stat = await fs.lstat(current);
+      stat = await fs.lstat(current, { bigint: true });
       if (stat.isSymbolicLink()) return undefined;
+      if (index < components.length - 1) {
+        if (!stat.isDirectory()) return undefined;
+        parentAbsolute = current;
+        parentIdentity = directoryIdentity(stat);
+      }
     }
-    if (stat === undefined) return undefined;
     const [realRoot, realPath] = await Promise.all([
       fs.realpath(absoluteRoot),
       fs.realpath(absolute),
@@ -305,28 +398,19 @@ async function safeExistingAbsolutePath(
       (!realRelative.startsWith(`..${sep}`) &&
         realRelative !== ".." &&
         !isAbsolute(realRelative))
-      ? { absolute, stat }
+      ? { absolute, stat, parentAbsolute, parentIdentity }
       : undefined;
   } catch {
     return undefined;
   }
 }
 
-function sameFileIdentity(left: Stats, right: Stats): boolean {
-  return (
-    left.dev === right.dev &&
-    left.ino === right.ino &&
-    (left.mode & 0o170000) === (right.mode & 0o170000)
-  );
-}
-
-function sameFileSnapshot(left: Stats, right: Stats): boolean {
-  return (
-    sameFileIdentity(left, right) &&
-    left.size === right.size &&
-    left.mtimeMs === right.mtimeMs &&
-    left.ctimeMs === right.ctimeMs
-  );
+function directoryIdentity(stat: BigIntStats): DirectoryIdentity {
+  return {
+    dev: stat.dev.toString(),
+    ino: stat.ino.toString(),
+    type: (stat.mode & 0o170000n).toString(),
+  };
 }
 
 function isSafeRelativePath(path: string): boolean {

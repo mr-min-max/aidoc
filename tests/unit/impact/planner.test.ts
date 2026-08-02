@@ -5,6 +5,7 @@ import {
   readFileSync,
   renameSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -116,6 +117,35 @@ describe("createImpactPlan", () => {
     );
   });
 
+  // Break caught: a valid Markdown leaf beginning with a dash is interpreted
+  // as a Node option instead of data passed to the fixed reader process.
+  test("reads selected markdown whose leaf begins with a dash", async () => {
+    const root = repository();
+    mkdirSync(join(root, "docs"));
+    writeFileSync(
+      join(root, "api.ts"),
+      "export function dashedApi(value: string) { return value; }\n",
+    );
+    writeFileSync(join(root, "docs", "-API.md"), "# API\n`dashedApi`\n");
+    commit(root, "initial");
+    writeFileSync(
+      join(root, "api.ts"),
+      "export function dashedApi(value: number) { return value; }\n",
+    );
+
+    const result = await createImpactPlan({ cwd: root });
+
+    expect(result.plan.documentation).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          directReferences: expect.arrayContaining([
+            expect.objectContaining({ file: "docs/-API.md" }),
+          ]),
+        }),
+      ]),
+    );
+  });
+
   test("skips configured documentation reached through an intermediate external symlink", async () => {
     const root = repository();
     const externalRoot = mkdtempSync(join(tmpdir(), "aidoc-external-docs-"));
@@ -183,7 +213,7 @@ describe("createImpactPlan", () => {
           : await originalLstat(path, options);
       if (String(path).endsWith(`${sep}docs${sep}API.md`)) {
         targetLstatCalls += 1;
-        if (targetLstatCalls === 2) {
+        if (targetLstatCalls === 1) {
           renameSync(docs, parkedDocs);
           symlinkSync(externalDocs, docs, "dir");
           swapped = true;
@@ -200,6 +230,90 @@ describe("createImpactPlan", () => {
     }
 
     expect(swapped).toBe(true);
+    expect(JSON.stringify(result.plan.documentation)).not.toContain(
+      "docs/API.md",
+    );
+  });
+
+  // Break caught: containment and leaf identity checks still re-resolve the
+  // parent path, so an attacker can present the internal directory only to
+  // realpath and the external directory to every leaf lstat/open.
+  test("skips documentation during a coordinated parent re-pointing schedule", async () => {
+    const root = repository();
+    const docs = join(root, "docs");
+    const parkedDocs = join(root, "docs-inside-repository");
+    const externalDocs = mkdtempSync(join(tmpdir(), "aidoc-coordinated-docs-"));
+    const documentationPath = join(docs, "API.md");
+    mkdirSync(docs);
+    writeFileSync(documentationPath, "# Internal notes\nNo public API here.\n");
+    writeFileSync(
+      join(externalDocs, "API.md"),
+      "# API\n`coordinatedApi`\nEXTERNAL_DOCUMENTATION_SENTINEL\n",
+    );
+    writeFileSync(
+      join(root, "api.ts"),
+      "export function coordinatedApi(value: string) { return value; }\n",
+    );
+    commit(root, "initial");
+    writeFileSync(
+      join(root, "api.ts"),
+      "export function coordinatedApi(value: number) { return value; }\n",
+    );
+
+    let externalIsVisible = false;
+    const showExternal = (): void => {
+      if (externalIsVisible) return;
+      renameSync(docs, parkedDocs);
+      symlinkSync(externalDocs, docs, "dir");
+      externalIsVisible = true;
+    };
+    const showInternal = (): void => {
+      if (!externalIsVisible) return;
+      unlinkSync(docs);
+      renameSync(parkedDocs, docs);
+      externalIsVisible = false;
+    };
+
+    const originalLstat = fs.lstat.bind(fs);
+    const originalRealpath = fs.realpath.bind(fs);
+    let coordinated = false;
+    const lstatSpy = jest.spyOn(fs, "lstat").mockImplementation((async (
+      path,
+      options,
+    ) => {
+      if (!coordinated && String(path).endsWith(`${sep}docs${sep}API.md`)) {
+        showExternal();
+        coordinated = true;
+      }
+      return options === undefined
+        ? originalLstat(path)
+        : originalLstat(path, options);
+    }) as typeof fs.lstat);
+    const realpathSpy = jest.spyOn(fs, "realpath").mockImplementation((async (
+      path,
+      options,
+    ) => {
+      const isTarget = String(path).endsWith(`${sep}docs${sep}API.md`);
+      if (isTarget) showInternal();
+      try {
+        return options === undefined
+          ? await originalRealpath(path)
+          : await originalRealpath(path, options);
+      } finally {
+        if (isTarget) showExternal();
+      }
+    }) as typeof fs.realpath);
+
+    let result;
+    try {
+      result = await createImpactPlan({ cwd: root });
+    } finally {
+      lstatSpy.mockRestore();
+      realpathSpy.mockRestore();
+      showInternal();
+    }
+
+    expect(coordinated).toBe(true);
     expect(JSON.stringify(result.plan.documentation)).not.toContain(
       "docs/API.md",
     );
