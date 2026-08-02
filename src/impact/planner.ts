@@ -1,5 +1,5 @@
 import { promises as fs } from "node:fs";
-import { posix, resolve, relative, sep } from "node:path";
+import { isAbsolute, posix, resolve, relative, sep } from "node:path";
 import { loadPlanningConfig } from "../config/planning";
 import { GitSnapshotReader, type SnapshotFileChange } from "../git/snapshot";
 import { getSnapshotParserForFile } from "../parsers/registry";
@@ -56,29 +56,32 @@ export async function createImpactPlan(
     );
   }
 
-  const snapshots = await new GitSnapshotReader(cwd).read({
+  const snapshotSet = await new GitSnapshotReader(cwd).read({
     base: options.base,
     head: options.head,
     include: config.include,
     exclude: config.exclude,
   });
-
-  const parsed = await snapshotChangedSources(snapshots.files);
+  const { root, base, head, ignored } = snapshotSet;
+  const sourceFiles = snapshotSet.files;
+  const parsed = await snapshotChangedSources(sourceFiles).finally(() => {
+    sourceFiles.length = 0;
+  });
   const changes = compareSnapshots(parsed);
   const documentationFiles = await loadDocumentationFiles(
-    snapshots.root,
+    root,
     config.outputDir,
     config.exclude,
   );
   const documentation = mapDocumentationImpact(changes, documentationFiles);
   const summary = summarizeImpact(changes, documentation);
   const digest = digestImpactPayload({
-    base: snapshots.base,
-    head: snapshots.head,
+    base,
+    head,
     summary,
     changes,
     documentation,
-    ignored: snapshots.ignored,
+    ignored,
   });
   const context = buildImpactContext({
     impactDigest: digest,
@@ -89,13 +92,13 @@ export async function createImpactPlan(
   });
   const plan: ImpactPlan = {
     schemaVersion: IMPACT_PLAN_SCHEMA_VERSION,
-    base: snapshots.base,
-    head: snapshots.head,
+    base,
+    head,
     summary,
     changes,
     documentation,
     context: context.report,
-    ignored: snapshots.ignored,
+    ignored,
     digest,
   };
   return { plan, providerContext: context.providerContext };
@@ -168,7 +171,7 @@ async function loadDocumentationFiles(
   const files: DocumentationFile[] = [];
   for (const path of [...candidates].sort(compareStrings)) {
     if (matchesAny(path, exclude)) continue;
-    const absolute = safeAbsolutePath(root, path);
+    const absolute = await safeExistingAbsolutePath(root, path);
     if (absolute === undefined) continue;
     try {
       const stat = await fs.lstat(absolute);
@@ -187,7 +190,7 @@ async function markdownFilesUnder(
   root: string,
   directory: string,
 ): Promise<string[]> {
-  const absolute = safeAbsolutePath(root, directory);
+  const absolute = await safeExistingAbsolutePath(root, directory);
   if (absolute === undefined) return [];
   const result: string[] = [];
   const walk = async (current: string): Promise<void> => {
@@ -241,11 +244,41 @@ function safeAbsolutePath(root: string, path: string): string | undefined {
     relativePath.length > 0 &&
     !relativePath.startsWith(`..${sep}`) &&
     relativePath !== ".." &&
-    !posix.isAbsolute(relativePath)
+    !isAbsolute(relativePath)
   ) {
     return absolute;
   }
   return undefined;
+}
+
+async function safeExistingAbsolutePath(
+  root: string,
+  path: string,
+): Promise<string | undefined> {
+  const absolute = safeAbsolutePath(root, path);
+  if (absolute === undefined) return undefined;
+  const absoluteRoot = resolve(root);
+  let current = absoluteRoot;
+  try {
+    for (const component of relative(absoluteRoot, absolute).split(sep)) {
+      if (component.length === 0) continue;
+      current = resolve(current, component);
+      if ((await fs.lstat(current)).isSymbolicLink()) return undefined;
+    }
+    const [realRoot, realPath] = await Promise.all([
+      fs.realpath(absoluteRoot),
+      fs.realpath(absolute),
+    ]);
+    const realRelative = relative(realRoot, realPath);
+    return realRelative.length === 0 ||
+      (!realRelative.startsWith(`..${sep}`) &&
+        realRelative !== ".." &&
+        !isAbsolute(realRelative))
+      ? absolute
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function isSafeRelativePath(path: string): boolean {

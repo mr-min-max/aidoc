@@ -1,8 +1,19 @@
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  promises as fs,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createImpactPlan } from "../../../src/impact/planner";
+import {
+  GitSnapshotReader,
+  type GitSnapshotSet,
+} from "../../../src/git/snapshot";
 import * as parserRegistry from "../../../src/parsers/registry";
 
 function repository(): string {
@@ -104,6 +115,80 @@ describe("createImpactPlan", () => {
     );
   });
 
+  test("skips configured documentation reached through an intermediate external symlink", async () => {
+    const root = repository();
+    const externalRoot = mkdtempSync(join(tmpdir(), "aidoc-external-docs-"));
+    mkdirSync(join(externalRoot, "sub"));
+    writeFileSync(
+      join(externalRoot, "sub", "API.md"),
+      "# API\n`externalApi`\nEXTERNAL_DOCUMENTATION_SENTINEL\n",
+    );
+    symlinkSync(externalRoot, join(root, "bridge"), "dir");
+    writeFileSync(
+      join(root, ".aidocrc.json"),
+      JSON.stringify({ outputDir: "bridge/sub" }),
+    );
+    writeFileSync(
+      join(root, "api.ts"),
+      "export function externalApi(value: string) { return value; }\n",
+    );
+    commit(root, "initial");
+    writeFileSync(
+      join(root, "api.ts"),
+      "export function externalApi(value: number) { return value; }\n",
+    );
+
+    const result = await createImpactPlan({ cwd: root });
+
+    expect(JSON.stringify(result.plan.documentation)).not.toContain(
+      "bridge/sub/API.md",
+    );
+  });
+
+  test("releases source-bearing snapshot files before documentation access", async () => {
+    const root = mkdtempSync(join(tmpdir(), "aidoc-planner-lifetime-"));
+    const files: GitSnapshotSet["files"] = [
+      {
+        status: "modified",
+        beforePath: "api.ts",
+        afterPath: "api.ts",
+        beforeSource: "export function api(value: string) { return value; }\n",
+        afterSource: "export function api(value: number) { return value; }\n",
+        supported: true,
+        excluded: false,
+      },
+    ];
+    const snapshotSet: GitSnapshotSet = {
+      root,
+      base: { type: "git", label: "base", commit: "a".repeat(40) },
+      head: { type: "working-tree", label: "HEAD" },
+      files,
+      ignored: { unsupported: 0, excluded: 0 },
+    };
+    const readSpy = jest
+      .spyOn(GitSnapshotReader.prototype, "read")
+      .mockResolvedValue(snapshotSet);
+    const originalLstat = fs.lstat.bind(fs);
+    const observedLengths: number[] = [];
+    const lstatSpy = jest.spyOn(fs, "lstat").mockImplementation(((
+      path,
+      options,
+    ) => {
+      observedLengths.push(files.length);
+      return options === undefined
+        ? originalLstat(path)
+        : originalLstat(path, options);
+    }) as typeof fs.lstat);
+    try {
+      await createImpactPlan({ cwd: root });
+      expect(observedLengths[0]).toBe(0);
+      expect(files).toHaveLength(0);
+    } finally {
+      lstatSpy.mockRestore();
+      readSpy.mockRestore();
+    }
+  });
+
   test("reports parser failures with a safe relative path and no source", async () => {
     const root = repository();
     writeFileSync(join(root, "bad.ts"), "export function ok() {}\n");
@@ -200,6 +285,121 @@ describe("createImpactPlan", () => {
       expect(JSON.stringify(result)).not.toContain("legacy parser");
     } finally {
       spy.mockRestore();
+    }
+  });
+
+  test("applies configured exclusions to changed source and documentation", async () => {
+    const root = repository();
+    mkdirSync(join(root, "docs"));
+    writeFileSync(
+      join(root, ".aidocrc.json"),
+      JSON.stringify({ exclude: ["ignored.ts", "docs/private.md"] }),
+    );
+    writeFileSync(
+      join(root, "visible.ts"),
+      "export function visibleApi(value: string) { return value; }\n",
+    );
+    writeFileSync(
+      join(root, "ignored.ts"),
+      "export function ignoredApi(value: string) { return value; }\n",
+    );
+    writeFileSync(join(root, "docs", "public.md"), "# API\n`visibleApi`\n");
+    writeFileSync(
+      join(root, "docs", "private.md"),
+      "# API\n`visibleApi`\nPRIVATE_DOCUMENTATION_SENTINEL\n",
+    );
+    commit(root, "initial");
+    writeFileSync(join(root, "marker.txt"), "baseline\n");
+    commit(root, "baseline");
+    writeFileSync(
+      join(root, "visible.ts"),
+      "export function visibleApi(value: number) { return value; }\n",
+    );
+    writeFileSync(
+      join(root, "ignored.ts"),
+      "export function ignoredApi(value: number) { return value; }\n",
+    );
+
+    const result = await createImpactPlan({ cwd: root });
+    const serialized = JSON.stringify(result);
+
+    expect(result.plan.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "visible.ts",
+          qualifiedName: "visibleApi",
+        }),
+      ]),
+    );
+    expect(serialized).not.toContain("ignoredApi");
+    expect(serialized).not.toContain("docs/private.md");
+    expect(serialized).not.toContain("PRIVATE_DOCUMENTATION_SENTINEL");
+  });
+
+  test("uses the snapshot-parser alias for JavaScript changes", async () => {
+    const root = repository();
+    writeFileSync(
+      join(root, "api.js"),
+      "export function javascriptApi(value) { return value; }\n",
+    );
+    commit(root, "initial");
+    writeFileSync(join(root, "marker.txt"), "baseline\n");
+    commit(root, "baseline");
+    writeFileSync(
+      join(root, "api.js"),
+      "export function javascriptApi(value, options) { return value; }\n",
+    );
+
+    const result = await createImpactPlan({ cwd: root });
+
+    expect(result.plan.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          language: "typescript",
+          path: "api.js",
+          qualifiedName: "javascriptApi",
+          category: "contract-changed",
+        }),
+      ]),
+    );
+  });
+
+  test("does not import provider, command-context, template, or dotenv modules", async () => {
+    const root = repository();
+    writeFileSync(
+      join(root, "api.ts"),
+      "export function api(value: string) { return value; }\n",
+    );
+    commit(root, "initial");
+    writeFileSync(join(root, "marker.txt"), "baseline\n");
+    commit(root, "baseline");
+    writeFileSync(
+      join(root, "api.ts"),
+      "export function api(value: number) { return value; }\n",
+    );
+    const forbiddenModules = [
+      "../../../src/providers/registry",
+      "../../../src/cli/context",
+      "../../../src/core/templates",
+      "dotenv",
+    ];
+    for (const modulePath of forbiddenModules) {
+      jest.doMock(modulePath, () => {
+        throw new Error(`planning imported forbidden module: ${modulePath}`);
+      });
+    }
+
+    let isolatedCreateImpactPlan: typeof createImpactPlan | undefined;
+    try {
+      await jest.isolateModulesAsync(async () => {
+        ({ createImpactPlan: isolatedCreateImpactPlan } =
+          await import("../../../src/impact/planner"));
+      });
+      await isolatedCreateImpactPlan?.({ cwd: root });
+      expect(isolatedCreateImpactPlan).toBeDefined();
+    } finally {
+      for (const modulePath of forbiddenModules) jest.dontMock(modulePath);
+      jest.resetModules();
     }
   });
 
