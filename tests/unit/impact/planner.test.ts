@@ -146,6 +146,62 @@ describe("createImpactPlan", () => {
     );
   });
 
+  // Break caught: the selected Markdown leaf is atomically replaced by a
+  // different regular file after containment validation but before open.
+  test("skips documentation when its validated leaf is replaced before open", async () => {
+    const root = repository();
+    const docs = join(root, "docs");
+    const documentationPath = join(docs, "API.md");
+    const replacementPath = join(root, "replacement-leaf");
+    mkdirSync(docs);
+    writeFileSync(documentationPath, "# Internal notes\nNo public API here.\n");
+    writeFileSync(
+      replacementPath,
+      "# API\n`replacedLeafApi`\nREPLACED_LEAF_SENTINEL\n",
+    );
+    writeFileSync(
+      join(root, "api.ts"),
+      "export function replacedLeafApi(value: string) { return value; }\n",
+    );
+    commit(root, "initial");
+    writeFileSync(
+      join(root, "api.ts"),
+      "export function replacedLeafApi(value: number) { return value; }\n",
+    );
+
+    const originalRealpath = fs.realpath.bind(fs);
+    let replaced = false;
+    const realpathSpy = jest.spyOn(fs, "realpath").mockImplementation((async (
+      path,
+      options,
+    ) => {
+      const resolved =
+        options === undefined
+          ? await originalRealpath(path)
+          : await originalRealpath(path, options);
+      if (!replaced && String(path).endsWith(`${sep}docs${sep}API.md`)) {
+        renameSync(replacementPath, documentationPath);
+        replaced = true;
+      }
+      return resolved;
+    }) as typeof fs.realpath);
+
+    let result;
+    try {
+      result = await createImpactPlan({ cwd: root });
+    } finally {
+      realpathSpy.mockRestore();
+    }
+
+    expect(replaced).toBe(true);
+    expect(JSON.stringify(result.plan.documentation)).not.toContain(
+      "docs/API.md",
+    );
+    expect(JSON.stringify(result.plan.documentation)).not.toContain(
+      "REPLACED_LEAF_SENTINEL",
+    );
+  });
+
   test("skips configured documentation reached through an intermediate external symlink", async () => {
     const root = repository();
     const externalRoot = mkdtempSync(join(tmpdir(), "aidoc-external-docs-"));

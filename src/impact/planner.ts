@@ -34,10 +34,10 @@ interface ValidatedExistingPath {
   absolute: string;
   stat: BigIntStats;
   parentAbsolute: string;
-  parentIdentity: DirectoryIdentity;
+  parentIdentity: FilesystemIdentity;
 }
 
-interface DirectoryIdentity {
+interface FilesystemIdentity {
   dev: string;
   ino: string;
   type: string;
@@ -48,7 +48,15 @@ const DOCUMENTATION_READ_TIMEOUT_MS = 5_000;
 const DOCUMENTATION_READ_MAX_BUFFER = 10 * 1024 * 1024;
 const DOCUMENTATION_READER_SCRIPT = String.raw`
 const fs = require("node:fs");
-const [leaf, expectedDev, expectedIno, expectedType] = process.argv.slice(1);
+const [
+  leaf,
+  expectedParentDev,
+  expectedParentIno,
+  expectedParentType,
+  expectedLeafDev,
+  expectedLeafIno,
+  expectedLeafType,
+] = process.argv.slice(1);
 let descriptor;
 
 function identity(stat) {
@@ -77,15 +85,19 @@ try {
   const parent = fs.lstatSync(".", { bigint: true });
   const parentIdentity = identity(parent);
   if (!parent.isDirectory() || parent.isSymbolicLink() ||
-      parentIdentity.dev !== expectedDev ||
-      parentIdentity.ino !== expectedIno ||
-      parentIdentity.type !== expectedType) throw new Error();
+      parentIdentity.dev !== expectedParentDev ||
+      parentIdentity.ino !== expectedParentIno ||
+      parentIdentity.type !== expectedParentType) throw new Error();
   descriptor = fs.openSync(
     leaf,
     fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
   );
   const before = fs.fstatSync(descriptor, { bigint: true });
-  if (!before.isFile() || before.isSymbolicLink()) throw new Error();
+  const beforeIdentity = identity(before);
+  if (!before.isFile() || before.isSymbolicLink() ||
+      beforeIdentity.dev !== expectedLeafDev ||
+      beforeIdentity.ino !== expectedLeafIno ||
+      beforeIdentity.type !== expectedLeafType) throw new Error();
   const content = fs.readFileSync(descriptor, { encoding: "utf8" });
   const after = fs.fstatSync(descriptor, { bigint: true });
   if (!sameSnapshot(before, after)) throw new Error();
@@ -254,6 +266,7 @@ async function readSafeDocumentationFile(
 ): Promise<string | undefined> {
   const validated = await safeExistingAbsolutePath(root, path);
   if (validated === undefined) return undefined;
+  const leafIdentity = filesystemIdentity(validated.stat);
   try {
     const result = await execFile(
       process.execPath,
@@ -265,6 +278,9 @@ async function readSafeDocumentationFile(
         validated.parentIdentity.dev,
         validated.parentIdentity.ino,
         validated.parentIdentity.type,
+        leafIdentity.dev,
+        leafIdentity.ino,
+        leafIdentity.type,
       ],
       {
         cwd: validated.parentAbsolute,
@@ -376,7 +392,7 @@ async function safeExistingAbsolutePath(
     let stat = await fs.lstat(absoluteRoot, { bigint: true });
     if (!stat.isDirectory() || stat.isSymbolicLink()) return undefined;
     let parentAbsolute = absoluteRoot;
-    let parentIdentity = directoryIdentity(stat);
+    let parentIdentity = filesystemIdentity(stat);
     const components = relative(absoluteRoot, absolute).split(sep);
     for (const [index, component] of components.entries()) {
       if (component.length === 0) continue;
@@ -386,7 +402,7 @@ async function safeExistingAbsolutePath(
       if (index < components.length - 1) {
         if (!stat.isDirectory()) return undefined;
         parentAbsolute = current;
-        parentIdentity = directoryIdentity(stat);
+        parentIdentity = filesystemIdentity(stat);
       }
     }
     const [realRoot, realPath] = await Promise.all([
@@ -405,7 +421,7 @@ async function safeExistingAbsolutePath(
   }
 }
 
-function directoryIdentity(stat: BigIntStats): DirectoryIdentity {
+function filesystemIdentity(stat: BigIntStats): FilesystemIdentity {
   return {
     dev: stat.dev.toString(),
     ino: stat.ino.toString(),
