@@ -120,6 +120,80 @@ describe("impact-plan output", () => {
     );
   });
 
+  // Break caught: module-level dependency changes are mistaken for no impact
+  // merely because they do not count as public API symbol changes.
+  it("renders documentation impact for dependency-only changes", () => {
+    const dependencyOnly = plan({
+      summary: {
+        ...plan().summary,
+        totalChanges: 3,
+        publicApiChanges: 0,
+        potentiallyBreaking: 0,
+        reviewRequired: 3,
+        informational: 0,
+        unmapped: 1,
+        byCategory: {
+          ...plan().summary.byCategory,
+          "contract-changed": 0,
+          "implementation-changed": 0,
+          "documentation-changed": 0,
+          "dependency-changed": 3,
+        },
+      },
+      documentation: [
+        {
+          changeId: "dependency-direct",
+          directReferences: [
+            {
+              file: "docs/Dependencies.md",
+              section: "Runtime packages",
+              slug: "runtime-packages",
+              reason: "source-link",
+            },
+          ],
+          recommendations: [],
+          unmapped: false,
+        },
+        {
+          changeId: "dependency-recommended",
+          directReferences: [],
+          recommendations: [
+            {
+              file: "docs/Architecture.md",
+              section: "Dependencies",
+              slug: "dependencies",
+              reason: "architecture",
+            },
+          ],
+          unmapped: false,
+        },
+        {
+          changeId: "dependency-unmapped",
+          directReferences: [],
+          recommendations: [],
+          unmapped: true,
+        },
+      ],
+    });
+
+    const output = formatImpactPlan(dependencyOnly);
+
+    expect(output).toMatch(/^Documentation impact: 0 public API changes\n/u);
+    expect(output).not.toContain("No documentation updates are indicated.");
+    expect(output).toContain(
+      "Direct documentation references:\n" +
+        "  docs/Dependencies.md -> Runtime packages",
+    );
+    expect(output).toContain(
+      "Recommended documentation:\n" + "  docs/Architecture.md -> Dependencies",
+    );
+    expect(output).toContain(
+      "1 changed symbol is not mapped to documentation.",
+    );
+    expect(output).toContain("Context: 812 / 12000 bytes");
+    expect(output).toMatch(/Next: aidoc update$/u);
+  });
+
   // Break caught: JSON output gains whitespace/log framing or relies on object
   // insertion order instead of canonical command-result serialization.
   it("serializes one canonical JSON command-result object", () => {

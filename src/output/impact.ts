@@ -12,7 +12,7 @@ export function formatImpactPlan(plan: ImpactPlan, verbose = false): string {
     `Documentation impact: ${count} public API ${plural(count, "change", "changes")}`,
   ];
 
-  if (count === 0) {
+  if (plan.summary.totalChanges === 0 && plan.documentation.length === 0) {
     lines.push("No documentation updates are indicated.");
   } else {
     if (plan.summary.potentiallyBreaking > 0) {
