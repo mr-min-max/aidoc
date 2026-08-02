@@ -1,12 +1,14 @@
 import { posix as pathPosix } from "node:path";
 import { sanitizeDiagnostic } from "../security/scanner";
-import { canonicalStringify, compareChangeKeys } from "./canonical";
+import { canonicalStringify } from "./canonical";
 import {
   IMPACT_CONTEXT_SCHEMA_VERSION,
   MAX_MAX_CONTEXT_BYTES,
   MIN_MAX_CONTEXT_BYTES,
   PlanFailure,
   type ChangeCategory,
+  type ChangeRisk,
+  type ContractFacet,
   type ContextBudgetReport,
   type DocumentationImpact,
   type DocumentationReference,
@@ -14,6 +16,7 @@ import {
   type ImpactProviderContext,
   type ImpactSummary,
   type SymbolChange,
+  type SymbolKind,
 } from "./types";
 
 const CATEGORY_PRIORITY: Readonly<Record<ChangeCategory, number>> = {
@@ -36,15 +39,31 @@ const CATEGORIES: readonly ChangeCategory[] = [
   "dependency-changed",
 ];
 
-const CONTRACT_FACETS: ReadonlySet<string> = new Set([
+const RISKS: readonly ChangeRisk[] = [
+  "potentially-breaking",
+  "review-required",
+  "informational",
+];
+
+const KINDS: readonly (SymbolKind | "module")[] = [
+  "function",
+  "class",
+  "method",
+  "interface",
+  "type",
+  "enum",
+  "module",
+];
+
+const CONTRACT_FACETS: readonly ContractFacet[] = [
   "parameters",
   "return",
   "inheritance",
   "members",
   "modifiers",
-]);
+];
 
-const DOCUMENTATION_REASONS: ReadonlySet<string> = new Set([
+const DOCUMENTATION_REASONS: readonly DocumentationReference["reason"][] = [
   "code-span",
   "source-link",
   "heading",
@@ -52,7 +71,25 @@ const DOCUMENTATION_REASONS: ReadonlySet<string> = new Set([
   "changelog",
   "entrypoint",
   "architecture",
-]);
+];
+
+const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/u;
+const DIAGNOSTIC_PREFIX_PATTERN =
+  /^(?:fatal|error|warning|hint|usage|git|command failed):(?:\s|$)/iu;
+const POSIX_ABSOLUTE_PATH_SHAPE = /(?:^|\s|:|=|\(|\[|\{|["'`])\/[^/\s]/u;
+const WINDOWS_ABSOLUTE_PATH_SHAPE = /[A-Za-z]:[\\/][^\s]/u;
+
+interface ProjectedChangeCandidate {
+  documentationKey?: string;
+  full?: ImpactProviderChange;
+  compact?: ImpactProviderChange;
+  priority: number;
+  sortPath: string;
+  sortKind: string;
+  sortQualifiedName: string;
+  sortCategory: string;
+  sortId: string;
+}
 
 export function buildImpactContext(input: {
   impactDigest: string;
@@ -66,10 +103,15 @@ export function buildImpactContext(input: {
 } {
   validateBudget(input.maxBytes);
 
+  if (!isSha256Hex(input.impactDigest)) invalidContextPayload();
+  if (!Array.isArray(input.changes)) invalidContextPayload();
+  if (!Array.isArray(input.documentation)) invalidContextPayload();
+
+  const impactDigest = input.impactDigest;
   const summary = projectSummary(input.summary);
   const totalRecords = input.changes.length;
   let providerContext = createContext(
-    input.impactDigest,
+    impactDigest,
     summary,
     [],
     [],
@@ -78,18 +120,25 @@ export function buildImpactContext(input: {
   ensureFits(providerContext, input.maxBytes);
 
   const documentationByChange = indexDocumentation(input.documentation);
-  const orderedChanges = [...input.changes].sort(compareContextChanges);
+  const orderedChanges = input.changes
+    .map(projectChangeCandidate)
+    .filter(
+      (candidate): candidate is ProjectedChangeCandidate =>
+        candidate !== undefined,
+    )
+    .sort(compareContextChanges);
 
   for (const change of orderedChanges) {
-    if (canProjectFullChange(change)) {
-      const fullChange = projectFullChange(change);
+    if (change.full !== undefined) {
       const fullDocumentation = projectMatchingDocumentation(
-        documentationByChange.get(change.id) ?? [],
-        fullChange.id,
+        change.documentationKey === undefined
+          ? []
+          : (documentationByChange.get(change.documentationKey) ?? []),
+        change.full.id,
       );
       const fullCandidate = appendRecord(
         providerContext,
-        fullChange,
+        change.full,
         fullDocumentation,
         totalRecords,
       );
@@ -99,20 +148,16 @@ export function buildImpactContext(input: {
       }
     }
 
-    const compactChange: ImpactProviderChange = {
-      id: change.digest,
-      category: change.category,
-      risk: change.risk,
-      kind: change.kind,
-      compacted: true,
-    };
+    if (change.compact === undefined) continue;
     const compactDocumentation = projectMatchingDocumentation(
-      documentationByChange.get(change.id) ?? [],
-      compactChange.id,
+      change.documentationKey === undefined
+        ? []
+        : (documentationByChange.get(change.documentationKey) ?? []),
+      change.compact.id,
     );
     const compactCandidate = appendRecord(
       providerContext,
-      compactChange,
+      change.compact,
       compactDocumentation,
       totalRecords,
     );
@@ -131,7 +176,7 @@ export function buildImpactContext(input: {
       totalRecords,
       includedRecords,
       omittedRecords: totalRecords - includedRecords,
-      impactDigest: input.impactDigest,
+      impactDigest,
     },
   };
 }
@@ -199,55 +244,139 @@ function serializedBytes(context: ImpactProviderContext): number {
   return Buffer.byteLength(canonicalStringify(context), "utf8");
 }
 
-function compareContextChanges(a: SymbolChange, b: SymbolChange): number {
+function compareContextChanges(
+  a: ProjectedChangeCandidate,
+  b: ProjectedChangeCandidate,
+): number {
   return (
-    CATEGORY_PRIORITY[a.category] - CATEGORY_PRIORITY[b.category] ||
-    compareChangeKeys(a, b)
+    a.priority - b.priority ||
+    compareStrings(a.sortPath, b.sortPath) ||
+    compareStrings(a.sortKind, b.sortKind) ||
+    compareStrings(a.sortQualifiedName, b.sortQualifiedName) ||
+    compareStrings(a.sortCategory, b.sortCategory) ||
+    compareStrings(a.sortId, b.sortId)
   );
 }
 
-function projectFullChange(change: SymbolChange): ImpactProviderChange {
+function projectChangeCandidate(
+  change: SymbolChange,
+): ProjectedChangeCandidate | undefined {
+  try {
+    if (typeof change !== "object" || change === null) return undefined;
+
+    const category = allowlisted(change.category, CATEGORIES);
+    const risk = allowlisted(change.risk, RISKS);
+    const kind = allowlisted(change.kind, KINDS);
+    if (category === undefined || risk === undefined || kind === undefined) {
+      return undefined;
+    }
+
+    const id = typeof change.id === "string" ? change.id : undefined;
+    const path = typeof change.path === "string" ? change.path : undefined;
+    const qualifiedName =
+      change.qualifiedName === undefined
+        ? undefined
+        : typeof change.qualifiedName === "string"
+          ? change.qualifiedName
+          : null;
+    const full =
+      id !== undefined &&
+      path !== undefined &&
+      qualifiedName !== null &&
+      isSafeIdentityText(id) &&
+      isRepositoryRelativePath(path) &&
+      (qualifiedName === undefined || isSafeIdentityText(qualifiedName))
+        ? projectFullChange(
+            change,
+            id,
+            category,
+            risk,
+            path,
+            kind,
+            qualifiedName,
+          )
+        : undefined;
+    const compact = isSha256Hex(change.digest)
+      ? {
+          id: change.digest,
+          category,
+          risk,
+          kind,
+          compacted: true as const,
+        }
+      : undefined;
+    if (full === undefined && compact === undefined) return undefined;
+
+    return {
+      ...(id === undefined ? {} : { documentationKey: id }),
+      ...(full === undefined ? {} : { full }),
+      ...(compact === undefined ? {} : { compact }),
+      priority: CATEGORY_PRIORITY[category],
+      sortPath: path ?? "",
+      sortKind: kind,
+      sortQualifiedName: qualifiedName ?? "",
+      sortCategory: category,
+      sortId: id ?? "",
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function projectFullChange(
+  change: SymbolChange,
+  id: string,
+  category: ChangeCategory,
+  risk: ChangeRisk,
+  path: string,
+  kind: SymbolKind | "module",
+  qualifiedName: string | undefined,
+): ImpactProviderChange {
+  const facets = Array.isArray(change.changedContractFacets)
+    ? change.changedContractFacets
+        .map((facet) => allowlisted(facet, CONTRACT_FACETS))
+        .filter((facet): facet is ContractFacet => facet !== undefined)
+        .sort()
+    : undefined;
   return {
-    id: change.id,
-    category: change.category,
-    risk: change.risk,
-    path: change.path,
-    kind: change.kind,
-    ...(change.qualifiedName === undefined
-      ? {}
-      : { qualifiedName: change.qualifiedName }),
-    ...(change.changedContractFacets === undefined
-      ? {}
-      : {
-          changedContractFacets: change.changedContractFacets
-            .filter((facet) => CONTRACT_FACETS.has(facet))
-            .sort(),
-        }),
+    id,
+    category,
+    risk,
+    path,
+    kind,
+    ...(qualifiedName === undefined ? {} : { qualifiedName }),
+    ...(facets === undefined ? {} : { changedContractFacets: facets }),
   };
-}
-
-function canProjectFullChange(change: SymbolChange): boolean {
-  return (
-    isSafeProviderText(change.id) &&
-    isRepositoryRelativePath(change.path) &&
-    (change.qualifiedName === undefined ||
-      isSafeProviderText(change.qualifiedName))
-  );
 }
 
 function projectSummary(summary: ImpactSummary): ImpactSummary {
-  const byCategory = Object.fromEntries(
-    CATEGORIES.map((category) => [category, summary.byCategory[category]]),
-  ) as Record<ChangeCategory, number>;
-  return {
-    totalChanges: summary.totalChanges,
-    publicApiChanges: summary.publicApiChanges,
-    potentiallyBreaking: summary.potentiallyBreaking,
-    reviewRequired: summary.reviewRequired,
-    informational: summary.informational,
-    unmapped: summary.unmapped,
-    byCategory,
-  };
+  try {
+    if (typeof summary !== "object" || summary === null) {
+      invalidContextPayload();
+    }
+    const byCategoryInput = summary.byCategory;
+    if (typeof byCategoryInput !== "object" || byCategoryInput === null) {
+      invalidContextPayload();
+    }
+    const byCategory = Object.fromEntries(
+      CATEGORIES.map((category) => [
+        category,
+        requireCount(byCategoryInput[category]),
+      ]),
+    ) as Record<ChangeCategory, number>;
+    return {
+      totalChanges: requireCount(summary.totalChanges),
+      publicApiChanges: requireCount(summary.publicApiChanges),
+      potentiallyBreaking: requireCount(summary.potentiallyBreaking),
+      reviewRequired: requireCount(summary.reviewRequired),
+      informational: requireCount(summary.informational),
+      unmapped: requireCount(summary.unmapped),
+      byCategory,
+    };
+  } catch (error) {
+    if (PlanFailure.read(error) !== undefined) throw error;
+    invalidContextPayload();
+  }
 }
 
 function indexDocumentation(
@@ -255,9 +384,20 @@ function indexDocumentation(
 ): Map<string, DocumentationImpact[]> {
   const byChange = new Map<string, DocumentationImpact[]>();
   for (const impact of documentation) {
-    const matches = byChange.get(impact.changeId) ?? [];
-    matches.push(impact);
-    byChange.set(impact.changeId, matches);
+    try {
+      if (
+        typeof impact !== "object" ||
+        impact === null ||
+        typeof impact.changeId !== "string"
+      ) {
+        continue;
+      }
+      const matches = byChange.get(impact.changeId) ?? [];
+      matches.push(impact);
+      byChange.set(impact.changeId, matches);
+    } catch {
+      continue;
+    }
   }
   return byChange;
 }
@@ -267,42 +407,75 @@ function projectMatchingDocumentation(
   providerChangeId: string,
 ): DocumentationImpact[] {
   return documentation
-    .map((impact) => ({
+    .map((impact) => projectDocumentation(impact, providerChangeId))
+    .filter((impact): impact is DocumentationImpact => impact !== undefined)
+    .sort(compareCanonical);
+}
+
+function projectDocumentation(
+  impact: DocumentationImpact,
+  providerChangeId: string,
+): DocumentationImpact | undefined {
+  try {
+    if (typeof impact.unmapped !== "boolean") return undefined;
+    return {
       changeId: providerChangeId,
       directReferences: projectReferences(impact.directReferences),
       recommendations: projectReferences(impact.recommendations),
       unmapped: impact.unmapped,
-    }))
-    .sort(compareCanonical);
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function projectReferences(
   references: DocumentationReference[],
 ): DocumentationReference[] {
+  if (!Array.isArray(references)) return [];
   return references
+    .map(projectReference)
     .filter(
-      (reference) =>
-        isRepositoryRelativePath(reference.file) &&
-        isSafeProviderText(reference.section) &&
-        isSafeProviderText(reference.slug) &&
-        DOCUMENTATION_REASONS.has(reference.reason),
+      (reference): reference is DocumentationReference =>
+        reference !== undefined,
     )
-    .map((reference) => ({
-      file: reference.file,
-      section: reference.section,
-      slug: reference.slug,
-      reason: reference.reason,
-    }))
     .sort(compareCanonical);
 }
 
-function isRepositoryRelativePath(value: string): boolean {
-  if (!isSafeProviderText(value) || value.includes("\\")) return false;
+function projectReference(
+  reference: DocumentationReference,
+): DocumentationReference | undefined {
+  try {
+    if (typeof reference !== "object" || reference === null) return undefined;
+    const reason = allowlisted(reference.reason, DOCUMENTATION_REASONS);
+    if (
+      !isRepositoryRelativePath(reference.file) ||
+      !isSafeIdentityText(reference.section) ||
+      !isSafeIdentityText(reference.slug) ||
+      reason === undefined
+    ) {
+      return undefined;
+    }
+    return {
+      file: reference.file,
+      section: reference.section,
+      slug: reference.slug,
+      reason,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function isRepositoryRelativePath(value: unknown): value is string {
   if (
-    value.length === 0 ||
-    value.startsWith("/") ||
-    /^[A-Za-z]:\//u.test(value)
+    !isSafeIdentityText(value) ||
+    value.includes("\\") ||
+    value.length === 0
   ) {
+    return false;
+  }
+  if (value.startsWith("/") || /^[A-Za-z]:\//u.test(value)) {
     return false;
   }
   const normalized = pathPosix.normalize(value);
@@ -314,14 +487,56 @@ function isRepositoryRelativePath(value: string): boolean {
   );
 }
 
-function isSafeProviderText(value: string): boolean {
+function isSafeIdentityText(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0) return false;
   for (const character of value) {
     const codePoint = character.codePointAt(0);
     if (codePoint !== undefined && (codePoint <= 31 || codePoint === 127)) {
       return false;
     }
   }
-  return sanitizeDiagnostic(value) === value;
+  if (
+    sanitizeDiagnostic(value) !== value ||
+    DIAGNOSTIC_PREFIX_PATTERN.test(value.trimStart()) ||
+    POSIX_ABSOLUTE_PATH_SHAPE.test(value) ||
+    WINDOWS_ABSOLUTE_PATH_SHAPE.test(value) ||
+    value.includes("file://")
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function isSha256Hex(value: unknown): value is string {
+  return typeof value === "string" && SHA256_HEX_PATTERN.test(value);
+}
+
+function requireCount(value: unknown): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    invalidContextPayload();
+  }
+  return value as number;
+}
+
+function allowlisted<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+): T | undefined {
+  return typeof value === "string" && allowed.some((item) => item === value)
+    ? (value as T)
+    : undefined;
+}
+
+function invalidContextPayload(): never {
+  throw new PlanFailure(
+    "PLAN_PARSE_FAILED",
+    "The impact context payload is invalid.",
+  );
+}
+
+function compareStrings(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
 }
 
 function compareCanonical(a: unknown, b: unknown): number {

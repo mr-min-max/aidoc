@@ -110,6 +110,39 @@ function collectKeysAndStrings(
   return { keys, strings };
 }
 
+function validInput(
+  changes: SymbolChange[] = [],
+  docs: DocumentationImpact[] = [],
+): Parameters<typeof buildImpactContext>[0] {
+  return {
+    impactDigest: digest("f"),
+    summary: summary(changes),
+    changes,
+    documentation: docs,
+    maxBytes: 1048576,
+  };
+}
+
+function expectInvalidContextPayload(
+  input: Parameters<typeof buildImpactContext>[0],
+  forbidden?: string,
+): void {
+  let thrown: unknown;
+  try {
+    buildImpactContext(input);
+  } catch (error) {
+    thrown = error;
+  }
+
+  expect(thrown).toMatchObject({
+    code: "PLAN_PARSE_FAILED",
+    message: "The impact context payload is invalid.",
+  });
+  if (forbidden !== undefined) {
+    expect(String(thrown)).not.toContain(forbidden);
+  }
+}
+
 describe("impact provider context budgeting", () => {
   it("orders complete records by category priority and path/kind/name ties", () => {
     const changes = [
@@ -290,6 +323,273 @@ describe("impact provider context budgeting", () => {
       expect(inspected.strings).not.toContain(forbiddenValue);
     }
   });
+
+  it("rejects a non-hash impact digest without copying it into either envelope", () => {
+    const sentinel = ["sk", "proj", "D".repeat(32)].join("-");
+    const input = validInput();
+    input.impactDigest = sentinel;
+
+    expectInvalidContextPayload(input, sentinel);
+  });
+
+  it.each([
+    "totalChanges",
+    "publicApiChanges",
+    "potentiallyBreaking",
+    "reviewRequired",
+    "informational",
+    "unmapped",
+  ] as const)(
+    "rejects a poisoned summary %s count with a fixed value-free failure",
+    (field) => {
+      const sentinel = ["sk", "proj", "S".repeat(32)].join("-");
+      const input = validInput();
+      (input.summary as unknown as Record<string, unknown>)[field] = sentinel;
+
+      expectInvalidContextPayload(input, sentinel);
+    },
+  );
+
+  it.each(categories)(
+    "rejects a poisoned summary byCategory.%s count independently",
+    (category) => {
+      const sentinel = ["sk", "proj", "B".repeat(32)].join("-");
+      const input = validInput();
+      (input.summary.byCategory as unknown as Record<string, unknown>)[
+        category
+      ] = sentinel;
+
+      expectInvalidContextPayload(input, sentinel);
+    },
+  );
+
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1, 1.5])(
+    "rejects the invalid runtime count %p",
+    (invalidCount) => {
+      const input = validInput();
+      input.summary.totalChanges = invalidCount;
+
+      expectInvalidContextPayload(input);
+    },
+  );
+
+  it.each([
+    {
+      label: "category",
+      poison: (item: SymbolChange, sentinel: string) => {
+        (item as unknown as Record<string, unknown>).category = sentinel;
+      },
+    },
+    {
+      label: "risk",
+      poison: (item: SymbolChange, sentinel: string) => {
+        (item as unknown as Record<string, unknown>).risk = sentinel;
+      },
+    },
+    {
+      label: "kind",
+      poison: (item: SymbolChange, sentinel: string) => {
+        (item as unknown as Record<string, unknown>).kind = sentinel;
+      },
+    },
+    {
+      label: "compact digest",
+      poison: (item: SymbolChange, sentinel: string) => {
+        item.path = "/absolute/path/forcing/compact";
+        item.digest = sentinel;
+      },
+    },
+  ])(
+    "omits a record with a poisoned $label while preserving a valid sibling",
+    ({ poison }) => {
+      const sentinel = ["sk", "proj", "R".repeat(32)].join("-");
+      const poisoned = change("added", "poisoned");
+      const sibling = change("removed", "valid-sibling");
+      poison(poisoned, sentinel);
+
+      const result = build([poisoned, sibling]);
+      const serialized = canonicalStringify(result);
+
+      expect(serialized).not.toContain(sentinel);
+      expect(result.providerContext.changes).toEqual([
+        expect.objectContaining({ qualifiedName: "valid-sibling" }),
+      ]);
+      expect(result.report).toMatchObject({
+        totalRecords: 2,
+        includedRecords: 1,
+        omittedRecords: 1,
+      });
+    },
+  );
+
+  it.each([
+    {
+      label: "id absolute path",
+      poison: (item: SymbolChange, value: string) => {
+        item.id = `typescript:${value}#function:poisoned`;
+      },
+      value: "/Users/private/worktree/src/poisoned.ts",
+    },
+    {
+      label: "path absolute path",
+      poison: (item: SymbolChange, value: string) => {
+        item.path = value;
+      },
+      value: "/Users/private/worktree/src/poisoned.ts",
+    },
+    {
+      label: "qualified name absolute path",
+      poison: (item: SymbolChange, value: string) => {
+        item.qualifiedName = value;
+      },
+      value: "/Users/private/worktree/src/poisoned.ts",
+    },
+    {
+      label: "qualified name Git diagnostic",
+      poison: (item: SymbolChange, value: string) => {
+        item.qualifiedName = value;
+      },
+      value: "fatal: bad revision private-ref",
+    },
+  ])(
+    "compacts a record with a poisoned $label without losing a valid sibling",
+    ({ poison, value }) => {
+      const poisoned = change("added", "poisoned", { digest: digest("9") });
+      const sibling = change("removed", "valid-sibling");
+      poison(poisoned, value);
+
+      const result = build([poisoned, sibling]);
+      const serialized = canonicalStringify(result);
+
+      expect(serialized).not.toContain(value);
+      expect(result.providerContext.changes).toEqual([
+        expect.objectContaining({ qualifiedName: "valid-sibling" }),
+        {
+          id: digest("9"),
+          category: "added",
+          risk: "informational",
+          kind: "function",
+          compacted: true,
+        },
+      ]);
+      expect(result.report).toMatchObject({
+        totalRecords: 2,
+        includedRecords: 2,
+        omittedRecords: 0,
+      });
+    },
+  );
+
+  it("drops a documentation impact with a non-boolean unmapped value only", () => {
+    const sentinel = ["sk", "proj", "U".repeat(32)].join("-");
+    const item = change("added", "documented");
+    const poisoned = documentation(item.id);
+    (poisoned as unknown as Record<string, unknown>).unmapped = sentinel;
+    const sibling = documentation(item.id);
+    sibling.directReferences[0].section = "Valid sibling reference";
+    sibling.directReferences[0].slug = "valid-sibling-reference";
+
+    const result = build([item], 1048576, [poisoned, sibling]);
+    const serialized = canonicalStringify(result);
+
+    expect(serialized).not.toContain(sentinel);
+    expect(result.providerContext.documentation).toEqual([
+      expect.objectContaining({
+        unmapped: false,
+        directReferences: [
+          expect.objectContaining({ section: "Valid sibling reference" }),
+        ],
+      }),
+    ]);
+  });
+
+  it.each([
+    {
+      label: "file absolute path",
+      field: "file",
+      value: "/Users/private/worktree/docs/API.md",
+    },
+    {
+      label: "section absolute path",
+      field: "section",
+      value: "/Users/private/worktree/docs/API.md",
+    },
+    {
+      label: "section Git diagnostic",
+      field: "section",
+      value: "fatal: bad revision private-ref",
+    },
+    {
+      label: "slug absolute path",
+      field: "slug",
+      value: "/Users/private/worktree/docs/API.md",
+    },
+    {
+      label: "slug Git diagnostic",
+      field: "slug",
+      value: "fatal: bad revision private-ref",
+    },
+    {
+      label: "reason enum",
+      field: "reason",
+      value: ["sk", "proj", "E".repeat(32)].join("-"),
+    },
+  ] as const)(
+    "drops a poisoned documentation reference $label but keeps its sibling",
+    ({ field, value }) => {
+      const item = change("added", "documented");
+      const doc = documentation(item.id);
+      const validSibling = {
+        file: "docs/SAFE.md",
+        section: "Safe reference",
+        slug: "safe-reference",
+        reason: "api-documentation" as const,
+      };
+      doc.directReferences.push(validSibling);
+      (doc.directReferences[0] as unknown as Record<string, unknown>)[field] =
+        value;
+
+      const result = build([item], 1048576, [doc]);
+      const serialized = canonicalStringify(result);
+
+      expect(serialized).not.toContain(value);
+      expect(result.providerContext.documentation).toEqual([
+        expect.objectContaining({ directReferences: [validSibling] }),
+      ]);
+    },
+  );
+
+  it.each(["directReferences", "recommendations"] as const)(
+    "validates poisoned strings in %s independently",
+    (collection) => {
+      const value = "fatal: bad revision private-ref";
+      const item = change("added", "documented");
+      const doc = documentation(item.id);
+      const validSibling = {
+        file: "docs/SAFE.md",
+        section: "Safe reference",
+        slug: "safe-reference",
+        reason: "api-documentation" as const,
+      };
+      doc[collection] = [
+        {
+          file: "docs/POISONED.md",
+          section: value,
+          slug: "poisoned",
+          reason: "api-documentation",
+        },
+        validSibling,
+      ];
+
+      const result = build([item], 1048576, [doc]);
+      const serialized = canonicalStringify(result);
+
+      expect(serialized).not.toContain(value);
+      expect(result.providerContext.documentation[0][collection]).toEqual([
+        validSibling,
+      ]);
+    },
+  );
 
   it("rejects budgets that cannot be a validated mandatory envelope", () => {
     expect(() => build([], 1023)).toThrow(
