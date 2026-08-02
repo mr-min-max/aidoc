@@ -59,6 +59,62 @@ const SAFE_MCP_ERROR_CODES = new Set<string>([
 ]);
 const UNKNOWN_MCP_ERROR = "Unknown MCP error.";
 
+function invalidMCPRef(): PlanFailure {
+  return new PlanFailure("PLAN_INVALID_REF", "The Git reference is invalid.");
+}
+
+function invalidMCPContextBudget(): PlanFailure {
+  return new PlanFailure(
+    "PLAN_INVALID_CONTEXT_BUDGET",
+    "The provider context byte budget is invalid.",
+  );
+}
+
+function readOwnMCPArgument(
+  args: unknown,
+  key: string,
+  failure: () => PlanFailure,
+): unknown {
+  if (typeof args !== "object" || args === null || Array.isArray(args)) {
+    throw failure();
+  }
+  let descriptor: PropertyDescriptor | undefined;
+  try {
+    descriptor = Object.getOwnPropertyDescriptor(args, key);
+  } catch {
+    throw failure();
+  }
+  if (descriptor === undefined) return undefined;
+  if (!("value" in descriptor)) throw failure();
+  return descriptor.value;
+}
+
+function readMCPPlanOptions(args: unknown): {
+  base?: string;
+  head?: string;
+  maxContextBytes?: number;
+} {
+  const base = readOwnMCPArgument(args, "base", invalidMCPRef);
+  const head = readOwnMCPArgument(args, "head", invalidMCPRef);
+  const maxContextBytes = readOwnMCPArgument(
+    args,
+    "max_context_bytes",
+    invalidMCPContextBudget,
+  );
+  if (base !== undefined && typeof base !== "string") throw invalidMCPRef();
+  if (head !== undefined && typeof head !== "string") throw invalidMCPRef();
+  if (
+    maxContextBytes !== undefined &&
+    (typeof maxContextBytes !== "number" ||
+      !Number.isInteger(maxContextBytes) ||
+      maxContextBytes < 1024 ||
+      maxContextBytes > 1048576)
+  ) {
+    throw invalidMCPContextBudget();
+  }
+  return { base, head, maxContextBytes };
+}
+
 export function formatMCPError(error: unknown): string {
   const planError = PlanFailure.read(error);
   if (planError !== undefined) {
@@ -347,11 +403,12 @@ export async function handleToolCall(
     }
 
     case "plan_documentation_impact": {
+      const options = readMCPPlanOptions(args);
       const result = await createImpactPlan({
         cwd: serverCwd,
-        base: args.base as string | undefined,
-        head: args.head as string | undefined,
-        maxContextBytes: args.max_context_bytes,
+        base: options.base,
+        head: options.head,
+        maxContextBytes: options.maxContextBytes,
       });
       return result.plan;
     }

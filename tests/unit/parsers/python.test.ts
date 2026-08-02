@@ -915,6 +915,89 @@ class Service:
     expect(JSON.stringify(changed)).not.toContain("shadowed-secret");
   });
 
+  // Break caught: shadowed class assignments remain in the class member and
+  // implementation payloads even though only the final binding is effective.
+  it("ignores shadowed class assignment values", async () => {
+    const first = await parser.snapshot(
+      "src/service.py",
+      `class Service:
+    mode = "first-shadowed-assignment-sentinel"
+    mode = 1
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/service.py",
+      `class Service:
+    mode = "second-shadowed-assignment-sentinel"
+    mode = 1
+`,
+    );
+
+    expect(changed).toEqual(first);
+    expect(JSON.stringify(first)).not.toContain(
+      "first-shadowed-assignment-sentinel",
+    );
+    expect(JSON.stringify(changed)).not.toContain(
+      "second-shadowed-assignment-sentinel",
+    );
+  });
+
+  // Break caught: a method symbol survives after a later assignment replaces
+  // that public name in the effective class namespace.
+  it("removes methods shadowed by later class assignments", async () => {
+    const snapshot = await parser.snapshot(
+      "src/service.py",
+      `class Service:
+    def run(self, value: str) -> str:
+        return value
+
+    run = 1
+`,
+    );
+
+    expect(
+      snapshot.symbols.map(({ kind, qualifiedName }) => ({
+        kind,
+        qualifiedName,
+      })),
+    ).toEqual([{ kind: "class", qualifiedName: "Service" }]);
+  });
+
+  // Break caught: documentation from an ineffective ordinary definition is
+  // aggregated into the final symbol's documentation fingerprint.
+  it("ignores documentation on shadowed non-overload functions", async () => {
+    const first = await parser.snapshot(
+      "src/service.py",
+      `def request() -> int:
+    """first-shadowed-documentation-sentinel"""
+    return 1
+
+def request() -> int:
+    """effective documentation"""
+    return 2
+`,
+    );
+    const changed = await parser.snapshot(
+      "src/service.py",
+      `def request() -> int:
+    """second-shadowed-documentation-sentinel"""
+    return 1
+
+def request() -> int:
+    """effective documentation"""
+    return 2
+`,
+    );
+
+    expect(changed).toEqual(first);
+    expect(JSON.stringify(first)).not.toContain(
+      "first-shadowed-documentation-sentinel",
+    );
+    expect(JSON.stringify(changed)).not.toContain(
+      "second-shadowed-documentation-sentinel",
+    );
+  });
+
   // Break caught: a valid repeated class identity is rejected as malformed child output.
   it("snapshots the last effective repeated class declaration", async () => {
     const snapshot = await parser.snapshot(

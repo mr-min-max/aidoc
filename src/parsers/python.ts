@@ -485,10 +485,25 @@ def callable_group_symbol(nodes, kind, qualified_name, is_method=False):
         callable_group_implementation_payload(nodes, is_method),
         contract_nodes[0],
     )
+    overloads = [node for node in nodes if is_overload_declaration(node)]
+    if overloads:
+        implementations = [
+            node for node in nodes if not is_overload_declaration(node)
+        ]
+        documentation_nodes = overloads + implementations[-1:]
+    elif is_method:
+        accessors = effective_property_accessors(nodes)
+        documentation_nodes = (
+            [node for _, node in accessors]
+            if len(accessors) > 1 else [nodes[-1]]
+        )
+    else:
+        documentation_nodes = [nodes[-1]]
     documentation = sorted_unique_payloads([
         value
         for value in (
-            ast.get_docstring(node, clean=False) for node in nodes
+            ast.get_docstring(node, clean=False)
+            for node in documentation_nodes
         )
         if value is not None
     ])
@@ -524,18 +539,81 @@ def public_assignment_names(target):
         return names
     return []
 
+def assignment_public_names(node):
+    if isinstance(node, ast.AnnAssign):
+        return public_assignment_names(node.target)
+    if isinstance(node, ast.Assign):
+        names = []
+        for target in node.targets:
+            names.extend(public_assignment_names(target))
+        return names
+    return []
+
+def extends_callable_group(nodes, node):
+    if is_overload_declaration(node):
+        return bool(nodes) and all(
+            is_overload_declaration(item) for item in nodes
+        )
+
+    if any(is_overload_declaration(item) for item in nodes):
+        if all(is_overload_declaration(item) for item in nodes):
+            return True
+        accessor_kind = property_accessor_kind(node)
+        runtime_nodes = [
+            item for item in nodes if not is_overload_declaration(item)
+        ]
+        return (
+            accessor_kind in ('getter', 'setter', 'deleter')
+            and bool(effective_property_accessors(runtime_nodes))
+        )
+
+    accessor_kind = property_accessor_kind(node)
+    return (
+        accessor_kind in ('getter', 'setter', 'deleter')
+        and bool(effective_property_accessors(nodes))
+    )
+
+def effective_class_bindings(body):
+    bindings = {}
+    for index, item in enumerate(body):
+        if isinstance(item, CALLABLE_NODES) and not item.name.startswith('_'):
+            previous = bindings.get(item.name)
+            nodes = (
+                previous['nodes'] + [item]
+                if previous is not None
+                and previous['kind'] == 'method'
+                and extends_callable_group(previous['nodes'], item)
+                else [item]
+            )
+            bindings[item.name] = {
+                'kind': 'method',
+                'nodes': nodes,
+                'index': index,
+            }
+            continue
+
+        for name in assignment_public_names(item):
+            bindings[name] = {
+                'kind': 'property',
+                'node': item,
+                'index': index,
+            }
+    return bindings
+
 def class_member_contracts(node):
     members = []
-    for name, nodes in group_public_callables(node.body).items():
-        members.append({
-            'kind': 'method',
-            'name': name,
-            'contract': callable_group_contract_payloads(nodes, True),
-        })
-
-    for item in node.body:
-        if isinstance(item, ast.AnnAssign):
-            for name in public_assignment_names(item.target):
+    for name, binding in effective_class_bindings(node.body).items():
+        if binding['kind'] == 'method':
+            members.append({
+                'kind': 'method',
+                'name': name,
+                'contract': callable_group_contract_payloads(
+                    binding['nodes'], True
+                ),
+            })
+        else:
+            item = binding['node']
+            if isinstance(item, ast.AnnAssign):
                 members.append({
                     'kind': 'property',
                     'name': name,
@@ -544,11 +622,7 @@ def class_member_contracts(node):
                         ast_payload(item.value) if item.value is not None else None
                     ),
                 })
-        elif isinstance(item, ast.Assign):
-            names = []
-            for target in item.targets:
-                names.extend(public_assignment_names(target))
-            for name in names:
+            else:
                 members.append({
                     'kind': 'property',
                     'name': name,
@@ -569,44 +643,50 @@ def class_member_contracts(node):
 def class_implementation_payload(node):
     entries = []
     body = node.body[1:] if node.body and is_docstring_statement(node.body[0]) else node.body
-    grouped_methods = group_public_callables(body)
-    effective_methods = {}
-    for name, nodes in grouped_methods.items():
-        implementations = [
-            item for item in nodes if not is_overload_declaration(item)
-        ]
-        effective_node = implementations[-1] if implementations else nodes[-1]
-        effective_methods[id(effective_node)] = {
-            'kind': 'method',
-            'name': name,
-            'body': callable_group_implementation_payload(nodes, True),
-        }
+    bindings = effective_class_bindings(body)
 
-    for item in body:
+    for index, item in enumerate(body):
         if isinstance(item, CALLABLE_NODES) and not item.name.startswith('_'):
-            if id(item) in effective_methods:
-                entries.append(effective_methods[id(item)])
+            binding = bindings.get(item.name)
+            if (
+                binding is not None
+                and binding['kind'] == 'method'
+                and binding['index'] == index
+            ):
+                entries.append({
+                    'kind': 'method',
+                    'name': item.name,
+                    'body': callable_group_implementation_payload(
+                        binding['nodes'], True
+                    ),
+                })
         elif isinstance(item, ast.AnnAssign):
-            names = public_assignment_names(item.target)
+            names = [
+                name for name in assignment_public_names(item)
+                if bindings.get(name, {}).get('kind') == 'property'
+                and bindings[name]['index'] == index
+            ]
             if names:
                 entries.append({
                     'kind': 'property',
                     'names': names,
                     'value': ast_payload(item.value) if item.value is not None else None,
                 })
-            else:
+            elif not assignment_public_names(item):
                 entries.append(node_without_documentation_payload(item))
         elif isinstance(item, ast.Assign):
-            names = []
-            for target in item.targets:
-                names.extend(public_assignment_names(target))
+            names = [
+                name for name in assignment_public_names(item)
+                if bindings.get(name, {}).get('kind') == 'property'
+                and bindings[name]['index'] == index
+            ]
             if names:
                 entries.append({
                     'kind': 'property',
                     'names': names,
                     'value': ast_payload(item.value),
                 })
-            else:
+            elif not assignment_public_names(item):
                 entries.append(node_without_documentation_payload(item))
         else:
             entries.append(node_without_documentation_payload(item))
@@ -652,15 +732,18 @@ def snapshot_source(filepath, source):
     for class_nodes in group_public_classes(tree.body).values():
         effective_class = class_nodes[-1]
         symbols.append(class_symbol(effective_class))
-        for name, nodes in group_public_callables(effective_class.body).items():
-            symbols.append(
-                callable_group_symbol(
-                    nodes,
-                    'method',
-                    effective_class.name + '.' + name,
-                    True,
+        for name, binding in effective_class_bindings(
+            effective_class.body
+        ).items():
+            if binding['kind'] == 'method':
+                symbols.append(
+                    callable_group_symbol(
+                        binding['nodes'],
+                        'method',
+                        effective_class.name + '.' + name,
+                        True,
+                    )
                 )
-            )
 
     symbols.sort(key=lambda item: (item['kind'], item['qualifiedName']))
     return {

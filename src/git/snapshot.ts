@@ -1,13 +1,114 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { constants as fsConstants, promises as fs, Stats } from "node:fs";
+import { promises as fs, type BigIntStats } from "node:fs";
 import { promisify } from "node:util";
-import { posix, resolve } from "node:path";
+import { isAbsolute, posix, relative, resolve, sep } from "node:path";
 import { SnapshotDescriptor, PlanFailure } from "../impact/types";
 
 const execFile = promisify(execFileCallback);
 const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const MAX_BUFFER = 4 * 1024 * 1024;
+const WORKTREE_READ_TIMEOUT_MS = 5_000;
 const STATUS = new Set(["A", "M", "D", "R", "T"]);
+
+interface PathSemantics {
+  relative(from: string, to: string): string;
+  isAbsolute(path: string): boolean;
+  readonly sep: string;
+}
+
+interface FilesystemIdentity {
+  dev: string;
+  ino: string;
+  type: string;
+}
+
+interface ValidatedWorktreePath {
+  leaf: string;
+  parentAbsolute: string;
+  parentIdentity: FilesystemIdentity;
+  leafIdentity: FilesystemIdentity;
+}
+
+const NATIVE_PATH_SEMANTICS: PathSemantics = { relative, isAbsolute, sep };
+const WORKTREE_READER_SCRIPT = String.raw`
+const fs = require("node:fs");
+const [
+  leaf,
+  expectedParentDev,
+  expectedParentIno,
+  expectedParentType,
+  expectedLeafDev,
+  expectedLeafIno,
+  expectedLeafType,
+] = process.argv.slice(1);
+let descriptor;
+
+function identity(stat) {
+  return {
+    dev: stat.dev.toString(),
+    ino: stat.ino.toString(),
+    type: (stat.mode & 0o170000n).toString(),
+  };
+}
+
+function sameSnapshot(left, right) {
+  const leftIdentity = identity(left);
+  const rightIdentity = identity(right);
+  return leftIdentity.dev === rightIdentity.dev &&
+    leftIdentity.ino === rightIdentity.ino &&
+    leftIdentity.type === rightIdentity.type &&
+    left.size === right.size &&
+    left.mtimeNs === right.mtimeNs &&
+    left.ctimeNs === right.ctimeNs;
+}
+
+try {
+  if (typeof leaf !== "string" || leaf.length === 0 || leaf === "." ||
+      leaf === ".." || leaf.includes("/") || leaf.includes("\\") ||
+      leaf.includes("\0")) throw new Error();
+  const parent = fs.lstatSync(".", { bigint: true });
+  const parentIdentity = identity(parent);
+  if (!parent.isDirectory() || parent.isSymbolicLink() ||
+      parentIdentity.dev !== expectedParentDev ||
+      parentIdentity.ino !== expectedParentIno ||
+      parentIdentity.type !== expectedParentType) throw new Error();
+  descriptor = fs.openSync(
+    leaf,
+    fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+  );
+  const before = fs.fstatSync(descriptor, { bigint: true });
+  const beforeIdentity = identity(before);
+  if (!before.isFile() || before.isSymbolicLink() ||
+      beforeIdentity.dev !== expectedLeafDev ||
+      beforeIdentity.ino !== expectedLeafIno ||
+      beforeIdentity.type !== expectedLeafType) throw new Error();
+  const source = fs.readFileSync(descriptor, { encoding: "utf8" });
+  const after = fs.fstatSync(descriptor, { bigint: true });
+  if (!sameSnapshot(before, after)) throw new Error();
+  process.stdout.write(source);
+} catch {
+  process.exitCode = 1;
+} finally {
+  if (descriptor !== undefined) {
+    try { fs.closeSync(descriptor); } catch {}
+  }
+}
+`;
+
+/** Returns whether a candidate is the root itself or a platform-safe descendant. */
+export function isPathWithinRoot(
+  root: string,
+  candidate: string,
+  pathSemantics: PathSemantics = NATIVE_PATH_SEMANTICS,
+): boolean {
+  const relativePath = pathSemantics.relative(root, candidate);
+  return (
+    relativePath.length === 0 ||
+    (relativePath !== ".." &&
+      !relativePath.startsWith(`..${pathSemantics.sep}`) &&
+      !pathSemantics.isAbsolute(relativePath))
+  );
+}
 
 export type SnapshotFileStatus = "added" | "modified" | "deleted" | "renamed";
 export interface SnapshotFileChange {
@@ -74,49 +175,63 @@ export class GitSnapshotReader {
       const afterPath = change.afterPath
         ? normalizePath(change.afterPath)!
         : undefined;
-      const matchPath = afterPath ?? beforePath!;
-      const isSupported = /\.(?:ts|tsx|js|jsx|py)$/u.test(matchPath);
-      const isExcluded = isMatched(matchPath, options.exclude);
-      if (!isSupported) unsupported++;
-      if (isExcluded) excluded++;
-      if (!isSupported || isExcluded) {
-        files.push({
-          ...change,
-          beforePath,
-          afterPath,
-          supported: isSupported,
-          excluded: isExcluded,
-        });
-        continue;
+      let effectiveChange = { ...change, beforePath, afterPath };
+      if (change.status === "renamed") {
+        const before = classifyPath(beforePath!, options);
+        const after = classifyPath(afterPath!, options);
+        if (!before.supported) unsupported++;
+        else if (!before.inScope) excluded++;
+        if (!after.supported) unsupported++;
+        else if (!after.inScope) excluded++;
+
+        if (before.inScope && !after.inScope) {
+          effectiveChange = {
+            status: "deleted" as const,
+            beforePath,
+            afterPath: undefined,
+          };
+        } else if (!before.inScope && after.inScope) {
+          effectiveChange = {
+            status: "added" as const,
+            beforePath: undefined,
+            afterPath,
+          };
+        } else if (!before.inScope && !after.inScope) {
+          files.push({
+            ...effectiveChange,
+            supported: before.supported || after.supported,
+            excluded:
+              (before.supported && !before.inScope) ||
+              (after.supported && !after.inScope),
+          });
+          continue;
+        }
+      } else {
+        const endpoint = classifyPath(afterPath ?? beforePath!, options);
+        if (!endpoint.supported) unsupported++;
+        else if (!endpoint.inScope) excluded++;
+        if (!endpoint.inScope) {
+          files.push({
+            ...effectiveChange,
+            supported: endpoint.supported,
+            excluded: endpoint.supported,
+          });
+          continue;
+        }
       }
+
       let beforeSource: string | undefined;
       let afterSource: string | undefined;
-      if (beforePath && change.status !== "added")
-        beforeSource = await this.blob(
-          headCommit === baseCommit ? baseCommit : baseCommit,
-          beforePath,
-        );
-      if (afterPath && change.status !== "deleted")
+      if (effectiveChange.beforePath && effectiveChange.status !== "added") {
+        beforeSource = await this.blob(baseCommit, effectiveChange.beforePath);
+      }
+      if (effectiveChange.afterPath && effectiveChange.status !== "deleted") {
         afterSource = immutable
-          ? await this.blob(headCommit, afterPath)
-          : await this.worktreeFile(root, afterPath);
-      if (!isMatched(matchPath, options.include)) {
-        excluded++;
-        files.push({
-          ...change,
-          beforePath,
-          afterPath,
-          beforeSource,
-          afterSource,
-          supported: true,
-          excluded: true,
-        });
-        continue;
+          ? await this.blob(headCommit, effectiveChange.afterPath)
+          : await this.worktreeFile(root, effectiveChange.afterPath);
       }
       files.push({
-        ...change,
-        beforePath,
-        afterPath,
+        ...effectiveChange,
         beforeSource,
         afterSource,
         supported: true,
@@ -342,29 +457,31 @@ export class GitSnapshotReader {
     }
   }
   private async worktreeFile(root: string, path: string): Promise<string> {
-    const full = resolve(root, path);
     try {
-      const realRoot = await fs.realpath(root);
-      const realPath = await fs.realpath(full);
-      if (realPath !== realRoot && !realPath.startsWith(`${realRoot}/`))
-        throw new Error();
-      const stat = await fs.lstat(full);
-      if (!stat.isFile() || stat.isSymbolicLink()) throw new Error();
-      const handle = await fs.open(
-        full,
-        fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+      const validated = await validateWorktreePath(root, path);
+      const result = await execFile(
+        process.execPath,
+        [
+          "-e",
+          WORKTREE_READER_SCRIPT,
+          "--",
+          validated.leaf,
+          validated.parentIdentity.dev,
+          validated.parentIdentity.ino,
+          validated.parentIdentity.type,
+          validated.leafIdentity.dev,
+          validated.leafIdentity.ino,
+          validated.leafIdentity.type,
+        ],
+        {
+          cwd: validated.parentAbsolute,
+          encoding: "utf8",
+          timeout: WORKTREE_READ_TIMEOUT_MS,
+          maxBuffer: MAX_BUFFER,
+          windowsHide: true,
+        },
       );
-      try {
-        const before = await handle.stat();
-        if (!before.isFile() || !sameFileIdentity(stat, before))
-          throw new Error();
-        const source = await handle.readFile({ encoding: "utf8" });
-        const after = await handle.stat();
-        if (!sameFileSnapshot(before, after)) throw new Error();
-        return source;
-      } finally {
-        await handle.close();
-      }
+      return result.stdout;
     } catch {
       throw new PlanFailure(
         "PLAN_UNSAFE_WORKTREE_PATH",
@@ -373,23 +490,6 @@ export class GitSnapshotReader {
       );
     }
   }
-}
-
-function sameFileIdentity(left: Stats, right: Stats): boolean {
-  return (
-    left.dev === right.dev &&
-    left.ino === right.ino &&
-    (left.mode & 0o170000) === (right.mode & 0o170000)
-  );
-}
-
-function sameFileSnapshot(left: Stats, right: Stats): boolean {
-  return (
-    sameFileIdentity(left, right) &&
-    left.size === right.size &&
-    left.mtimeMs === right.mtimeMs &&
-    left.ctimeMs === right.ctimeMs
-  );
 }
 
 function normalizePath(value: string): string | undefined {
@@ -402,6 +502,72 @@ function normalizePath(value: string): string | undefined {
     ? undefined
     : normalized;
 }
+
+function classifyPath(
+  path: string,
+  options: { include: string[]; exclude: string[] },
+): { supported: boolean; inScope: boolean } {
+  const supported = /\.(?:ts|tsx|js|jsx|py)$/u.test(path);
+  return {
+    supported,
+    inScope:
+      supported &&
+      !isMatched(path, options.exclude) &&
+      isMatched(path, options.include),
+  };
+}
+
+async function validateWorktreePath(
+  root: string,
+  path: string,
+): Promise<ValidatedWorktreePath> {
+  const absoluteRoot = resolve(root);
+  const absolute = resolve(absoluteRoot, path);
+  if (!isPathWithinRoot(absoluteRoot, absolute) || absolute === absoluteRoot) {
+    throw new Error();
+  }
+
+  let current = absoluteRoot;
+  let parentAbsolute = absoluteRoot;
+  let stat = await fs.lstat(absoluteRoot, { bigint: true });
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error();
+  let parentIdentity = filesystemIdentity(stat);
+  const components = relative(absoluteRoot, absolute).split(sep);
+  for (const [index, component] of components.entries()) {
+    if (component.length === 0) throw new Error();
+    current = resolve(current, component);
+    stat = await fs.lstat(current, { bigint: true });
+    if (stat.isSymbolicLink()) throw new Error();
+    if (index < components.length - 1) {
+      if (!stat.isDirectory()) throw new Error();
+      parentAbsolute = current;
+      parentIdentity = filesystemIdentity(stat);
+    }
+  }
+  if (!stat.isFile()) throw new Error();
+
+  const [realRoot, realPath] = await Promise.all([
+    fs.realpath(absoluteRoot),
+    fs.realpath(absolute),
+  ]);
+  if (!isPathWithinRoot(realRoot, realPath)) throw new Error();
+
+  return {
+    leaf: components[components.length - 1],
+    parentAbsolute,
+    parentIdentity,
+    leafIdentity: filesystemIdentity(stat),
+  };
+}
+
+function filesystemIdentity(stat: BigIntStats): FilesystemIdentity {
+  return {
+    dev: stat.dev.toString(),
+    ino: stat.ino.toString(),
+    type: (stat.mode & 0o170000n).toString(),
+  };
+}
+
 function isMatched(path: string, patterns: string[]): boolean {
   return (
     patterns.length > 0 &&

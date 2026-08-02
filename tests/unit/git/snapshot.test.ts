@@ -5,13 +5,14 @@ import {
   chmodSync,
   promises as fs,
   realpathSync,
+  renameSync,
   symlinkSync,
   unlinkSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import { execFileSync } from "node:child_process";
-import { GitSnapshotReader } from "../../../src/git/snapshot";
+import { GitSnapshotReader, isPathWithinRoot } from "../../../src/git/snapshot";
 
 function repo() {
   const root = mkdtempSync(join(tmpdir(), "aidoc-git-"));
@@ -116,14 +117,18 @@ describe("GitSnapshotReader", () => {
     commit(root, "initial");
     writeFileSync(sourcePath, "export const value = 2;\n");
     writeFileSync(outsidePath, "outside-sentinel");
+    const canonicalSourcePath = realpathSync(sourcePath);
 
-    const realOpen = fs.open.bind(fs);
-    const open = jest
-      .spyOn(fs, "open")
-      .mockImplementationOnce(async (...args) => {
-        unlinkSync(sourcePath);
-        symlinkSync(outsidePath, sourcePath);
-        return realOpen(...args);
+    const realRealpath = fs.realpath.bind(fs);
+    const realpath = jest
+      .spyOn(fs, "realpath")
+      .mockImplementation(async (path) => {
+        const resolved = await realRealpath(path);
+        if (resolved === canonicalSourcePath) {
+          unlinkSync(sourcePath);
+          symlinkSync(outsidePath, sourcePath);
+        }
+        return resolved;
       });
 
     try {
@@ -139,8 +144,200 @@ describe("GitSnapshotReader", () => {
         path: "source.ts",
       });
     } finally {
-      open.mockRestore();
+      realpath.mockRestore();
     }
+  });
+
+  // Break caught: resolving a leaf by pathname after validation follows a
+  // replacement intermediate directory and reads attacker-selected source.
+  test("rejects an intermediate-directory swap before the worktree read", async () => {
+    const root = repo();
+    const parentPath = join(root, "src");
+    const displacedParentPath = join(root, "src-original");
+    const sourcePath = join(parentPath, "source.ts");
+    mkdirSync(parentPath);
+    writeFileSync(sourcePath, "export const value = 1;\n");
+    commit(root, "initial");
+    writeFileSync(sourcePath, "export const value = 2;\n");
+    const canonicalSourcePath = realpathSync(sourcePath);
+
+    const realRealpath = fs.realpath.bind(fs);
+    const realpath = jest
+      .spyOn(fs, "realpath")
+      .mockImplementation(async (path) => {
+        const resolved = await realRealpath(path);
+        if (resolved === canonicalSourcePath) {
+          renameSync(parentPath, displacedParentPath);
+          mkdirSync(parentPath);
+          writeFileSync(sourcePath, "replacement-source-sentinel\n");
+        }
+        return resolved;
+      });
+
+    try {
+      const error = await new GitSnapshotReader(root)
+        .read({
+          base: "HEAD",
+          include: ["**/*.ts"],
+          exclude: [],
+        })
+        .catch((value: unknown) => value);
+
+      expect(error).toMatchObject({
+        code: "PLAN_UNSAFE_WORKTREE_PATH",
+        message: "The working-tree path is unsafe.",
+        path: "src/source.ts",
+      });
+      expect(String(error)).not.toContain("replacement-source-sentinel");
+    } finally {
+      realpath.mockRestore();
+    }
+  });
+
+  // Break caught: a slash-prefix containment check accepts a Windows sibling
+  // or rejects valid case-insensitive descendants when tests run on POSIX.
+  test("uses platform path semantics for default and Windows containment", () => {
+    expect(isPathWithinRoot("/repo", "/repo/src/source.ts")).toBe(true);
+    expect(isPathWithinRoot("/repo", "/repo-sibling/source.ts")).toBe(false);
+    expect(
+      isPathWithinRoot(
+        "C:\\Repository",
+        "c:\\repository\\src\\source.ts",
+        win32,
+      ),
+    ).toBe(true);
+    expect(
+      isPathWithinRoot(
+        "C:\\Repository",
+        "C:\\Repository-sibling\\source.ts",
+        win32,
+      ),
+    ).toBe(false);
+    expect(isPathWithinRoot("C:\\Repository", "D:\\source.ts", win32)).toBe(
+      false,
+    );
+  });
+
+  // Break caught: a supported rename endpoint is discarded when the other
+  // endpoint has an unsupported extension, rather than becoming delete/add.
+  test("classifies supported and unsupported rename endpoints independently", async () => {
+    const root = repo();
+    writeFileSync(join(root, "removed.ts"), "export const removed = 1;\n");
+    writeFileSync(
+      join(root, "legacy.txt"),
+      "export const commonPrefixForRenameDetection = 1;\n" +
+        "export const commonSecondLine = 2;\n" +
+        "// unsupported-before-source-sentinel\n",
+    );
+    commit(root, "base");
+    const base = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+    execFileSync("git", ["mv", "--", "removed.ts", "removed.txt"], {
+      cwd: root,
+    });
+    execFileSync("git", ["mv", "--", "legacy.txt", "restored.ts"], {
+      cwd: root,
+    });
+    writeFileSync(
+      join(root, "restored.ts"),
+      "export const commonPrefixForRenameDetection = 1;\n" +
+        "export const commonSecondLine = 2;\n",
+    );
+    commit(root, "rename across supported boundary");
+    const head = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+
+    const result = await new GitSnapshotReader(root).read({
+      base,
+      head,
+      include: ["**/*.ts"],
+      exclude: [],
+    });
+
+    expect(result.files).toEqual([
+      expect.objectContaining({
+        status: "deleted",
+        beforePath: "removed.ts",
+        afterPath: undefined,
+        afterSource: undefined,
+      }),
+      expect.objectContaining({
+        status: "added",
+        beforePath: undefined,
+        afterPath: "restored.ts",
+        beforeSource: undefined,
+      }),
+    ]);
+    expect(JSON.stringify(result.files)).not.toContain(
+      "unsupported-before-source-sentinel",
+    );
+  });
+
+  // Break caught: include/exclude is applied only to a rename destination, so
+  // the in-scope endpoint is lost or the excluded endpoint is read.
+  test("classifies included and excluded rename endpoints independently", async () => {
+    const root = repo();
+    mkdirSync(join(root, "excluded"));
+    writeFileSync(
+      join(root, "published.ts"),
+      "export const published = 'public-before';\n",
+    );
+    writeFileSync(
+      join(root, "excluded/legacy.ts"),
+      "export const commonPrefixForExcludedRename = 1;\n" +
+        "export const commonExcludedSecondLine = 2;\n" +
+        "// excluded-before-source-sentinel\n",
+    );
+    commit(root, "base");
+    const base = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+    execFileSync("git", ["mv", "--", "published.ts", "excluded/published.ts"], {
+      cwd: root,
+    });
+    execFileSync("git", ["mv", "--", "excluded/legacy.ts", "restored.ts"], {
+      cwd: root,
+    });
+    writeFileSync(
+      join(root, "restored.ts"),
+      "export const commonPrefixForExcludedRename = 1;\n" +
+        "export const commonExcludedSecondLine = 2;\n",
+    );
+    commit(root, "rename across exclusion boundary");
+    const head = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+
+    const result = await new GitSnapshotReader(root).read({
+      base,
+      head,
+      include: ["**/*.ts"],
+      exclude: ["excluded/**"],
+    });
+
+    expect(result.files).toEqual([
+      expect.objectContaining({
+        status: "deleted",
+        beforePath: "published.ts",
+        afterPath: undefined,
+        afterSource: undefined,
+      }),
+      expect.objectContaining({
+        status: "added",
+        beforePath: undefined,
+        afterPath: "restored.ts",
+        beforeSource: undefined,
+      }),
+    ]);
+    expect(JSON.stringify(result.files)).not.toContain(
+      "excluded-before-source-sentinel",
+    );
   });
 
   // Break caught: line-oriented status parsing splits tracked paths at spaces.

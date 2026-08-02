@@ -136,6 +136,93 @@ describe("MCP impact planning", () => {
     });
   });
 
+  // Break caught: TypeScript assertions let invalid protocol scalars reach the
+  // planner and surface incidental JS/config errors instead of fixed failures.
+  it.each([
+    {
+      label: "non-string base",
+      args: { base: 17 },
+      error: {
+        code: "PLAN_INVALID_REF",
+        message: "The Git reference is invalid.",
+      },
+    },
+    {
+      label: "non-string head",
+      args: { head: false },
+      error: {
+        code: "PLAN_INVALID_REF",
+        message: "The Git reference is invalid.",
+      },
+    },
+    {
+      label: "non-integer context budget",
+      args: { max_context_bytes: 4096.5 },
+      error: {
+        code: "PLAN_INVALID_CONTEXT_BUDGET",
+        message: "The provider context byte budget is invalid.",
+      },
+    },
+  ])("rejects $label before planning", async ({ args, error }) => {
+    const planner = jest.spyOn(impactPlanner, "createImpactPlan");
+
+    const thrown = await handleToolCall(
+      "plan_documentation_impact",
+      args,
+      "/srv/locked-repository",
+    ).catch((value: unknown) => value);
+
+    expect(PlanFailure.read(thrown)).toEqual(error);
+    expect(formatMCPError(thrown)).toBe(`${error.code}: ${error.message}`);
+    expect(planner).not.toHaveBeenCalled();
+  });
+
+  // Break caught: direct property access invokes hostile accessors before the
+  // MCP boundary can create an authentic, safely formatted PlanFailure.
+  it.each([
+    {
+      key: "base",
+      error: {
+        code: "PLAN_INVALID_REF",
+        message: "The Git reference is invalid.",
+      },
+    },
+    {
+      key: "head",
+      error: {
+        code: "PLAN_INVALID_REF",
+        message: "The Git reference is invalid.",
+      },
+    },
+    {
+      key: "max_context_bytes",
+      error: {
+        code: "PLAN_INVALID_CONTEXT_BUDGET",
+        message: "The provider context byte budget is invalid.",
+      },
+    },
+  ])("fails closed for a hostile $key getter", async ({ key, error }) => {
+    const args = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(args, key, {
+      enumerable: true,
+      get: () => {
+        throw new Error("hostile MCP argument getter sentinel");
+      },
+    });
+    const planner = jest.spyOn(impactPlanner, "createImpactPlan");
+
+    const thrown = await handleToolCall(
+      "plan_documentation_impact",
+      args,
+      "/srv/locked-repository",
+    ).catch((value: unknown) => value);
+
+    expect(PlanFailure.read(thrown)).toEqual(error);
+    expect(formatMCPError(thrown)).toBe(`${error.code}: ${error.message}`);
+    expect(formatMCPError(thrown)).not.toContain("sentinel");
+    expect(planner).not.toHaveBeenCalled();
+  });
+
   // Break caught: CLI and MCP grow separate comparison logic, planning loads
   // provider state, or MCP honors an extra directory supplied by a caller.
   it("matches CLI JSON for immutable snapshots without provider bootstrap", async () => {
