@@ -61,32 +61,46 @@ export function compareSnapshots(files: ParsedFileSnapshots[]): SymbolChange[] {
       before !== undefined &&
       after !== undefined
     ) {
-      if (identicalSnapshots(before, after)) {
-        for (const previous of before.symbols) {
-          const current = after.symbols.find(
-            (candidate) => symbolKey(candidate) === symbolKey(previous),
+      const beforeByKey = indexSymbols(before.symbols);
+      const afterByKey = indexSymbols(after.symbols);
+      for (const previous of before.symbols) {
+        const current = afterByKey.get(symbolKey(previous));
+        if (current !== undefined && identicalSymbols(previous, current)) {
+          changes.push(
+            createChange({
+              scope: "symbol",
+              category: "moved",
+              risk: "informational",
+              language: previous.language,
+              path: file.afterPath ?? file.beforePath ?? "",
+              kind: previous.kind,
+              qualifiedName: previous.qualifiedName,
+              beforeId: symbolId(file.beforePath ?? "", previous),
+              afterId: symbolId(file.afterPath ?? "", current),
+            }),
           );
-          if (current !== undefined) {
-            changes.push(
-              createChange({
-                scope: "symbol",
-                category: "moved",
-                risk: "informational",
-                language: previous.language,
-                path: file.afterPath ?? file.beforePath ?? "",
-                kind: previous.kind,
-                qualifiedName: previous.qualifiedName,
-                beforeId: symbolId(file.beforePath ?? "", previous),
-                afterId: symbolId(file.afterPath ?? "", current),
-              }),
-            );
-          }
+        } else {
+          addOne(changes, previous, file.beforePath, "removed");
         }
-        continue;
       }
-      // A rename with changed content is intentionally not guessed as a move.
-      addAll(changes, before.symbols, file.beforePath, "removed");
-      addAll(changes, after.symbols, file.afterPath, "added");
+      for (const current of after.symbols) {
+        const previous = beforeByKey.get(symbolKey(current));
+        if (previous === undefined || !identicalSymbols(previous, current)) {
+          addOne(changes, current, file.afterPath, "added");
+        }
+      }
+      if (before.dependencyFingerprint !== after.dependencyFingerprint) {
+        changes.push(
+          createChange({
+            scope: "module",
+            category: "dependency-changed",
+            risk: "informational",
+            language: after.language,
+            path: file.afterPath ?? file.beforePath ?? "",
+            kind: "module",
+          }),
+        );
+      }
       continue;
     }
 
@@ -290,35 +304,20 @@ function indexSymbols(
   return new Map(symbols.map((symbol) => [symbolKey(symbol), symbol]));
 }
 
-function identicalSnapshots(
-  before: ParserModuleSnapshot,
-  after: ParserModuleSnapshot,
+function identicalSymbols(
+  previous: ParserSymbolSnapshot,
+  current: ParserSymbolSnapshot,
 ): boolean {
-  if (
-    before.language !== after.language ||
-    before.dependencyFingerprint !== after.dependencyFingerprint
-  ) {
-    return false;
-  }
-  const beforeByKey = indexSymbols(before.symbols);
-  const afterByKey = indexSymbols(after.symbols);
-  if (beforeByKey.size !== afterByKey.size) return false;
-  for (const [key, previous] of beforeByKey) {
-    const current = afterByKey.get(key);
-    if (
-      current === undefined ||
-      previous.contractFingerprint !== current.contractFingerprint ||
-      previous.implementationFingerprint !==
-        current.implementationFingerprint ||
-      previous.documentationFingerprint !== current.documentationFingerprint ||
-      FACETS.some(
-        (facet) =>
-          previous.contractFacets[facet] !== current.contractFacets[facet],
-      )
+  return (
+    previous.language === current.language &&
+    previous.contractFingerprint === current.contractFingerprint &&
+    previous.implementationFingerprint === current.implementationFingerprint &&
+    previous.documentationFingerprint === current.documentationFingerprint &&
+    FACETS.every(
+      (facet) =>
+        previous.contractFacets[facet] === current.contractFacets[facet],
     )
-      return false;
-  }
-  return true;
+  );
 }
 
 function compareImpactChanges(a: SymbolChange, b: SymbolChange): number {

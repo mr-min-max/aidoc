@@ -143,6 +143,74 @@ describe("impact snapshot comparison", () => {
     ]);
   });
 
+  it("classifies unchanged symbols as moved independently within a changed rename", () => {
+    const before = module("src/old.ts", [
+      symbol("stable"),
+      symbol("changed", { implementationFingerprint: hash("1") }),
+    ]);
+    const after = module("src/new.ts", [
+      symbol("stable"),
+      symbol("changed", { implementationFingerprint: hash("2") }),
+    ]);
+
+    const changes = compareSnapshots([
+      file("renamed", before, after, "src/old.ts", "src/new.ts"),
+    ]);
+
+    expect(
+      changes.map(({ category, qualifiedName }) => [category, qualifiedName]),
+    ).toEqual([
+      ["removed", "changed"],
+      ["moved", "stable"],
+      ["added", "changed"],
+    ]);
+  });
+
+  it("reports dependency changes alongside content-changing renames", () => {
+    const before = module("src/old.ts", [symbol("thing")], hash("a"));
+    const after = module(
+      "src/new.ts",
+      [symbol("thing", { implementationFingerprint: hash("1") })],
+      hash("b"),
+    );
+
+    const changes = compareSnapshots([
+      file("renamed", before, after, "src/old.ts", "src/new.ts"),
+    ]);
+
+    expect(
+      changes.filter(({ category }) => category === "dependency-changed"),
+    ).toHaveLength(1);
+    expect(changes.filter(({ scope }) => scope === "module")).toEqual([
+      expect.objectContaining({
+        category: "dependency-changed",
+        id: "typescript:src/new.ts#module",
+      }),
+    ]);
+  });
+
+  it("suppresses implementation changes when a contract changes too", () => {
+    const before = module("src/a.ts", [symbol("thing")]);
+    const after = module("src/a.ts", [
+      symbol("thing", {
+        contractFingerprint: hash("1"),
+        contractFacets: { parameters: hash("2"), return: hash("3") },
+        implementationFingerprint: hash("4"),
+      }),
+    ]);
+
+    const changes = compareSnapshots([
+      file("modified", before, after, "src/a.ts", "src/a.ts"),
+    ]);
+
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toMatchObject({
+      category: "contract-changed",
+      qualifiedName: "thing",
+      changedContractFacets: ["parameters", "return"],
+    });
+  });
+
   it("uses stable IDs, ordering, and repeatable digests", () => {
     const files: ParsedFileSnapshots[] = [
       file(
