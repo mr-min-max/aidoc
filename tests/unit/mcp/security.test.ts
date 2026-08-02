@@ -1,5 +1,5 @@
 jest.mock("../../../src/config/loader", () => ({
-  loadConfig: jest.fn(),
+  loadProviderConfig: jest.fn(),
 }));
 
 jest.mock("../../../src/providers/registry", () => ({
@@ -18,7 +18,7 @@ jest.mock("../../../src/core/generator", () => ({
 
 import { analyzeCodebase } from "../../../src/core/analyzer";
 import { Generator } from "../../../src/core/generator";
-import { loadConfig } from "../../../src/config/loader";
+import { loadProviderConfig } from "../../../src/config/loader";
 import { formatMCPError, handleToolCall } from "../../../src/mcp/server";
 import { createProvider } from "../../../src/providers/registry";
 
@@ -28,18 +28,20 @@ const analyzeCodebaseMock = analyzeCodebase as jest.MockedFunction<
 const createProviderMock = createProvider as jest.MockedFunction<
   typeof createProvider
 >;
-const loadConfigMock = loadConfig as jest.MockedFunction<typeof loadConfig>;
+const loadProviderConfigMock = loadProviderConfig as jest.MockedFunction<
+  typeof loadProviderConfig
+>;
 const generatorMock = Generator as unknown as jest.Mock;
 
 describe("MCP Trust Gate wiring", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    loadConfigMock.mockReturnValue({
+    loadProviderConfigMock.mockReturnValue({
       provider: "openai",
       include: ["**/*.ts"],
       exclude: ["**/node_modules/**"],
       trustPolicy: "strict",
-    } as ReturnType<typeof loadConfig>);
+    } as ReturnType<typeof loadProviderConfig>);
     createProviderMock.mockReturnValue({
       name: "provider-free-test-double",
       generate: jest.fn().mockResolvedValue("# unused provider output\n"),

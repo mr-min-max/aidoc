@@ -20,9 +20,16 @@
 import { analyzeCodebase } from "../core/analyzer";
 import { Generator } from "../core/generator";
 import { createProvider } from "../providers/registry";
-import { loadConfig } from "../config/loader";
+import { loadProviderConfig } from "../config/loader";
+import { loadPlanningConfig } from "../config/planning";
 import { readProjectInfo } from "../cli/context";
 import { checkDocumentationFreshness } from "../core/freshness";
+import { createImpactPlan } from "../impact/planner";
+import {
+  PLAN_ERROR_CODES,
+  PlanFailure,
+  type PlanErrorCode,
+} from "../impact/types";
 import { readPackageVersion } from "../core/package-meta";
 import { resolveTemplatesDir } from "../core/templates";
 import {
@@ -38,7 +45,8 @@ import {
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 
-const SAFE_MCP_ERROR_CODES = new Set([
+const SAFE_MCP_ERROR_CODES = new Set<string>([
+  ...PLAN_ERROR_CODES,
   "TRUST_SECRET_BLOCKED",
   "TRUST_INVALID_PROVIDER_OUTPUT",
   "TRUST_PATH_OUTSIDE_ROOT",
@@ -52,6 +60,11 @@ const SAFE_MCP_ERROR_CODES = new Set([
 const UNKNOWN_MCP_ERROR = "Unknown MCP error.";
 
 export function formatMCPError(error: unknown): string {
+  const planError = PlanFailure.read(error);
+  if (planError !== undefined) {
+    return `${planError.code}: ${planError.message}`;
+  }
+
   const diagnostic = getSafeErrorDiagnostic(error);
   if (diagnostic.message === UNKNOWN_ERROR_DIAGNOSTIC) {
     return UNKNOWN_MCP_ERROR;
@@ -64,6 +77,7 @@ export function formatMCPError(error: unknown): string {
   if (!code) {
     return hasUntrustedCode ? UNKNOWN_MCP_ERROR : diagnostic.message;
   }
+  if (PLAN_ERROR_CODES.has(code as PlanErrorCode)) return UNKNOWN_MCP_ERROR;
 
   const prefix = `${code}:`;
   return diagnostic.message.startsWith(prefix)
@@ -170,18 +184,43 @@ export const TOOLS: Tool[] = [
       required: ["directory"],
     },
   },
+  {
+    name: "plan_documentation_impact",
+    description:
+      "Plan deterministic documentation impact for the repository where this MCP server started.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        base: {
+          type: "string",
+          description: "Explicit comparison base Git ref",
+        },
+        head: {
+          type: "string",
+          description: "Compare two committed Git refs",
+        },
+        max_context_bytes: {
+          type: "integer",
+          minimum: 1024,
+          maximum: 1048576,
+          description: "Provider-context byte ceiling",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
 ];
 
 /** Handle a tool call */
 export async function handleToolCall(
   name: string,
   args: Record<string, unknown>,
+  serverCwd = process.cwd(),
 ): Promise<unknown> {
-  const config = loadConfig(args.directory as string);
-
   switch (name) {
     case "analyze_codebase": {
       const dir = args.directory as string;
+      const config = loadPlanningConfig(dir);
       const include = args.include
         ? (args.include as string).split(",")
         : config.include;
@@ -223,6 +262,7 @@ export async function handleToolCall(
 
     case "generate_readme": {
       const dir = args.directory as string;
+      const config = loadProviderConfig(dir);
       const modules = await analyzeCodebase(
         dir,
         config.include,
@@ -257,6 +297,7 @@ export async function handleToolCall(
 
     case "generate_api_docs": {
       const dir = args.directory as string;
+      const config = loadProviderConfig(dir);
       const modules = await analyzeCodebase(
         dir,
         config.include,
@@ -274,6 +315,7 @@ export async function handleToolCall(
 
     case "generate_diagram": {
       const dir = args.directory as string;
+      const config = loadProviderConfig(dir);
       const modules = await analyzeCodebase(
         dir,
         config.include,
@@ -304,12 +346,22 @@ export async function handleToolCall(
       };
     }
 
+    case "plan_documentation_impact": {
+      const result = await createImpactPlan({
+        cwd: serverCwd,
+        base: args.base as string | undefined,
+        head: args.head as string | undefined,
+        maxContextBytes: args.max_context_bytes,
+      });
+      return result.plan;
+    }
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
 }
 
-export function createMCPServer(): Server {
+export function createMCPServer(serverCwd = process.cwd()): Server {
   const server = new Server(
     { name: "aidoc", version: readPackageVersion() },
     { capabilities: { tools: {} } },
@@ -324,6 +376,7 @@ export function createMCPServer(): Server {
       const result = await handleToolCall(
         request.params.name,
         request.params.arguments ?? {},
+        serverCwd,
       );
       return {
         content: [
