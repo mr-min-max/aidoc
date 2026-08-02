@@ -2,6 +2,13 @@ import { Generator } from "../../../src/core/generator";
 import * as path from "path";
 import { ParsedModule } from "../../../src/parsers/types";
 import { GenerateOptions, LLMProvider } from "../../../src/providers/types";
+import { canonicalStringify } from "../../../src/impact/canonical";
+import { createImpactPlan } from "../../../src/impact/planner";
+import type { ImpactProviderContext } from "../../../src/impact/types";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const fakeSecret = ["sk", "proj", "E".repeat(32)].join("-");
 
@@ -35,6 +42,102 @@ function boundarySpanningPrivateKey(): string {
     "fixture-key-body",
     `${delimiter}END ${label}${delimiter}`,
   ].join("\n");
+}
+
+function updateImpactContext(): ImpactProviderContext {
+  return {
+    schemaVersion: "aidoc.impact-context.v1",
+    impactDigest: "a".repeat(64),
+    summary: {
+      totalChanges: 1,
+      publicApiChanges: 1,
+      potentiallyBreaking: 1,
+      reviewRequired: 0,
+      informational: 0,
+      unmapped: 0,
+      byCategory: {
+        added: 0,
+        removed: 0,
+        moved: 0,
+        "contract-changed": 1,
+        "implementation-changed": 0,
+        "documentation-changed": 0,
+        "dependency-changed": 0,
+      },
+    },
+    changes: [
+      {
+        id: "typescript:src/index.ts#function:transform",
+        category: "contract-changed",
+        risk: "potentially-breaking",
+        path: "src/index.ts",
+        kind: "function",
+        qualifiedName: "transform",
+        changedContractFacets: ["parameters", "return"],
+      },
+    ],
+    documentation: [
+      {
+        changeId: "typescript:src/index.ts#function:transform",
+        directReferences: [
+          {
+            file: "README.md",
+            section: "API",
+            slug: "api",
+            reason: "code-span",
+          },
+        ],
+        recommendations: [],
+        unmapped: false,
+      },
+    ],
+    omittedRecords: 0,
+  };
+}
+
+function impactRepository(): string {
+  const root = mkdtempSync(join(tmpdir(), "aidoc-update-generator-"));
+  const hooks = join(root, "hooks");
+  mkdirSync(join(root, "src"));
+  mkdirSync(hooks);
+  execFileSync("git", ["init", "-q", "--initial-branch", "main"], {
+    cwd: root,
+  });
+  execFileSync("git", ["config", "core.hooksPath", hooks], { cwd: root });
+  execFileSync("git", ["config", "user.email", "test@example.com"], {
+    cwd: root,
+  });
+  execFileSync("git", ["config", "user.name", "Test"], { cwd: root });
+  writeFileSync(
+    join(root, "README.md"),
+    "# Project\n\n## API\n\nUse `transform`.\n",
+  );
+  writeFileSync(
+    join(root, "src/index.ts"),
+    [
+      "/** RAW_COMMENT_SENTINEL */",
+      'export function transform(input: string = "RAW_DEFAULT_SENTINEL"): string {',
+      '  return "RAW_BODY_SENTINEL";',
+      "}",
+      "",
+    ].join("\n"),
+  );
+  execFileSync("git", ["add", "--", "."], { cwd: root });
+  execFileSync("git", ["commit", "-qm", "initial"], { cwd: root });
+  writeFileSync(
+    join(root, "src/index.ts"),
+    [
+      "/** HEAD_COMMENT_SENTINEL */",
+      "export function transform(input: number = 42): number {",
+      "  const HEAD_BODY_SENTINEL = 7;",
+      "  return HEAD_BODY_SENTINEL;",
+      "}",
+      "",
+    ].join("\n"),
+  );
+  execFileSync("git", ["add", "--", "."], { cwd: root });
+  execFileSync("git", ["commit", "-qm", "change contract"], { cwd: root });
+  return root;
 }
 
 class MockProvider implements LLMProvider {
@@ -163,52 +266,72 @@ describe("Generator", () => {
   });
 
   describe("generateUpdate", () => {
-    it("should call provider with update template", async () => {
+    it("renders only selected impact fields and the separately approved document", async () => {
       provider.response = "# Updated Doc";
       const result = await generator.generateUpdate({
         existingDoc: `# Old Doc\n${fakeSecret}`,
-        changedFiles: ["src/index.ts"],
-        diffSummary: "Added new function",
+        impactPlan: updateImpactContext(),
       });
 
       expect(result).toBe("# Updated Doc");
       expect(provider.lastPrompt).toContain("# Old Doc");
-      expect(provider.lastPrompt).toContain("src/index.ts");
+      expect(provider.lastPrompt).toContain(
+        "typescript:src/index.ts#function:transform",
+      );
+      expect(provider.lastPrompt).toContain("contract-changed");
+      expect(provider.lastPrompt).toContain("potentially-breaking");
+      expect(provider.lastPrompt).toContain("parameters");
+      expect(provider.lastPrompt).toContain("README.md");
+      expect(provider.lastPrompt).toContain("API");
       expect(provider.lastPrompt).not.toContain(fakeSecret);
     });
 
-    it("redacts a complete diff fragment before applying the update limit", async () => {
-      const privateKey = boundarySpanningPrivateKey();
-      const rawDiff = `${"x".repeat(2950)}${privateKey}`;
+    it("never transports raw source, signatures, diffs, or repository roots", async () => {
+      const root = impactRepository();
+      try {
+        const result = await createImpactPlan({
+          cwd: root,
+          base: "HEAD~1",
+          head: "HEAD",
+        });
 
-      await generator.generateUpdate({
-        existingDoc: "# Existing\n",
-        changedFiles: ["src/index.ts"],
-        diffSummary: rawDiff,
-      });
+        await generator.generateUpdate({
+          existingDoc: "# Project\n\n## API\n\nUse `transform`.\n",
+          impactPlan: result.providerContext,
+        });
 
-      expect(provider.calls).toHaveLength(1);
-      expect(provider.lastPrompt).not.toContain(privateKey.slice(0, 16));
-      expect(provider.lastPrompt).not.toContain("fixture-key-body");
-      expect(provider.lastPrompt).toContain("<AIDOC_REDACTED:PRIVATE_KEY:1>");
-      const transportedDiff = provider.lastPrompt
-        .split("--- DIFF SUMMARY ---\n")[1]
-        .split("\n\nRequirements:")[0];
-      expect(transportedDiff.length).toBeLessThanOrEqual(3000);
+        expect(provider.calls).toHaveLength(1);
+        expect(provider.lastPrompt).toContain("#function:transform");
+        expect(provider.lastPrompt).toContain("contract-changed");
+        expect(provider.lastPrompt).toContain("review-required");
+        expect(provider.lastPrompt).toContain("parameters");
+        expect(provider.lastPrompt).toContain("README.md");
+        expect(provider.lastPrompt).not.toMatch(
+          /RAW_COMMENT_SENTINEL|RAW_DEFAULT_SENTINEL|RAW_BODY_SENTINEL|HEAD_COMMENT_SENTINEL|HEAD_BODY_SENTINEL/u,
+        );
+        expect(provider.lastPrompt).not.toContain(
+          "export function transform(input: number = 42): number",
+        );
+        expect(provider.lastPrompt).not.toMatch(/@@|--- a\/|\+\+\+ b\//u);
+        expect(provider.lastPrompt).not.toContain(root);
+        expect(
+          Buffer.byteLength(canonicalStringify(result.providerContext), "utf8"),
+        ).toBeLessThanOrEqual(result.plan.context.maxBytes);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
     });
 
-    it("blocks a boundary-spanning update secret before calling a strict provider", async () => {
+    it("blocks a secret in the existing document before calling a strict provider", async () => {
       const strictGenerator = new Generator(provider, templatesDir, {
         policy: "strict",
         origin: "cli",
       });
-      const rawDiff = `${"x".repeat(2950)}${boundarySpanningPrivateKey()}`;
 
       await expect(
         strictGenerator.generateUpdate({
-          existingDoc: "# Existing\n",
-          changedFiles: ["src/index.ts"],
-          diffSummary: rawDiff,
+          existingDoc: `# Existing\n${boundarySpanningPrivateKey()}`,
+          impactPlan: updateImpactContext(),
         }),
       ).rejects.toMatchObject({ code: "TRUST_SECRET_BLOCKED" });
 

@@ -13,8 +13,89 @@ import {
 } from "../../../src/cli/context";
 import * as commandContext from "../../../src/cli/context";
 import * as analyzer from "../../../src/core/analyzer";
+import * as impactPlanner from "../../../src/impact/planner";
+import type { ImpactPlanningResult } from "../../../src/impact/types";
 import * as path from "path";
 import { Project, SyntaxKind } from "ts-morph";
+
+function updatePlanningResult(): ImpactPlanningResult {
+  const summary = {
+    totalChanges: 1,
+    publicApiChanges: 1,
+    potentiallyBreaking: 0,
+    reviewRequired: 1,
+    informational: 0,
+    unmapped: 1,
+    byCategory: {
+      added: 0,
+      removed: 0,
+      moved: 0,
+      "contract-changed": 1,
+      "implementation-changed": 0,
+      "documentation-changed": 0,
+      "dependency-changed": 0,
+    },
+  };
+  const change = {
+    scope: "symbol" as const,
+    id: "typescript:src/index.ts#function:greet",
+    category: "contract-changed" as const,
+    risk: "review-required" as const,
+    language: "typescript" as const,
+    path: "src/index.ts",
+    kind: "function" as const,
+    qualifiedName: "greet",
+    changedContractFacets: ["parameters" as const],
+    digest: "a".repeat(64),
+  };
+  const documentation = [
+    {
+      changeId: change.id,
+      directReferences: [],
+      recommendations: [],
+      unmapped: true,
+    },
+  ];
+  const impactDigest = "b".repeat(64);
+  return {
+    plan: {
+      schemaVersion: "aidoc.impact-plan.v1",
+      base: { type: "git", label: "HEAD~1", commit: "c".repeat(40) },
+      head: { type: "working-tree", label: "working-tree" },
+      summary,
+      changes: [change],
+      documentation,
+      context: {
+        maxBytes: 12000,
+        usedBytes: 512,
+        totalRecords: 1,
+        includedRecords: 1,
+        omittedRecords: 0,
+        impactDigest,
+      },
+      ignored: { unsupported: 0, excluded: 0 },
+      digest: impactDigest,
+    },
+    providerContext: {
+      schemaVersion: "aidoc.impact-context.v1",
+      impactDigest,
+      summary,
+      changes: [
+        {
+          id: change.id,
+          category: change.category,
+          risk: change.risk,
+          path: change.path,
+          kind: change.kind,
+          qualifiedName: change.qualifiedName,
+          changedContractFacets: change.changedContractFacets,
+        },
+      ],
+      documentation,
+      omittedRecords: 0,
+    },
+  };
+}
 
 describe("Action-compatible generation commands", () => {
   it.each([
@@ -188,6 +269,12 @@ describe("generation command Trust Gate exits", () => {
   ])(
     "maps a strict %s policy rejection to exit status 2",
     async (_, command) => {
+      const plan =
+        command === updateCommand
+          ? jest
+              .spyOn(impactPlanner, "createImpactPlan")
+              .mockResolvedValue(updatePlanningResult())
+          : undefined;
       const loadContext = jest
         .spyOn(commandContext, "loadCommandContext")
         .mockRejectedValue(new TrustViolationError([]));
@@ -202,6 +289,7 @@ describe("generation command Trust Gate exits", () => {
         await command.parseAsync([], { from: "user" });
         expect(exit).toHaveBeenCalledWith(2);
       } finally {
+        plan?.mockRestore();
         loadContext.mockRestore();
         consoleError.mockRestore();
         exit.mockRestore();

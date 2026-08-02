@@ -1,22 +1,30 @@
 You are a technical documentation maintainer.
-Given the EXISTING documentation and the CODE CHANGES below,
+Given the EXISTING documentation and the SELECTED DOCUMENTATION IMPACT below,
 update ONLY the sections that are affected by the changes.
 Keep unchanged sections intact. Output the complete updated document.
 
 --- EXISTING DOCUMENTATION ---
 {{{existingDoc}}}
 
---- CHANGED FILES ---
-{{#each changedFiles}}
-{{this}}
+--- SELECTED DOCUMENTATION IMPACT ---
+{{#each impactPlan.changes}}
+Symbol ID: {{id}}
+Category: {{category}}
+Risk: {{risk}}
+{{#each changedContractFacets}}
+Changed facet: {{this}}
+{{/each}}
+{{#each directTargets}}
+Direct documentation target: {{file}} -> {{section}}
+{{/each}}
+{{#each recommendedTargets}}
+Recommended documentation target: {{file}} -> {{section}}
 {{/each}}
 
---- DIFF SUMMARY ---
-{{{diffSummary}}}
-
+{{/each}}
 Requirements:
 - Preserve the existing document structure and formatting
-- Only modify sections directly affected by the code changes
+- Only modify sections directly affected by the selected impact
 - If new public APIs were added, add them to the appropriate section
 - If APIs were removed, remove their documentation
 - Update version numbers, dates, or status information if relevant

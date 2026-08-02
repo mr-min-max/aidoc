@@ -10,6 +10,11 @@ import {
   TrustGateway,
 } from "../security/gateway";
 import { TrustPolicy } from "../security/types";
+import type { UpdateContext } from "./differ";
+import type {
+  DocumentationReference,
+  ImpactProviderContext,
+} from "../impact/types";
 
 interface ReadmeContext {
   projectName: string;
@@ -108,20 +113,15 @@ export class Generator {
     );
   }
 
-  /** Updates an existing markdown document using changed files and a diff summary. */
-  async generateUpdate(context: {
-    existingDoc: string;
-    changedFiles: string[];
-    diffSummary: string;
-  }): Promise<string> {
-    const approvedDiffSummary = this.gateway.approveInputFragment(
+  /** Updates an existing markdown document using a bounded impact plan. */
+  async generateUpdate(context: UpdateContext): Promise<string> {
+    const approvedExistingDoc = this.gateway.approveInputFragment(
       "update",
-      context.diffSummary,
+      context.existingDoc,
     );
     const prompt = this.renderTemplate("update", {
-      existingDoc: context.existingDoc,
-      changedFiles: context.changedFiles,
-      diffSummary: approvedDiffSummary.substring(0, 3000),
+      existingDoc: approvedExistingDoc,
+      impactPlan: updateTemplatePlan(context.impactPlan),
     });
     return this.generateWithTrust(
       "update",
@@ -169,4 +169,50 @@ export class Generator {
     }
     return this.templateCache.get(name)!(context);
   }
+}
+
+interface UpdateTemplateTarget {
+  file: string;
+  section: string;
+}
+
+interface UpdateTemplateChange {
+  id: string;
+  category: string;
+  risk: string;
+  changedContractFacets: string[];
+  directTargets: UpdateTemplateTarget[];
+  recommendedTargets: UpdateTemplateTarget[];
+}
+
+function updateTemplatePlan(impactPlan: ImpactProviderContext): {
+  changes: UpdateTemplateChange[];
+} {
+  const documentation = new Map(
+    impactPlan.documentation.map((item) => [item.changeId, item]),
+  );
+  return {
+    changes: impactPlan.changes.map((change) => {
+      const matching = documentation.get(change.id);
+      return {
+        id: change.id,
+        category: change.category,
+        risk: change.risk,
+        changedContractFacets:
+          "changedContractFacets" in change
+            ? (change.changedContractFacets ?? [])
+            : [],
+        directTargets: projectUpdateTargets(matching?.directReferences ?? []),
+        recommendedTargets: projectUpdateTargets(
+          matching?.recommendations ?? [],
+        ),
+      };
+    }),
+  };
+}
+
+function projectUpdateTargets(
+  references: DocumentationReference[],
+): UpdateTemplateTarget[] {
+  return references.map(({ file, section }) => ({ file, section }));
 }

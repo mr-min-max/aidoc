@@ -1,18 +1,14 @@
+import type { ImpactProviderContext } from "../impact/types";
+
 export interface UpdateContext {
   existingDoc: string;
-  changedFiles: string[];
-  diffSummary: string;
+  impactPlan: ImpactProviderContext;
 }
 
-/** Builds the minimal context needed for a diff-aware documentation update. */
+/** Builds the bounded, value-free context needed for a planned update. */
 export function buildUpdateContext(
   existingDoc: string,
-  changedFiles: string[],
-  diffSummary?: string,
+  impactPlan: ImpactProviderContext,
 ): UpdateContext {
-  return {
-    existingDoc,
-    changedFiles,
-    diffSummary: diffSummary || `Changed files: ${changedFiles.join(", ")}`,
-  };
+  return { existingDoc, impactPlan };
 }
