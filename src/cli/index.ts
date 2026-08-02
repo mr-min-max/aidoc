@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import * as dotenv from "dotenv";
 import { readmeCommand } from "./commands/readme";
 import { apiCommand } from "./commands/api";
 import { annotateCommand } from "./commands/annotate";
@@ -10,14 +9,13 @@ import { updateCommand } from "./commands/update";
 import { scoreCommand } from "./commands/score";
 import { watchCommand } from "./commands/watch";
 import { checkCommand } from "./commands/check";
+import { planCommand } from "./commands/plan";
 import { setLogLevel } from "../core/logger";
 import { readPackageVersion } from "../core/package-meta";
 import {
   getSafeErrorDiagnostic,
   getTrustErrorExitCode,
 } from "../security/diagnostics";
-
-dotenv.config({ quiet: true });
 
 const program = new Command();
 
@@ -48,6 +46,7 @@ program.addCommand(updateCommand);
 program.addCommand(scoreCommand);
 program.addCommand(watchCommand);
 program.addCommand(checkCommand);
+program.addCommand(planCommand);
 
 // Handle --mcp flag before parsing commands
 const args = process.argv.slice(2);

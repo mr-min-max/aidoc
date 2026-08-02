@@ -1,4 +1,5 @@
 import { cosmiconfigSync } from "cosmiconfig";
+import * as dotenv from "dotenv";
 import { ConfigSchema, AidocConfig, defaultConfig } from "./schema";
 
 function environmentConfig(env: NodeJS.ProcessEnv): Record<string, unknown> {
@@ -54,6 +55,12 @@ export function loadConfig(
   }
 
   return effectiveConfig;
+}
+
+/** Loads provider environment immediately before resolving full configuration. */
+export function loadProviderConfig(searchFrom?: string): AidocConfig {
+  dotenv.config({ quiet: true });
+  return loadConfig(searchFrom);
 }
 
 export { defaultConfig, ConfigSchema, AidocConfig };

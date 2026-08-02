@@ -1,7 +1,7 @@
 import * as path from "path";
 import prompts from "prompts";
 import chalk from "chalk";
-import { loadConfig, AidocConfig } from "../config/loader";
+import { loadProviderConfig, AidocConfig } from "../config/loader";
 import { createProvider } from "../providers/registry";
 import { Generator } from "../core/generator";
 import { resolveTemplatesDir } from "../core/templates";
@@ -79,7 +79,7 @@ export async function loadCommandContext(
   options: CommandOptions,
   cwd = process.cwd(),
 ): Promise<CommandContext> {
-  const config = loadConfig(cwd);
+  const config = loadProviderConfig(cwd);
   const isMock = !!options.mock;
   const origin = process.env.AIDOC_ORIGIN === "action" ? "action" : "cli";
   const generator = isMock
