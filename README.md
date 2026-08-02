@@ -44,14 +44,43 @@ See [Codex maintainer workflows](./docs/codex-maintainer-workflows.md) for the A
 ## 🚀 Quick Start
 
 ```bash
-# Generate a README for your project
-npx aidoc-gen readme
+npx aidoc-gen plan
+npx aidoc-gen update --dry-run
+npx aidoc-gen plan --json
+```
 
-# Preview what it would generate without saving
-npx aidoc-gen readme --dry-run
+`plan` is deterministic, AST-backed, and requires no provider or API key. It
+reports structured public-code changes, documentation references, and the
+bounded context available to a later update. `update --dry-run` previews an
+LLM-backed documentation update and therefore still needs a configured
+provider when the plan indicates documentation impact.
 
-# Use the mock mode for testing (no API key needed)
-npx aidoc-gen readme --mock --dry-run
+### Plan documentation impact without a key
+
+```bash
+aidoc plan                                      # concise human report
+aidoc plan --json                               # versioned JSON envelope
+aidoc plan --base origin/main                   # explicit comparison base
+aidoc plan --base v1.2.0 --head release-candidate
+aidoc plan --max-context-bytes 24000
+```
+
+Without `--base`, aidoc checks the remote default branch, `origin/main`,
+`main`, `origin/master`, `master`, then the previous commit; a repository's
+first commit is compared with Git's empty tree. Set `AIDOC_BASE_REF` to choose
+a default base for local and CI runs. Supplying `--head` compares two immutable
+commits; otherwise the selected base is compared with the current working
+tree. Shallow history must contain the selected base.
+
+Human output is designed for review. `--json` emits an
+`aidoc.impact-plan.v1` success/error envelope for automation. The byte budget
+limits the deterministic provider-impact context; it does not allow raw code
+to enter that context.
+
+Try the complete fixed, temporary-repository fixture locally:
+
+```bash
+npm run demo:impact
 ```
 
 ## 📦 Installation
@@ -62,7 +91,8 @@ npm install -g aidoc-gen
 
 ## ⚙️ Configuration
 
-`aidoc` requires an API key for OpenAI or Anthropic (unless using Ollama).
+Generation and non-empty updates require an API key for OpenAI or Anthropic
+(unless using Ollama). Documentation-impact planning requires no key.
 
 ```bash
 export OPENAI_API_KEY="sk-..."
@@ -150,8 +180,12 @@ aidoc diagram --output docs/arch.md   # Mermaid diagram
 ### Diff-Aware Update
 
 ```bash
-aidoc update --target README.md --since HEAD~5  # Give selected Git changes to the provider
+aidoc update --target README.md --base HEAD~5
+aidoc update --target README.md --since HEAD~5  # compatibility alias for --base
 ```
+
+`update` always constructs the deterministic plan first. `--since` remains a
+compatibility alias for `--base`; when both are supplied they must match.
 
 ### Debug Mode
 
@@ -177,8 +211,8 @@ aidoc watch --auto --target docs/README.md   # no prompts (great for demos)
 
 ## 🎬 GitHub Action
 
-The `v0.1.1` examples below identify the unreleased release candidate. Do not
-use that ref until the corresponding tag is published.
+The `v0.2.0-beta.2` examples below identify the unreleased release candidate.
+Do not use that ref until the corresponding tag is published.
 
 Generate documentation and push the resulting commit:
 
@@ -197,7 +231,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mr-min-max/aidoc@v0.1.1
+      - uses: mr-min-max/aidoc@v0.2.0-beta.2
         with:
           provider: openai
           api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -215,7 +249,7 @@ steps:
   - uses: actions/checkout@v4
     with:
       fetch-depth: 0
-  - uses: mr-min-max/aidoc@v0.1.1
+  - uses: mr-min-max/aidoc@v0.2.0-beta.2
     with:
       mode: check
       since: ${{ github.event.pull_request.base.sha }}
@@ -257,13 +291,34 @@ aidoc --mcp
 
 ### Available MCP Tools
 
-| Tool                   | Description                                                 |
-| :--------------------- | :---------------------------------------------------------- |
-| `analyze_codebase`     | Parse code and return structure (functions, classes, types) |
-| `generate_readme`      | Generate README from code analysis                          |
-| `generate_api_docs`    | Generate API reference documentation                        |
-| `generate_diagram`     | Generate Mermaid architecture diagram                       |
-| `check_docs_freshness` | Run an AST-backed source/document co-change guard           |
+| Tool                        | Description                                                   |
+| :-------------------------- | :------------------------------------------------------------ |
+| `analyze_codebase`          | Parse code and return structure (functions, classes, types)   |
+| `generate_readme`           | Generate README from code analysis                            |
+| `generate_api_docs`         | Generate API reference documentation                          |
+| `generate_diagram`          | Generate Mermaid architecture diagram                         |
+| `check_docs_freshness`      | Run an AST-backed source/document co-change guard             |
+| `plan_documentation_impact` | Plan deterministic impact for the server's startup repository |
+
+`plan_documentation_impact` accepts `base`, `head`, and
+`max_context_bytes`. Its scope is the repository where the MCP server process
+started; it does not accept an arbitrary directory. For the same immutable
+base and head, MCP returns the same plan object as `aidoc plan --json`.
+
+## 🔐 Planning security and limits
+
+The planner detects structured changes to exported TypeScript/JavaScript and
+Python APIs plus deterministic references in repository documentation. It can
+identify contract, implementation, documentation, and dependency impact, but
+it does not prove that documentation is semantically correct.
+
+Raw source, raw diffs, and provider credentials are excluded from provider
+impact context. Plans contain normalized identities, change categories,
+documentation locations, counts, and cryptographic fingerprints—not source
+values. Planning is AST-first: a supported source file that cannot be parsed
+stops the plan, and `update` stops before provider construction or document
+writes. Unsupported and configured-excluded files are counted rather than
+sent to a provider.
 
 ## 🏗️ Architecture
 

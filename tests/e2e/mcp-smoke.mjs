@@ -22,6 +22,7 @@ const INSTALL_TIMEOUT_MS = 120_000;
 const MCP_OPERATION_TIMEOUT_MS = 5_000;
 const fakeProviderKey = ["sk", "proj", "M".repeat(32)].join("-");
 const fakeFormatterKey = ["sk", "proj", "F".repeat(32)].join("-");
+const rawSentinel = "AIDOC_MCP_RAW_SOURCE_MUST_NOT_LEAK";
 const root = mkdtempSync(join(tmpdir(), "aidoc-mcp-smoke-"));
 let client;
 let transport;
@@ -32,6 +33,14 @@ function createThrowingConfigFixture(name, source) {
   mkdirSync(directory);
   writeFileSync(join(directory, ".aidocrc.cjs"), source);
   return directory;
+}
+
+function credentialFreeEnv() {
+  const env = { ...process.env };
+  delete env.OPENAI_API_KEY;
+  delete env.ANTHROPIC_API_KEY;
+  delete env.AIDOC_OLLAMA_HOST;
+  return env;
 }
 
 function terminateProcessTree(child) {
@@ -174,7 +183,15 @@ try {
   writeFileSync(join(fixture, "README.md"), "# MCP fixture\n");
   writeFileSync(
     join(fixture, "src", "index.ts"),
-    "export function api(): number { return 1; }\n",
+    [
+      "export function api(value: number): number {",
+      `  return value + 1; // ${rawSentinel}`,
+      "}",
+      "export function helper(value: number): number {",
+      "  return value * 2;",
+      "}",
+      "",
+    ].join("\n"),
   );
   const git = (...args) =>
     execFileSync(
@@ -200,10 +217,19 @@ try {
   const base = git("rev-parse", "HEAD");
   writeFileSync(
     join(fixture, "src", "index.ts"),
-    "export function api(): number { return 2; }\n",
+    [
+      "export function api(value: number, scale = 1): number {",
+      `  return value + scale; // ${rawSentinel}`,
+      "}",
+      "export function helper(value: number): number {",
+      "  return value * 3;",
+      "}",
+      "",
+    ].join("\n"),
   );
   git("add", ".");
   git("commit", "-m", "fixture: source change");
+  const head = git("rev-parse", "HEAD");
 
   const packedCli = join(
     consumer,
@@ -217,7 +243,8 @@ try {
   transport = new StdioClientTransport({
     command: process.execPath,
     args: [packedCli, "--mcp"],
-    cwd: consumer,
+    cwd: fixture,
+    env: credentialFreeEnv(),
   });
 
   await withTimeout(client.connect(transport), "MCP initialization");
@@ -230,6 +257,10 @@ try {
   assert.equal(client.getServerVersion()?.version, packedPackage.version);
   const { tools } = await withTimeout(client.listTools(), "MCP tools/list");
   assert.ok(tools.some((tool) => tool.name === "analyze_codebase"));
+  const impactTool = tools.find(
+    (tool) => tool.name === "plan_documentation_impact",
+  );
+  assert.ok(impactTool);
   const checkTool = tools.find((tool) => tool.name === "check_docs_freshness");
   assert.ok(checkTool);
   assert.match(checkTool.description ?? "", /co-change/i);
@@ -250,6 +281,45 @@ try {
   assert.ok(text && "text" in text);
   const payload = JSON.parse(text.text);
   assert.ok(payload.totalModules >= 1);
+
+  const cliPlanOutput = execFileSync(
+    process.execPath,
+    [packedCli, "plan", "--base", base, "--head", head, "--json"],
+    {
+      cwd: fixture,
+      encoding: "utf8",
+      env: credentialFreeEnv(),
+    },
+  );
+  const cliPlanResult = JSON.parse(cliPlanOutput);
+  assert.equal(cliPlanResult.ok, true);
+  assert.equal(cliPlanOutput.includes(rawSentinel), false);
+  assert.equal(
+    cliPlanResult.plan.changes.filter(
+      (change) => change.category === "contract-changed",
+    ).length,
+    1,
+  );
+  assert.equal(
+    cliPlanResult.plan.changes.filter(
+      (change) => change.category === "implementation-changed",
+    ).length,
+    1,
+  );
+
+  const impactResult = await withTimeout(
+    client.callTool({
+      name: "plan_documentation_impact",
+      arguments: { base, head },
+    }),
+    "MCP plan_documentation_impact",
+  );
+  assert.notEqual(impactResult.isError, true);
+  const impactText = impactResult.content.find((item) => item.type === "text");
+  assert.ok(impactText && "text" in impactText);
+  const mcpPlan = JSON.parse(impactText.text);
+  assert.deepEqual(mcpPlan, cliPlanResult.plan);
+  assert.equal(impactText.text.includes(rawSentinel), false);
 
   const errorResult = await withTimeout(
     client.callTool({
