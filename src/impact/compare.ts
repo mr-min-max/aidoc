@@ -51,6 +51,12 @@ const FACETS: readonly ContractFacet[] = [
   "modifiers",
 ];
 
+/**
+ * Compares parsed before/after module snapshots and emits deterministic changes.
+ *
+ * @param files - Git file statuses paired with their parsed module snapshots.
+ * @returns Symbol and module changes in stable impact order.
+ */
 export function compareSnapshots(files: ParsedFileSnapshots[]): SymbolChange[] {
   const changes: SymbolChange[] = [];
   for (const file of files) {
@@ -148,6 +154,13 @@ export function compareSnapshots(files: ParsedFileSnapshots[]): SymbolChange[] {
   return changes.sort(compareImpactChanges);
 }
 
+/**
+ * Aggregates change risks, categories, and documentation mapping gaps.
+ *
+ * @param changes - Semantic changes included in the impact plan.
+ * @param documentation - Documentation mappings for those changes.
+ * @returns Counts used by human, JSON, and provider-facing plan output.
+ */
 export function summarizeImpact(
   changes: SymbolChange[],
   documentation: DocumentationImpact[] = [],
@@ -177,6 +190,12 @@ export function summarizeImpact(
   };
 }
 
+/**
+ * Digests the canonical semantic-impact payload shared across plan surfaces.
+ *
+ * @param input - Snapshot descriptors, impact data, and ignored-file counts.
+ * @returns The payload's lowercase SHA-256 digest.
+ */
 export function digestImpactPayload(input: {
   base: SnapshotDescriptor;
   head: SnapshotDescriptor;

@@ -91,6 +91,16 @@ interface ProjectedChangeCandidate {
   sortId: string;
 }
 
+/**
+ * Projects semantic impact into a deterministic provider context byte budget.
+ *
+ * Higher-priority records are retained first, with compact forms used when the
+ * full record does not fit. The returned report accounts for every input change.
+ *
+ * @param input - Validated impact data and the maximum serialized byte count.
+ * @returns The bounded provider context and its inclusion report.
+ * @throws {PlanFailure} When the budget or projected payload is invalid.
+ */
 export function buildImpactContext(input: {
   impactDigest: string;
   summary: ImpactSummary;

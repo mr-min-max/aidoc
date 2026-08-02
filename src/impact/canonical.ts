@@ -7,6 +7,13 @@ const PLAN_ERROR_FALLBACK: Readonly<PlanError> = Object.freeze({
   message: "Documentation impact planning failed.",
 });
 
+/**
+ * Serializes supported JSON-like data with recursively sorted object keys.
+ *
+ * @param value - The value to canonicalize and serialize.
+ * @returns Deterministic JSON text for hashing and wire envelopes.
+ * @throws {TypeError} When the value is cyclic or cannot be represented.
+ */
 export function canonicalStringify(value: unknown): string {
   const canonical = canonicalize(value, new WeakSet<object>(), false);
   if (canonical === undefined) {
@@ -15,10 +22,22 @@ export function canonicalStringify(value: unknown): string {
   return serializeCanonical(canonical);
 }
 
+/**
+ * Computes the lowercase SHA-256 digest of a UTF-8 string.
+ *
+ * @param value - Text whose deterministic digest is required.
+ * @returns A 64-character hexadecimal digest.
+ */
 export function sha256Hex(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
+/**
+ * Converts an unknown planning failure into the stable, public error envelope.
+ *
+ * @param error - A value caught at a planning boundary.
+ * @returns An allow-listed planning error or the generic read-failure fallback.
+ */
 export function toPlanError(error: unknown): PlanError {
   try {
     const planError = PlanFailure.read(error);
@@ -34,6 +53,13 @@ export function toPlanError(error: unknown): PlanError {
   }
 }
 
+/**
+ * Orders symbol changes by their stable repository and symbol identity fields.
+ *
+ * @param a - The left change to compare.
+ * @param b - The right change to compare.
+ * @returns A negative, zero, or positive value suitable for `Array.sort`.
+ */
 export function compareChangeKeys(a: SymbolChange, b: SymbolChange): number {
   return (
     compareStrings(a.path, b.path) ||
