@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { constants as fsConstants, promises as fs } from "node:fs";
+import { constants as fsConstants, promises as fs, Stats } from "node:fs";
 import { promisify } from "node:util";
 import { posix, resolve } from "node:path";
 import { SnapshotDescriptor, PlanFailure } from "../impact/types";
@@ -7,7 +7,7 @@ import { SnapshotDescriptor, PlanFailure } from "../impact/types";
 const execFile = promisify(execFileCallback);
 const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const MAX_BUFFER = 4 * 1024 * 1024;
-const STATUS = new Set(["A", "M", "D", "R"]);
+const STATUS = new Set(["A", "M", "D", "R", "T"]);
 
 export type SnapshotFileStatus = "added" | "modified" | "deleted" | "renamed";
 export interface SnapshotFileChange {
@@ -28,6 +28,8 @@ export interface GitSnapshotSet {
 }
 
 export class GitSnapshotReader {
+  private repositoryRoot?: string;
+
   constructor(
     private readonly cwd: string,
     private readonly env: NodeJS.ProcessEnv = process.env,
@@ -40,6 +42,7 @@ export class GitSnapshotReader {
     exclude: string[];
   }): Promise<GitSnapshotSet> {
     const root = await this.gitRoot();
+    this.repositoryRoot = root;
     const headLabel = options.head ?? "HEAD";
     const headCommit = await this.resolveCommit(
       headLabel,
@@ -146,7 +149,7 @@ export class GitSnapshotReader {
   private async run(args: string[]): Promise<string> {
     try {
       const result = await execFile("git", args, {
-        cwd: this.cwd,
+        cwd: this.repositoryRoot ?? this.cwd,
         env: this.env,
         maxBuffer: MAX_BUFFER,
         windowsHide: true,
@@ -228,19 +231,43 @@ export class GitSnapshotReader {
           candidate,
           "PLAN_BASE_NOT_FOUND",
         );
-        if (resolved === head && !(await this.hasParent(head)))
+        if (resolved === head && !(await this.hasParent(head))) {
+          if (await this.isShallow()) throw this.shallowHistoryFailure();
           return EMPTY_TREE;
+        }
         return resolved;
-      } catch {
+      } catch (error) {
+        if (
+          error instanceof PlanFailure &&
+          error.code === "PLAN_SHALLOW_HISTORY"
+        )
+          throw error;
         /* next */
       }
     }
     try {
       await this.resolveCommit("HEAD~1", "PLAN_BASE_NOT_FOUND");
     } catch {
+      if (await this.isShallow()) throw this.shallowHistoryFailure();
       return EMPTY_TREE;
     }
     return head;
+  }
+  private async isShallow(): Promise<boolean> {
+    try {
+      return (
+        (await this.run(["rev-parse", "--is-shallow-repository"])).trim() ===
+        "true"
+      );
+    } catch {
+      return false;
+    }
+  }
+  private shallowHistoryFailure(): PlanFailure {
+    return new PlanFailure(
+      "PLAN_SHALLOW_HISTORY",
+      "The selected Git base is unavailable in this shallow repository.",
+    );
   }
   private async hasParent(commit: string): Promise<boolean> {
     try {
@@ -289,11 +316,11 @@ export class GitSnapshotReader {
   > {
     try {
       const [tracked, untracked] = await Promise.all([
-        this.run(["diff", "--name-status", "-M", base, "--"]),
-        this.run(["ls-files", "--others", "--exclude-standard", "--"]),
+        this.run(["diff", "--name-status", "-M", "-z", base, "--"]),
+        this.run(["ls-files", "--others", "--exclude-standard", "-z", "--"]),
       ]);
       const result = parseStatus(tracked);
-      for (const path of untracked.split(/\r?\n/u).filter(Boolean))
+      for (const path of parseNulPaths(untracked))
         result.push({ status: "added", afterPath: path });
       return result;
     } catch {
@@ -323,14 +350,21 @@ export class GitSnapshotReader {
         throw new Error();
       const stat = await fs.lstat(full);
       if (!stat.isFile() || stat.isSymbolicLink()) throw new Error();
-      const handle = await fs.open(full, fsConstants.O_RDONLY);
-      const before = await handle.stat();
-      const source = await handle.readFile({ encoding: "utf8" });
-      const after = await handle.stat();
-      await handle.close();
-      if (before.ino !== after.ino || before.size !== after.size)
-        throw new Error();
-      return source;
+      const handle = await fs.open(
+        full,
+        fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW,
+      );
+      try {
+        const before = await handle.stat();
+        if (!before.isFile() || !sameFileIdentity(stat, before))
+          throw new Error();
+        const source = await handle.readFile({ encoding: "utf8" });
+        const after = await handle.stat();
+        if (!sameFileSnapshot(before, after)) throw new Error();
+        return source;
+      } finally {
+        await handle.close();
+      }
     } catch {
       throw new PlanFailure(
         "PLAN_UNSAFE_WORKTREE_PATH",
@@ -339,6 +373,23 @@ export class GitSnapshotReader {
       );
     }
   }
+}
+
+function sameFileIdentity(left: Stats, right: Stats): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    (left.mode & 0o170000) === (right.mode & 0o170000)
+  );
+}
+
+function sameFileSnapshot(left: Stats, right: Stats): boolean {
+  return (
+    sameFileIdentity(left, right) &&
+    left.size === right.size &&
+    left.mtimeMs === right.mtimeMs &&
+    left.ctimeMs === right.ctimeMs
+  );
 }
 
 function normalizePath(value: string): string | undefined {
@@ -363,32 +414,58 @@ function parseStatus(
   SnapshotFileChange,
   "supported" | "excluded" | "beforeSource" | "afterSource"
 >[] {
-  const tokens = output.includes("\0")
-    ? output.split("\0").filter(Boolean)
-    : output.split(/\r?\n/u).filter(Boolean);
+  const tokens = parseNulTokens(output);
   const result: Omit<
     SnapshotFileChange,
     "supported" | "excluded" | "beforeSource" | "afterSource"
   >[] = [];
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-    const parts = token.split(/\s+/u);
-    const code = parts[0]?.[0];
-    if (!code || !STATUS.has(code)) continue;
+  for (let i = 0; i < tokens.length; ) {
+    const token = tokens[i++];
+    const code = token[0];
+    if (
+      !code ||
+      !STATUS.has(code) ||
+      (code === "R" ? !/^R(?:\d{3})?$/u.test(token) : token.length !== 1)
+    )
+      throw new Error("invalid Git status");
     if (code === "R")
       result.push({
         status: "renamed",
-        beforePath: parts[1] ?? tokens[++i],
-        afterPath: parts[2] ?? tokens[++i],
+        beforePath: requiredToken(tokens[i++]),
+        afterPath: requiredToken(tokens[i++]),
       });
     else {
-      const path = parts[1] ?? tokens[++i];
+      const path = requiredToken(tokens[i++]);
       result.push(
         code === "D"
           ? { status: "deleted", beforePath: path }
-          : { status: code === "A" ? "added" : "modified", afterPath: path },
+          : code === "A"
+            ? { status: "added", afterPath: path }
+            : {
+                status: "modified",
+                beforePath: path,
+                afterPath: path,
+              },
       );
     }
   }
   return result;
+}
+
+function parseNulPaths(output: string): string[] {
+  return parseNulTokens(output).map(requiredToken);
+}
+
+function parseNulTokens(output: string): string[] {
+  if (output.length === 0) return [];
+  if (!output.endsWith("\0")) throw new Error("invalid Git output");
+  const tokens = output.split("\0");
+  tokens.pop();
+  return tokens;
+}
+
+function requiredToken(value: string | undefined): string {
+  if (value === undefined || value.length === 0)
+    throw new Error("invalid Git output");
+  return value;
 }

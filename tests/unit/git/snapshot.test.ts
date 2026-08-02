@@ -1,4 +1,13 @@
-import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+import {
+  mkdtempSync,
+  writeFileSync,
+  mkdirSync,
+  chmodSync,
+  promises as fs,
+  realpathSync,
+  symlinkSync,
+  unlinkSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -6,9 +15,12 @@ import { GitSnapshotReader } from "../../../src/git/snapshot";
 
 function repo() {
   const root = mkdtempSync(join(tmpdir(), "aidoc-git-"));
+  const hooks = join(root, "hooks");
+  mkdirSync(hooks);
   execFileSync("git", ["init", "-q", "--initial-branch", "main"], {
     cwd: root,
   });
+  execFileSync("git", ["config", "core.hooksPath", hooks], { cwd: root });
   execFileSync("git", ["config", "user.email", "test@example.com"], {
     cwd: root,
   });
@@ -93,5 +105,486 @@ describe("GitSnapshotReader", () => {
         exclude: [],
       }),
     ).rejects.toMatchObject({ code: "PLAN_NOT_GIT_REPOSITORY" });
+  });
+
+  // Break caught: a validated file is swapped for a symlink between lstat and open.
+  test("rejects a worktree symlink swap without reading the target", async () => {
+    const root = repo();
+    const sourcePath = join(root, "source.ts");
+    const outsidePath = join(root, "outside-sentinel.ts");
+    writeFileSync(sourcePath, "export const value = 1;\n");
+    commit(root, "initial");
+    writeFileSync(sourcePath, "export const value = 2;\n");
+    writeFileSync(outsidePath, "outside-sentinel");
+
+    const realOpen = fs.open.bind(fs);
+    const open = jest
+      .spyOn(fs, "open")
+      .mockImplementationOnce(async (...args) => {
+        unlinkSync(sourcePath);
+        symlinkSync(outsidePath, sourcePath);
+        return realOpen(...args);
+      });
+
+    try {
+      await expect(
+        new GitSnapshotReader(root).read({
+          base: "HEAD",
+          include: ["**/*.ts"],
+          exclude: [],
+        }),
+      ).rejects.toMatchObject({
+        code: "PLAN_UNSAFE_WORKTREE_PATH",
+        message: "The working-tree path is unsafe.",
+        path: "source.ts",
+      });
+    } finally {
+      open.mockRestore();
+    }
+  });
+
+  // Break caught: line-oriented status parsing splits tracked paths at spaces.
+  test("preserves whitespace in modified, renamed, and untracked paths", async () => {
+    const root = repo();
+    writeFileSync(join(root, "tracked file.py"), "value = 1\n");
+    writeFileSync(join(root, "old name.ts"), "export const oldName = 1;\n");
+    commit(root, "initial");
+    writeFileSync(join(root, "tracked file.py"), "value = 2\n");
+    execFileSync("git", ["mv", "--", "old name.ts", "renamed name.ts"], {
+      cwd: root,
+    });
+    writeFileSync(join(root, "new file.ts"), "export const fresh = 1;\n");
+
+    const result = await new GitSnapshotReader(root).read({
+      base: "HEAD",
+      include: ["**/*"],
+      exclude: [],
+    });
+
+    expect(
+      result.files.map(({ status, beforePath, afterPath }) => ({
+        status,
+        beforePath,
+        afterPath,
+      })),
+    ).toEqual([
+      {
+        status: "renamed",
+        beforePath: "old name.ts",
+        afterPath: "renamed name.ts",
+      },
+      {
+        status: "modified",
+        beforePath: "tracked file.py",
+        afterPath: "tracked file.py",
+      },
+      { status: "added", beforePath: undefined, afterPath: "new file.ts" },
+    ]);
+  });
+
+  // Break caught: commands after root discovery remain scoped to the constructor subdirectory.
+  test("reads the entire repository from a subdirectory", async () => {
+    const root = repo();
+    mkdirSync(join(root, "nested"));
+    writeFileSync(join(root, "root.ts"), "export const rootValue = 1;\n");
+    writeFileSync(join(root, "nested/inside.ts"), "export const inside = 1;\n");
+    commit(root, "initial");
+    writeFileSync(join(root, "root.ts"), "export const rootValue = 2;\n");
+    writeFileSync(join(root, "nested/inside.ts"), "export const inside = 2;\n");
+    writeFileSync(join(root, "outside.py"), "outside = 1\n");
+    writeFileSync(join(root, "nested/new.py"), "inside = 1\n");
+
+    const result = await new GitSnapshotReader(join(root, "nested")).read({
+      base: "HEAD",
+      include: ["**/*"],
+      exclude: [],
+    });
+
+    expect(result.root).toBe(realpathSync(root));
+    expect(result.files.map((file) => file.afterPath)).toEqual([
+      "nested/inside.ts",
+      "root.ts",
+      "nested/new.py",
+      "outside.py",
+    ]);
+  });
+
+  // Break caught: a tracked file changed to a symlink is reported as status T, not silently ignored.
+  test("rejects tracked file to symlink type changes", async () => {
+    const root = repo();
+    const trackedPath = join(root, "tracked.ts");
+    const outsidePath = join(root, "outside.ts");
+    writeFileSync(trackedPath, "export const safe = 1;\n");
+    writeFileSync(outsidePath, "outside-sentinel\n");
+    commit(root, "initial");
+    unlinkSync(trackedPath);
+    symlinkSync(outsidePath, trackedPath);
+
+    await expect(
+      new GitSnapshotReader(root).read({
+        base: "HEAD",
+        include: ["**/*.ts"],
+        exclude: [],
+      }),
+    ).rejects.toMatchObject({
+      code: "PLAN_UNSAFE_WORKTREE_PATH",
+      message: "The working-tree path is unsafe.",
+      path: "tracked.ts",
+    });
+  });
+
+  test("rejects a tracked file changed to a non-regular file", async () => {
+    const root = repo();
+    const trackedPath = join(root, "tracked.ts");
+    writeFileSync(trackedPath, "export const safe = 1;\n");
+    commit(root, "initial");
+    unlinkSync(trackedPath);
+    execFileSync("mkfifo", [trackedPath]);
+
+    await expect(
+      new GitSnapshotReader(root).read({
+        base: "HEAD",
+        include: ["**/*.ts"],
+        exclude: [],
+      }),
+    ).rejects.toMatchObject({
+      code: "PLAN_UNSAFE_WORKTREE_PATH",
+      message: "The working-tree path is unsafe.",
+      path: "tracked.ts",
+    });
+  });
+
+  // Break caught: a shallow repository with no local parent is not an initial repository.
+  test("reports a missing base at the shallow-history boundary", async () => {
+    const source = repo();
+    writeFileSync(join(source, "first.ts"), "export const first = 1;\n");
+    commit(source, "first");
+    writeFileSync(join(source, "second.ts"), "export const second = 1;\n");
+    commit(source, "second");
+    const clone = mkdtempSync(join(tmpdir(), "aidoc-shallow-"));
+    execFileSync(
+      "git",
+      ["clone", "-q", "--depth", "1", `file://${source}`, clone],
+      { cwd: source },
+    );
+
+    await expect(
+      new GitSnapshotReader(clone).read({
+        include: ["**/*.ts"],
+        exclude: [],
+      }),
+    ).rejects.toMatchObject({
+      code: "PLAN_SHALLOW_HISTORY",
+      message:
+        "The selected Git base is unavailable in this shallow repository.",
+    });
+  });
+
+  test("uses the configured base before symbolic and fallback candidates", async () => {
+    const root = repo();
+    writeFileSync(join(root, "first.ts"), "export const first = 1;\n");
+    commit(root, "first");
+    const first = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+    writeFileSync(join(root, "second.ts"), "export const second = 1;\n");
+    commit(root, "second");
+    const result = await new GitSnapshotReader(root, {
+      ...process.env,
+      AIDOC_BASE_REF: "HEAD~1",
+    }).read({ include: ["**/*.ts"], exclude: [] });
+
+    expect(result.base).toEqual({
+      type: "git",
+      label: "HEAD~1",
+      commit: first,
+    });
+  });
+
+  test("resolves origin HEAD to its symbolic target label", async () => {
+    const root = repo();
+    writeFileSync(join(root, "first.ts"), "export const first = 1;\n");
+    commit(root, "first");
+    const first = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+    writeFileSync(join(root, "second.ts"), "export const second = 1;\n");
+    commit(root, "second");
+    execFileSync("git", ["update-ref", "refs/remotes/origin/trunk", first], {
+      cwd: root,
+    });
+    execFileSync(
+      "git",
+      ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk"],
+      { cwd: root },
+    );
+
+    const result = await new GitSnapshotReader(root).read({
+      include: ["**/*.ts"],
+      exclude: [],
+    });
+
+    expect(result.base).toEqual({
+      type: "git",
+      label: first,
+      commit: first,
+    });
+  });
+
+  test("returns the empty tree only for a true initial repository", async () => {
+    const root = repo();
+    writeFileSync(join(root, "initial.ts"), "export const initial = 1;\n");
+    commit(root, "initial");
+
+    const result = await new GitSnapshotReader(root).read({
+      include: ["**/*.ts"],
+      exclude: [],
+    });
+
+    expect(result.base).toEqual({
+      type: "git",
+      label: "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+      commit: "4b825dc642cb6eb9a060e54bf8d69288fbee4904",
+    });
+    expect(result.files).toEqual([
+      expect.objectContaining({
+        status: "added",
+        afterPath: "initial.ts",
+        afterSource: "export const initial = 1;\n",
+      }),
+    ]);
+  });
+
+  test("never fetches while discovering a comparison base", async () => {
+    const root = repo();
+    writeFileSync(join(root, "initial.ts"), "export const initial = 1;\n");
+    commit(root, "initial");
+    const wrapperDir = mkdtempSync(join(tmpdir(), "aidoc-git-wrapper-"));
+    const wrapperPath = join(wrapperDir, "git");
+    const fetchLog = join(wrapperDir, "fetch.log");
+    const realGit = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
+    writeFileSync(
+      wrapperPath,
+      `#!/bin/sh
+if [ "$1" = fetch ]; then
+  printf 'fetch' >> "$AIDOC_FETCH_LOG"
+fi
+exec "${realGit}" "$@"
+`,
+    );
+    chmodSync(wrapperPath, 0o755);
+
+    await new GitSnapshotReader(root, {
+      ...process.env,
+      PATH: `${wrapperDir}:${process.env.PATH ?? ""}`,
+      AIDOC_FETCH_LOG: fetchLog,
+    }).read({ include: ["**/*.ts"], exclude: [] });
+
+    await expect(fs.readFile(fetchLog, "utf8")).rejects.toThrow();
+  });
+
+  test("reports staged, unstaged, deleted, renamed, and untracked source changes", async () => {
+    const root = repo();
+    writeFileSync(join(root, "staged.ts"), "export const staged = 1;\n");
+    writeFileSync(join(root, "unstaged.ts"), "export const unstaged = 1;\n");
+    writeFileSync(join(root, "deleted.ts"), "export const deleted = 1;\n");
+    writeFileSync(join(root, "old.ts"), "export const oldName = 1;\n");
+    writeFileSync(join(root, "note.txt"), "note\n");
+    commit(root, "initial");
+    writeFileSync(join(root, "staged.ts"), "export const staged = 2;\n");
+    execFileSync("git", ["add", "--", "staged.ts"], { cwd: root });
+    writeFileSync(join(root, "unstaged.ts"), "export const unstaged = 2;\n");
+    execFileSync("git", ["rm", "-q", "--", "deleted.ts"], { cwd: root });
+    execFileSync("git", ["mv", "--", "old.ts", "renamed.ts"], { cwd: root });
+    writeFileSync(join(root, "new.py"), "new_value = 1\n");
+
+    const result = await new GitSnapshotReader(root).read({
+      base: "HEAD",
+      include: ["**/*"],
+      exclude: [],
+    });
+
+    expect(
+      result.files.map(({ status, beforePath, afterPath }) => ({
+        status,
+        beforePath,
+        afterPath,
+      })),
+    ).toEqual([
+      { status: "deleted", beforePath: "deleted.ts", afterPath: undefined },
+      { status: "renamed", beforePath: "old.ts", afterPath: "renamed.ts" },
+      { status: "modified", beforePath: "staged.ts", afterPath: "staged.ts" },
+      {
+        status: "modified",
+        beforePath: "unstaged.ts",
+        afterPath: "unstaged.ts",
+      },
+      { status: "added", beforePath: undefined, afterPath: "new.py" },
+    ]);
+  });
+
+  test("keeps immutable heads detached from worktree edits", async () => {
+    const root = repo();
+    writeFileSync(join(root, "a.ts"), "export const a = 1;\n");
+    commit(root, "initial");
+    const base = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+    writeFileSync(join(root, "a.ts"), "export const a = 2;\n");
+    commit(root, "committed");
+    const head = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+    }).trim();
+    writeFileSync(join(root, "a.ts"), "export const a = 3;\n");
+
+    const result = await new GitSnapshotReader(root).read({
+      base,
+      head,
+      include: ["**/*.ts"],
+      exclude: [],
+    });
+
+    expect(result.head).toEqual({ type: "git", label: head, commit: head });
+    expect(result.files).toEqual([
+      expect.objectContaining({
+        status: "modified",
+        beforeSource: "export const a = 1;\n",
+        afterSource: "export const a = 2;\n",
+      }),
+    ]);
+  });
+
+  test("rejects newline-bearing untracked paths without splitting or leaking them", async () => {
+    const root = repo();
+    writeFileSync(join(root, "safe.ts"), "export const safe = 1;\n");
+    commit(root, "initial");
+    const unsafeName = "unsafe\nsource.ts";
+    writeFileSync(join(root, unsafeName), "source-sentinel\n");
+
+    const error = await new GitSnapshotReader(root)
+      .read({
+        base: "HEAD",
+        include: ["**/*.ts"],
+        exclude: [],
+      })
+      .catch((value: unknown) => value);
+
+    expect(error).toMatchObject({
+      code: "PLAN_SOURCE_READ_FAILED",
+      message: "Unable to read repository source.",
+    });
+    expect(String(error)).not.toContain("source-sentinel");
+    expect(String(error)).not.toContain(unsafeName);
+  });
+
+  test("keeps unsupported and excluded counts separate from parsed files", async () => {
+    const root = repo();
+    mkdirSync(join(root, "src"));
+    writeFileSync(join(root, "src/kept.ts"), "export const kept = 1;\n");
+    writeFileSync(
+      join(root, "src/excluded.ts"),
+      "export const excluded = 1;\n",
+    );
+    writeFileSync(join(root, "src/note.txt"), "unsupported\n");
+    commit(root, "initial");
+    writeFileSync(join(root, "src/kept.ts"), "export const kept = 2;\n");
+    writeFileSync(
+      join(root, "src/excluded.ts"),
+      "export const excluded = 2;\n",
+    );
+    writeFileSync(join(root, "src/note.txt"), "unsupported changed\n");
+
+    const result = await new GitSnapshotReader(root).read({
+      base: "HEAD",
+      include: ["src/**/*.ts"],
+      exclude: ["src/excluded.ts"],
+    });
+
+    expect(
+      result.files.find((file) => file.afterPath === "src/kept.ts"),
+    ).toEqual(expect.objectContaining({ supported: true, excluded: false }));
+    expect(
+      result.files.find((file) => file.afterPath === "src/excluded.ts"),
+    ).toEqual(expect.objectContaining({ supported: true, excluded: true }));
+    expect(
+      result.files.find((file) => file.afterPath === "src/note.txt"),
+    ).toEqual(expect.objectContaining({ supported: false, excluded: false }));
+    expect(result.ignored).toEqual({ unsupported: 1, excluded: 1 });
+  });
+
+  test.each(["-bad", "bad\nref", "bad\0ref"])(
+    "rejects unsafe base ref %j with a fixed diagnostic",
+    async (base) => {
+      const root = repo();
+      writeFileSync(join(root, "a.ts"), "a\n");
+      commit(root, "initial");
+
+      await expect(
+        new GitSnapshotReader(root).read({
+          base,
+          include: [],
+          exclude: [],
+        }),
+      ).rejects.toMatchObject({
+        code: "PLAN_INVALID_REF",
+        message: "The Git reference is invalid.",
+      });
+    },
+  );
+
+  test("reports missing base and head without leaking ref or Git diagnostics", async () => {
+    const root = repo();
+    writeFileSync(join(root, "a.ts"), "a\n");
+    commit(root, "initial");
+    const sentinel = "missing-secret-sentinel";
+
+    const missingBase = await new GitSnapshotReader(root)
+      .read({
+        base: sentinel,
+        include: [],
+        exclude: [],
+      })
+      .catch((error: unknown) => error);
+    expect(missingBase).toMatchObject({
+      code: "PLAN_BASE_NOT_FOUND",
+      message: "The Git base could not be resolved.",
+    });
+    expect(String(missingBase)).not.toContain(sentinel);
+
+    const missingHead = await new GitSnapshotReader(root)
+      .read({
+        head: sentinel,
+        include: [],
+        exclude: [],
+      })
+      .catch((error: unknown) => error);
+    expect(missingHead).toMatchObject({
+      code: "PLAN_HEAD_NOT_FOUND",
+      message: "The Git head could not be resolved.",
+    });
+    expect(String(missingHead)).not.toContain(sentinel);
+  });
+
+  test("rejects direct containment escapes with a fixed unsafe-path error", async () => {
+    const root = repo();
+    const outside = join(root, "..", "aidoc-outside-sentinel.ts");
+    writeFileSync(outside, "outside-sentinel\n");
+    try {
+      const reader = new GitSnapshotReader(root) as unknown as {
+        worktreeFile(root: string, path: string): Promise<string>;
+      };
+      await expect(
+        reader.worktreeFile(root, "../aidoc-outside-sentinel.ts"),
+      ).rejects.toMatchObject({
+        code: "PLAN_UNSAFE_WORKTREE_PATH",
+        message: "The working-tree path is unsafe.",
+      });
+    } finally {
+      await fs.unlink(outside);
+    }
   });
 });
