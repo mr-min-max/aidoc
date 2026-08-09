@@ -130,6 +130,7 @@ function gitEnvironment() {
     GIT_CONFIG_GLOBAL: devNull,
     GIT_CONFIG_NOSYSTEM: "1",
     GIT_CONFIG_SYSTEM: devNull,
+    GIT_GRAFT_FILE: devNull,
     GIT_NO_LAZY_FETCH: "1",
     GIT_NO_REPLACE_OBJECTS: "1",
     GIT_OPTIONAL_LOCKS: "0",
@@ -203,6 +204,24 @@ async function hasReplacementRefs(repositoryRoot) {
   return output.split("\n").some(Boolean);
 }
 
+async function hasLegacyGrafts(repositoryRoot) {
+  const commonDirectory = (
+    await gitText(repositoryRoot, ["rev-parse", "--git-common-dir"])
+  ).trim();
+  const graftsPath = path.resolve(
+    repositoryRoot,
+    commonDirectory,
+    "info",
+    "grafts",
+  );
+  try {
+    return (await readFile(graftsPath)).length > 0;
+  } catch (error) {
+    if (error?.code === "ENOENT") return false;
+    throw new GitOperationError("Git graft state could not be read.");
+  }
+}
+
 async function isCompleteRepository(repositoryRoot) {
   const output = await gitText(repositoryRoot, [
     "rev-parse",
@@ -213,8 +232,8 @@ async function isCompleteRepository(repositoryRoot) {
 
 async function localIdentityMatches(repositoryRoot, policy) {
   const [name, email] = await Promise.all([
-    gitText(repositoryRoot, ["config", "--local", "--get", "user.name"]),
-    gitText(repositoryRoot, ["config", "--local", "--get", "user.email"]),
+    gitText(repositoryRoot, ["config", "--get", "user.name"]),
+    gitText(repositoryRoot, ["config", "--get", "user.email"]),
   ]);
   const identity = policy.protectedIdentities.find(
     (candidate) => candidate.name === name.trim(),
@@ -383,22 +402,26 @@ async function enumerateReachableObjects(repositoryRoot, refs) {
   return [...new Set(output.split("\n").filter(Boolean))].sort();
 }
 
-async function scanReachablePaths(repositoryRoot, refs, needles) {
-  const output = await gitBuffer(repositoryRoot, [
-    "log",
-    "--full-history",
-    "--format=",
-    "--name-only",
-    "--no-renames",
-    "-z",
-    ...refs,
-  ]);
+async function scanReachablePaths(repositoryRoot, commits, needles) {
   const matchedIndexes = new Set();
-  needles.forEach((needle, index) => {
-    if (output.includes(Buffer.from(needle, "utf8"))) {
-      matchedIndexes.add(index);
+  const needleBuffers = needles.map((needle) => Buffer.from(needle, "utf8"));
+  for (const commit of commits) {
+    const output = await gitBuffer(repositoryRoot, [
+      "ls-tree",
+      "-r",
+      "-z",
+      "--name-only",
+      commit,
+    ]);
+    needleBuffers.forEach((needle, index) => {
+      if (!matchedIndexes.has(index) && output.includes(needle)) {
+        matchedIndexes.add(index);
+      }
+    });
+    if (matchedIndexes.size === needles.length) {
+      break;
     }
-  });
+  }
   return matchedIndexes;
 }
 
@@ -580,6 +603,27 @@ export async function runPreflight({
   }
 
   try {
+    const legacyGrafts = await hasLegacyGrafts(repositoryRoot);
+    checks.push(
+      makeCheck(
+        "legacy-grafts",
+        legacyGrafts ? "fail" : "pass",
+        legacyGrafts
+          ? "Legacy Git grafts are present."
+          : "No legacy Git grafts are present.",
+      ),
+    );
+  } catch {
+    checks.push(
+      makeCheck(
+        "legacy-grafts",
+        "fail",
+        "Legacy Git grafts could not be verified.",
+      ),
+    );
+  }
+
+  try {
     const matches = await localIdentityMatches(repositoryRoot, policy);
     checks.push(
       makeCheck(
@@ -755,7 +799,7 @@ export async function runPreflight({
       );
       const matchedPathIndexes = await scanReachablePaths(
         repositoryRoot,
-        refs,
+        commits,
         privateNeedles,
       );
       for (const index of matchedPathIndexes) {

@@ -528,3 +528,107 @@ test("fails when a retained ref has disconnected history", async (t) => {
   assert.equal(findCheck(report, "ref-topology").status, "fail");
   assertValueSafe(report, fixture);
 });
+
+test("scans paths introduced only by a merge result tree", async (t) => {
+  const fixture = await createFixture(t);
+  const privateNeedle = "merge-private/emoji-😀-file.txt";
+  const privateNeedlesPath = await createNeedlesFile(fixture.repositoryRoot, [
+    privateNeedle,
+  ]);
+  await git(fixture.repositoryRoot, ["checkout", "codex/release-integrity"]);
+  await git(fixture.repositoryRoot, ["checkout", "-b", "merge-left"]);
+  await commitFile(
+    fixture.repositoryRoot,
+    "left.txt",
+    "left parent\n",
+    "left merge parent",
+  );
+  await git(fixture.repositoryRoot, ["checkout", "main"]);
+  await git(fixture.repositoryRoot, ["checkout", "-b", "merge-right"]);
+  await commitFile(
+    fixture.repositoryRoot,
+    "right.txt",
+    "right parent\n",
+    "right merge parent",
+  );
+  await git(fixture.repositoryRoot, ["checkout", "merge-left"]);
+  await git(fixture.repositoryRoot, ["merge", "--no-commit", "merge-right"]);
+  const mergeOnlyPath = path.join(fixture.repositoryRoot, privateNeedle);
+  await mkdir(path.dirname(mergeOnlyPath), { recursive: true });
+  await writeFile(mergeOnlyPath, "safe merge-only contents\n", "utf8");
+  await git(fixture.repositoryRoot, ["add", privateNeedle]);
+  await git(fixture.repositoryRoot, ["commit", "-m", "merge result fixture"]);
+
+  const report = await runPreflight({ ...fixture, privateNeedlesPath });
+
+  assert.equal(report.status, "fail");
+  assert.equal(findCheck(report, "private-needles").status, "fail");
+  assert.equal(report.counts.privateNeedles, 1);
+  assertValueSafe(report, fixture, [privateNeedle]);
+});
+
+test("rejects legacy grafts and audits the ungrafted history", async (t) => {
+  const fixture = await createFixture(t);
+  const privateNeedle = "legacy-graft-private-marker";
+  const privateNeedlesPath = await createNeedlesFile(fixture.repositoryRoot, [
+    privateNeedle,
+  ]);
+  await git(fixture.repositoryRoot, ["checkout", "codex/release-integrity"]);
+  await setIdentity(fixture.repositoryRoot, PRIVATE_EMAIL);
+  await commitFile(
+    fixture.repositoryRoot,
+    "graft.txt",
+    `${privateNeedle}\n`,
+    "private graft parent",
+  );
+  await setIdentity(fixture.repositoryRoot);
+  await commitFile(
+    fixture.repositoryRoot,
+    "graft.txt",
+    "sanitized graft tip\n",
+    "sanitized graft tip",
+  );
+  const tip = (
+    await git(fixture.repositoryRoot, ["rev-parse", "HEAD"])
+  ).stdout.trim();
+  const commonDirectory = (
+    await git(fixture.repositoryRoot, ["rev-parse", "--git-common-dir"])
+  ).stdout.trim();
+  const graftsPath = path.resolve(
+    fixture.repositoryRoot,
+    commonDirectory,
+    "info",
+    "grafts",
+  );
+  await mkdir(path.dirname(graftsPath), { recursive: true });
+  await writeFile(graftsPath, `${tip}\n`, "utf8");
+
+  const report = await runPreflight({ ...fixture, privateNeedlesPath });
+
+  assert.equal(report.status, "fail");
+  assert.equal(findCheck(report, "legacy-grafts").status, "fail");
+  assert.equal(findCheck(report, "identity-policy").status, "fail");
+  assert.equal(findCheck(report, "private-needles").status, "fail");
+  assertValueSafe(report, fixture, [privateNeedle, PRIVATE_EMAIL]);
+});
+
+test("fails an unsafe worktree-local identity override", async (t) => {
+  const fixture = await createFixture(t);
+  await git(fixture.repositoryRoot, [
+    "config",
+    "extensions.worktreeConfig",
+    "true",
+  ]);
+  await git(fixture.repositoryRoot, [
+    "config",
+    "--worktree",
+    "user.email",
+    PRIVATE_EMAIL,
+  ]);
+
+  const report = await runPreflight(fixture);
+
+  assert.equal(report.status, "fail");
+  assert.equal(findCheck(report, "local-identity").status, "fail");
+  assertValueSafe(report, fixture, [PRIVATE_EMAIL]);
+});
