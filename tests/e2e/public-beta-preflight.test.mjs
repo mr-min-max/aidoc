@@ -10,6 +10,7 @@ import { promisify } from "node:util";
 import { runPreflight } from "../../scripts/public-beta-preflight.mjs";
 
 const execFileAsync = promisify(execFile);
+const PREFLIGHT_SCRIPT = path.resolve("scripts/public-beta-preflight.mjs");
 const APPROVED_EMAIL = "100+tester@users.noreply.github.com";
 const PRIVATE_EMAIL = "private-person@example.invalid";
 
@@ -263,4 +264,46 @@ test("emits deterministic schema-valid JSON with fixed diagnostic text", async (
     assert.match(check.summary, /^[a-z0-9 ,.:-]+$/i);
   }
   assertValueSafe(first, fixture, [APPROVED_EMAIL]);
+});
+
+test("loads an ignored private needles file from the CLI flag or environment", async (t) => {
+  const fixture = await createFixture(t);
+  const privateNeedlesPath = await createNeedlesFile(fixture.repositoryRoot, [
+    "absent-private-marker",
+  ]);
+  const commonArguments = [
+    PREFLIGHT_SCRIPT,
+    "--json",
+    "--repository-root",
+    fixture.repositoryRoot,
+    "--policy",
+    fixture.policyPath,
+  ];
+
+  const fromFlag = await execFileAsync(
+    process.execPath,
+    [...commonArguments, "--private-needles-file", privateNeedlesPath],
+    { encoding: "utf8" },
+  );
+  const flagReport = JSON.parse(fromFlag.stdout);
+  assert.equal(flagReport.status, "pass");
+  assert.equal(
+    findCheck(flagReport, "private-needles").summary,
+    "No private needles were found in retained history.",
+  );
+
+  const fromEnvironment = await execFileAsync(
+    process.execPath,
+    commonArguments,
+    {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        AIDOC_PRIVATE_NEEDLES_FILE: privateNeedlesPath,
+      },
+    },
+  );
+  const environmentReport = JSON.parse(fromEnvironment.stdout);
+  assert.deepEqual(environmentReport, flagReport);
+  assertValueSafe(environmentReport, fixture, ["absent-private-marker"]);
 });

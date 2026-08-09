@@ -588,6 +588,7 @@ function parseArguments(argv) {
     ["--repository-root", "repositoryRoot"],
     ["--policy", "policyPath"],
     ["--private-needles", "privateNeedlesPath"],
+    ["--private-needles-file", "privateNeedlesPath"],
     ["--main-ref", "mainRef"],
     ["--candidate-ref", "candidateRef"],
   ]);
@@ -620,6 +621,7 @@ function printHuman(report) {
 
 async function main() {
   let options;
+  const wantsJson = process.argv.slice(2).includes("--json");
   try {
     options = parseArguments(process.argv.slice(2));
     const repositoryRoot = path.resolve(
@@ -633,8 +635,10 @@ async function main() {
       repositoryRoot,
       ".private/public-beta-needles.txt",
     );
-    const privateNeedlesPath = options.privateNeedlesPath
-      ? path.resolve(options.privateNeedlesPath)
+    const configuredNeedlesPath =
+      options.privateNeedlesPath ?? process.env.AIDOC_PRIVATE_NEEDLES_FILE;
+    const privateNeedlesPath = configuredNeedlesPath
+      ? path.resolve(configuredNeedlesPath)
       : existsSync(defaultNeedlesPath)
         ? defaultNeedlesPath
         : undefined;
@@ -652,7 +656,7 @@ async function main() {
     }
     process.exitCode = report.status === "pass" ? 0 : 1;
   } catch {
-    if (options?.json) {
+    if (wantsJson) {
       process.stdout.write(
         `${JSON.stringify({
           schemaVersion: REPORT_SCHEMA,
