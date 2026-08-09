@@ -2,8 +2,10 @@
 
 import { execFile, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
+import { devNull } from "node:os";
 import path from "node:path";
+import process from "node:process";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
@@ -115,11 +117,32 @@ async function loadPolicy(policyPath) {
   }
 }
 
-async function gitText(repositoryRoot, args) {
+function gitEnvironment() {
+  const environment = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (!key.toUpperCase().startsWith("GIT_")) {
+      environment[key] = value;
+    }
+  }
+  return {
+    ...environment,
+    GIT_ATTR_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: devNull,
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_SYSTEM: devNull,
+    GIT_NO_LAZY_FETCH: "1",
+    GIT_NO_REPLACE_OBJECTS: "1",
+    GIT_OPTIONAL_LOCKS: "0",
+    GIT_TERMINAL_PROMPT: "0",
+  };
+}
+
+async function gitBuffer(repositoryRoot, args) {
   try {
     const { stdout } = await execFileAsync("git", args, {
       cwd: repositoryRoot,
-      encoding: "utf8",
+      encoding: null,
+      env: gitEnvironment(),
       maxBuffer: MAX_GIT_OUTPUT_BYTES,
     });
     return stdout;
@@ -128,11 +151,16 @@ async function gitText(repositoryRoot, args) {
   }
 }
 
+async function gitText(repositoryRoot, args) {
+  return (await gitBuffer(repositoryRoot, args)).toString("utf8");
+}
+
 async function gitExitCode(repositoryRoot, args) {
   try {
     await execFileAsync("git", args, {
       cwd: repositoryRoot,
       encoding: "utf8",
+      env: gitEnvironment(),
       maxBuffer: MAX_GIT_OUTPUT_BYTES,
     });
     return 0;
@@ -158,6 +186,42 @@ function normalizeRepositoryUrl(remoteUrl) {
   return "";
 }
 
+async function repositoryTopLevelMatches(repositoryRoot) {
+  const expected = await realpath(repositoryRoot);
+  const reported = (
+    await gitText(repositoryRoot, ["rev-parse", "--show-toplevel"])
+  ).trim();
+  return expected === (await realpath(reported));
+}
+
+async function hasReplacementRefs(repositoryRoot) {
+  const output = await gitText(repositoryRoot, [
+    "for-each-ref",
+    "--format=%(refname)",
+    "refs/replace",
+  ]);
+  return output.split("\n").some(Boolean);
+}
+
+async function isCompleteRepository(repositoryRoot) {
+  const output = await gitText(repositoryRoot, [
+    "rev-parse",
+    "--is-shallow-repository",
+  ]);
+  return output.trim() === "false";
+}
+
+async function localIdentityMatches(repositoryRoot, policy) {
+  const [name, email] = await Promise.all([
+    gitText(repositoryRoot, ["config", "--local", "--get", "user.name"]),
+    gitText(repositoryRoot, ["config", "--local", "--get", "user.email"]),
+  ]);
+  const identity = policy.protectedIdentities.find(
+    (candidate) => candidate.name === name.trim(),
+  );
+  return identity?.emails.includes(email.trim()) === true;
+}
+
 async function enumerateRetainedRefs(repositoryRoot) {
   const output = await gitText(repositoryRoot, [
     "for-each-ref",
@@ -175,6 +239,25 @@ async function enumerateCommits(repositoryRoot, refs) {
   }
   const output = await gitText(repositoryRoot, ["rev-list", ...refs]);
   return [...new Set(output.split("\n").filter(Boolean))].sort();
+}
+
+async function gitPredicate(repositoryRoot, args) {
+  const exitCode = await gitExitCode(repositoryRoot, args);
+  if (exitCode === 0) return true;
+  if (exitCode === 1) return false;
+  throw new GitOperationError("Git predicate failed.");
+}
+
+async function retainedRefsShareHistory(repositoryRoot, mainRef, refs) {
+  for (const ref of refs) {
+    const connected = await gitPredicate(repositoryRoot, [
+      "merge-base",
+      mainRef,
+      ref,
+    ]);
+    if (!connected) return false;
+  }
+  return true;
 }
 
 function parseIdentityRecords(output) {
@@ -300,6 +383,25 @@ async function enumerateReachableObjects(repositoryRoot, refs) {
   return [...new Set(output.split("\n").filter(Boolean))].sort();
 }
 
+async function scanReachablePaths(repositoryRoot, refs, needles) {
+  const output = await gitBuffer(repositoryRoot, [
+    "log",
+    "--full-history",
+    "--format=",
+    "--name-only",
+    "--no-renames",
+    "-z",
+    ...refs,
+  ]);
+  const matchedIndexes = new Set();
+  needles.forEach((needle, index) => {
+    if (output.includes(Buffer.from(needle, "utf8"))) {
+      matchedIndexes.add(index);
+    }
+  });
+  return matchedIndexes;
+}
+
 function scanBatchOutput(output, needles) {
   const needleBuffers = needles.map((needle) => Buffer.from(needle, "utf8"));
   const matchedIndexes = new Set();
@@ -349,6 +451,7 @@ async function scanReachableObjects(repositoryRoot, objectIds, needles) {
   const output = await new Promise((resolve, reject) => {
     const child = spawn("git", ["cat-file", "--batch"], {
       cwd: repositoryRoot,
+      env: gitEnvironment(),
       stdio: ["pipe", "pipe", "pipe"],
     });
     const chunks = [];
@@ -414,6 +517,90 @@ export async function runPreflight({
   let matchedPrivateNeedles = 0;
 
   try {
+    const matches = await repositoryTopLevelMatches(repositoryRoot);
+    checks.push(
+      makeCheck(
+        "repository-identity",
+        matches ? "pass" : "fail",
+        matches
+          ? "The requested repository root was verified."
+          : "The requested repository root could not be verified.",
+      ),
+    );
+  } catch {
+    checks.push(
+      makeCheck(
+        "repository-identity",
+        "fail",
+        "The requested repository root could not be verified.",
+      ),
+    );
+  }
+
+  try {
+    const complete = await isCompleteRepository(repositoryRoot);
+    checks.push(
+      makeCheck(
+        "repository-completeness",
+        complete ? "pass" : "fail",
+        complete
+          ? "Repository history is complete."
+          : "Repository history is shallow or incomplete.",
+      ),
+    );
+  } catch {
+    checks.push(
+      makeCheck(
+        "repository-completeness",
+        "fail",
+        "Repository completeness could not be verified.",
+      ),
+    );
+  }
+
+  try {
+    const replacementRefs = await hasReplacementRefs(repositoryRoot);
+    checks.push(
+      makeCheck(
+        "replacement-refs",
+        replacementRefs ? "fail" : "pass",
+        replacementRefs
+          ? "Git replacement refs are present."
+          : "No Git replacement refs are present.",
+      ),
+    );
+  } catch {
+    checks.push(
+      makeCheck(
+        "replacement-refs",
+        "fail",
+        "Git replacement refs could not be verified.",
+      ),
+    );
+  }
+
+  try {
+    const matches = await localIdentityMatches(repositoryRoot, policy);
+    checks.push(
+      makeCheck(
+        "local-identity",
+        matches ? "pass" : "fail",
+        matches
+          ? "Repository-local commit identity is protected."
+          : "Repository-local commit identity is not protected.",
+      ),
+    );
+  } catch {
+    checks.push(
+      makeCheck(
+        "local-identity",
+        "fail",
+        "Repository-local commit identity could not be verified.",
+      ),
+    );
+  }
+
+  try {
     const remoteUrl = await gitText(repositoryRoot, [
       "remote",
       "get-url",
@@ -462,7 +649,7 @@ export async function runPreflight({
   }
 
   try {
-    const ancestryExitCode = await gitExitCode(repositoryRoot, [
+    const isAncestor = await gitPredicate(repositoryRoot, [
       "merge-base",
       "--is-ancestor",
       selectedMainRef,
@@ -471,8 +658,8 @@ export async function runPreflight({
     checks.push(
       makeCheck(
         "branch-ancestry",
-        ancestryExitCode === 0 ? "pass" : "fail",
-        ancestryExitCode === 0
+        isAncestor ? "pass" : "fail",
+        isAncestor
           ? "Main is an ancestor of the candidate."
           : "Main is not an ancestor of the candidate.",
       ),
@@ -483,6 +670,41 @@ export async function runPreflight({
         "branch-ancestry",
         "fail",
         "Branch ancestry could not be verified.",
+      ),
+    );
+  }
+
+  if (refs.length > 0) {
+    try {
+      const connected = await retainedRefsShareHistory(
+        repositoryRoot,
+        selectedMainRef,
+        refs,
+      );
+      checks.push(
+        makeCheck(
+          "ref-topology",
+          connected ? "pass" : "fail",
+          connected
+            ? "Every retained ref shares the approved history."
+            : "A retained ref has disconnected history.",
+        ),
+      );
+    } catch {
+      checks.push(
+        makeCheck(
+          "ref-topology",
+          "fail",
+          "Retained ref topology could not be verified.",
+        ),
+      );
+    }
+  } else {
+    checks.push(
+      makeCheck(
+        "ref-topology",
+        "fail",
+        "Retained ref topology could not be verified.",
       ),
     );
   }
@@ -531,6 +753,14 @@ export async function runPreflight({
         objectIds,
         privateNeedles,
       );
+      const matchedPathIndexes = await scanReachablePaths(
+        repositoryRoot,
+        refs,
+        privateNeedles,
+      );
+      for (const index of matchedPathIndexes) {
+        matchedIndexes.add(index);
+      }
       const refText = refs.join("\n");
       privateNeedles.forEach((needle, index) => {
         if (refText.includes(needle)) {

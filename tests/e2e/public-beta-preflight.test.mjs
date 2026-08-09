@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 import { runPreflight } from "../../scripts/public-beta-preflight.mjs";
@@ -306,4 +307,224 @@ test("loads an ignored private needles file from the CLI flag or environment", a
   const environmentReport = JSON.parse(fromEnvironment.stdout);
   assert.deepEqual(environmentReport, flagReport);
   assertValueSafe(environmentReport, fixture, ["absent-private-marker"]);
+});
+
+test("rejects replacement refs and audits the original retained objects", async (t) => {
+  const fixture = await createFixture(t);
+  const privateNeedle = "replacement-hidden-private-marker";
+  const privateNeedlesPath = await createNeedlesFile(fixture.repositoryRoot, [
+    privateNeedle,
+  ]);
+  await git(fixture.repositoryRoot, ["checkout", "codex/release-integrity"]);
+  await setIdentity(fixture.repositoryRoot, PRIVATE_EMAIL);
+  await commitFile(
+    fixture.repositoryRoot,
+    "replacement.txt",
+    `${privateNeedle}\n`,
+    "original private replacement fixture",
+  );
+  const original = (
+    await git(fixture.repositoryRoot, ["rev-parse", "HEAD"])
+  ).stdout.trim();
+
+  await git(fixture.repositoryRoot, ["checkout", "main"]);
+  await git(fixture.repositoryRoot, ["checkout", "-b", "sanitized-view"]);
+  await setIdentity(fixture.repositoryRoot);
+  await commitFile(
+    fixture.repositoryRoot,
+    "replacement.txt",
+    "sanitized replacement view\n",
+    "sanitized replacement fixture",
+  );
+  const sanitized = (
+    await git(fixture.repositoryRoot, ["rev-parse", "HEAD"])
+  ).stdout.trim();
+  await git(fixture.repositoryRoot, ["replace", original, sanitized]);
+  await git(fixture.repositoryRoot, ["checkout", "codex/release-integrity"]);
+  await git(fixture.repositoryRoot, ["branch", "-D", "sanitized-view"]);
+
+  const report = await runPreflight({ ...fixture, privateNeedlesPath });
+
+  assert.equal(report.status, "fail");
+  assert.equal(findCheck(report, "replacement-refs").status, "fail");
+  assert.equal(findCheck(report, "identity-policy").status, "fail");
+  assert.equal(findCheck(report, "private-needles").status, "fail");
+  assertValueSafe(report, fixture, [privateNeedle, PRIVATE_EMAIL]);
+});
+
+test("ignores ambient Git repository redirection variables", async (t) => {
+  const unsafeFixture = await createFixture(t);
+  const decoyFixture = await createFixture(t);
+  const privateNeedle = "ambient-git-dir-private-marker";
+  const privateNeedlesPath = await createNeedlesFile(
+    unsafeFixture.repositoryRoot,
+    [privateNeedle],
+  );
+  await git(unsafeFixture.repositoryRoot, [
+    "checkout",
+    "codex/release-integrity",
+  ]);
+  await commitFile(
+    unsafeFixture.repositoryRoot,
+    "ambient.txt",
+    `${privateNeedle}\n`,
+    "ambient repository fixture",
+  );
+
+  const previousGitDir = process.env.GIT_DIR;
+  process.env.GIT_DIR = path.join(decoyFixture.repositoryRoot, ".git");
+  let report;
+  try {
+    report = await runPreflight({
+      ...unsafeFixture,
+      privateNeedlesPath,
+    });
+  } finally {
+    if (previousGitDir === undefined) {
+      delete process.env.GIT_DIR;
+    } else {
+      process.env.GIT_DIR = previousGitDir;
+    }
+  }
+
+  assert.equal(report.status, "fail");
+  assert.equal(findCheck(report, "repository-identity").status, "pass");
+  assert.equal(findCheck(report, "private-needles").status, "fail");
+  assertValueSafe(report, unsafeFixture, [privateNeedle]);
+});
+
+test("fails a shallow repository before claiming complete history", async (t) => {
+  const sourceFixture = await createFixture(t);
+  const privateNeedle = "shallow-parent-private-marker";
+  await git(sourceFixture.repositoryRoot, ["checkout", "main"]);
+  await setIdentity(sourceFixture.repositoryRoot, PRIVATE_EMAIL);
+  await commitFile(
+    sourceFixture.repositoryRoot,
+    "shallow.txt",
+    `${privateNeedle}\n`,
+    "private shallow parent",
+  );
+  await setIdentity(sourceFixture.repositoryRoot);
+  await commitFile(
+    sourceFixture.repositoryRoot,
+    "shallow.txt",
+    "sanitized shallow tip\n",
+    "sanitized shallow tip",
+  );
+  await git(sourceFixture.repositoryRoot, [
+    "branch",
+    "--force",
+    "codex/release-integrity",
+    "main",
+  ]);
+
+  const cloneParent = await mkdtemp(
+    path.join(tmpdir(), "aidoc-public-beta-shallow-"),
+  );
+  t.after(() => rm(cloneParent, { recursive: true, force: true }));
+  const repositoryRoot = path.join(cloneParent, "clone");
+  await execFileAsync(
+    "git",
+    [
+      "clone",
+      "--depth",
+      "1",
+      "--branch",
+      "main",
+      pathToFileURL(sourceFixture.repositoryRoot).href,
+      repositoryRoot,
+    ],
+    { encoding: "utf8" },
+  );
+  await git(repositoryRoot, [
+    "remote",
+    "set-url",
+    "origin",
+    "https://github.com/example/aidoc.git",
+  ]);
+  await setIdentity(repositoryRoot);
+  await git(repositoryRoot, ["branch", "codex/release-integrity"]);
+  await writeFile(
+    path.join(repositoryRoot, ".gitignore"),
+    ".private/\n",
+    "utf8",
+  );
+  const policyPath = path.join(
+    repositoryRoot,
+    ".github",
+    "public-beta-policy.json",
+  );
+  await mkdir(path.dirname(policyPath), { recursive: true });
+  await writeFile(
+    policyPath,
+    await readFile(sourceFixture.policyPath, "utf8"),
+    "utf8",
+  );
+  const privateNeedlesPath = await createNeedlesFile(repositoryRoot, [
+    privateNeedle,
+  ]);
+
+  const report = await runPreflight({
+    repositoryRoot,
+    policyPath,
+    privateNeedlesPath,
+    mainRef: "main",
+    candidateRef: "codex/release-integrity",
+  });
+
+  assert.equal(report.status, "fail");
+  assert.equal(findCheck(report, "repository-completeness").status, "fail");
+  assert.equal(report.counts.privateNeedles, 0);
+  assertValueSafe(report, { repositoryRoot }, [privateNeedle]);
+});
+
+test("scans complete nested paths in retained history", async (t) => {
+  const fixture = await createFixture(t);
+  const privateNeedle = "private-directory/emoji-😀-file.txt";
+  const privateNeedlesPath = await createNeedlesFile(fixture.repositoryRoot, [
+    privateNeedle,
+  ]);
+  await git(fixture.repositoryRoot, ["checkout", "codex/release-integrity"]);
+  await commitFile(
+    fixture.repositoryRoot,
+    privateNeedle,
+    "safe file contents\n",
+    "private path fixture",
+  );
+
+  const report = await runPreflight({ ...fixture, privateNeedlesPath });
+
+  assert.equal(report.status, "fail");
+  assert.equal(findCheck(report, "private-needles").status, "fail");
+  assert.equal(report.counts.privateNeedles, 1);
+  assertValueSafe(report, fixture, [privateNeedle]);
+});
+
+test("fails when the repository-local identity is not protected", async (t) => {
+  const fixture = await createFixture(t);
+  await setIdentity(fixture.repositoryRoot, PRIVATE_EMAIL);
+
+  const report = await runPreflight(fixture);
+
+  assert.equal(report.status, "fail");
+  assert.equal(findCheck(report, "local-identity").status, "fail");
+  assertValueSafe(report, fixture, [PRIVATE_EMAIL]);
+});
+
+test("fails when a retained ref has disconnected history", async (t) => {
+  const fixture = await createFixture(t);
+  await git(fixture.repositoryRoot, ["switch", "--orphan", "disconnected"]);
+  await git(fixture.repositoryRoot, [
+    "commit",
+    "--allow-empty",
+    "-m",
+    "disconnected fixture",
+  ]);
+  await git(fixture.repositoryRoot, ["switch", "codex/release-integrity"]);
+
+  const report = await runPreflight(fixture);
+
+  assert.equal(report.status, "fail");
+  assert.equal(findCheck(report, "ref-topology").status, "fail");
+  assertValueSafe(report, fixture);
 });
