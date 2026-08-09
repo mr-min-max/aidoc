@@ -266,8 +266,7 @@ describe("impact provider context budgeting", () => {
 
   it("projects allowlisted fields and recursively excludes source-shaped values", () => {
     const secret = ["sk", "proj", "A".repeat(32)].join("-");
-    const unsafePath =
-      "/Users/example/Documents/aidoc/.worktrees/release-integrity";
+    const unsafePath = "/Users/example/project/.worktrees/release-integrity";
     const gitError = "fatal: bad revision private-ref";
     const item = change("contract-changed", "safe", {
       id: `typescript:${unsafePath}#function:${secret}`,

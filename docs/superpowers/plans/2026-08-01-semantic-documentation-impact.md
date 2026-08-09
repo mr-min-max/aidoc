@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Work only in `/Users/example/Documents/aidoc/.worktrees/release-integrity` on `codex/release-integrity`; do not rewrite history, create another branch/worktree, merge, tag, publish, or change repository visibility.
+- Work only in the existing `.worktrees/release-integrity` checkout on `codex/release-integrity`; do not rewrite history, create another branch/worktree, merge, tag, publish, or change repository visibility.
 - Target contract is `v0.2.0-beta.2`; manifest version alignment is allowed, but release creation and publication are outside this plan.
 - Planning is deterministic and provider-free: it never loads `.env`, provider/model/api-key settings, templates, `LLMProvider`, or provider credentials.
 - Keep AST extraction ahead of any LLM operation; do not parse TypeScript, JavaScript, or Python code with regular expressions.
@@ -87,14 +87,30 @@ export const MAX_MAX_CONTEXT_BYTES = 1048576;
 
 export type ImpactLanguage = "typescript" | "python";
 export type SymbolKind =
-  | "function" | "class" | "method" | "interface" | "type" | "enum";
+  | "function"
+  | "class"
+  | "method"
+  | "interface"
+  | "type"
+  | "enum";
 export type ContractFacet =
-  | "parameters" | "return" | "inheritance" | "members" | "modifiers";
+  | "parameters"
+  | "return"
+  | "inheritance"
+  | "members"
+  | "modifiers";
 export type ChangeCategory =
-  | "added" | "removed" | "moved" | "contract-changed"
-  | "implementation-changed" | "documentation-changed" | "dependency-changed";
+  | "added"
+  | "removed"
+  | "moved"
+  | "contract-changed"
+  | "implementation-changed"
+  | "documentation-changed"
+  | "dependency-changed";
 export type ChangeRisk =
-  | "potentially-breaking" | "review-required" | "informational";
+  | "potentially-breaking"
+  | "review-required"
+  | "informational";
 
 export interface SnapshotDescriptor {
   type: "git" | "working-tree";
@@ -122,9 +138,13 @@ export interface DocumentationReference {
   section: string;
   slug: string;
   reason:
-    | "code-span" | "source-link" | "heading"
-    | "api-documentation" | "changelog"
-    | "entrypoint" | "architecture";
+    | "code-span"
+    | "source-link"
+    | "heading"
+    | "api-documentation"
+    | "changelog"
+    | "entrypoint"
+    | "architecture";
 }
 
 export interface DocumentationImpact {
@@ -175,9 +195,16 @@ export interface ImpactProviderContext {
 }
 
 export type ImpactProviderChange =
-  | (Pick<SymbolChange,
-      "id" | "category" | "risk" | "path" | "kind" |
-      "qualifiedName" | "changedContractFacets"> & { compacted?: false })
+  | (Pick<
+      SymbolChange,
+      | "id"
+      | "category"
+      | "risk"
+      | "path"
+      | "kind"
+      | "qualifiedName"
+      | "changedContractFacets"
+    > & { compacted?: false })
   | {
       id: string; // the 64-character SymbolChange.digest, not a truncated ID
       category: ChangeCategory;
@@ -187,12 +214,21 @@ export type ImpactProviderChange =
     };
 
 export type PlanErrorCode =
-  | "PLAN_NOT_GIT_REPOSITORY" | "PLAN_BASE_NOT_FOUND"
-  | "PLAN_HEAD_NOT_FOUND" | "PLAN_INVALID_REF" | "PLAN_SHALLOW_HISTORY"
-  | "PLAN_UNSAFE_WORKTREE_PATH" | "PLAN_SOURCE_READ_FAILED"
-  | "PLAN_PARSE_FAILED" | "PLAN_INVALID_CONTEXT_BUDGET";
+  | "PLAN_NOT_GIT_REPOSITORY"
+  | "PLAN_BASE_NOT_FOUND"
+  | "PLAN_HEAD_NOT_FOUND"
+  | "PLAN_INVALID_REF"
+  | "PLAN_SHALLOW_HISTORY"
+  | "PLAN_UNSAFE_WORKTREE_PATH"
+  | "PLAN_SOURCE_READ_FAILED"
+  | "PLAN_PARSE_FAILED"
+  | "PLAN_INVALID_CONTEXT_BUDGET";
 
-export interface PlanError { code: PlanErrorCode; message: string; path?: string }
+export interface PlanError {
+  code: PlanErrorCode;
+  message: string;
+  path?: string;
+}
 export type PlanCommandResult =
   | { ok: true; plan: ImpactPlan }
   | { ok: false; error: PlanError };
@@ -252,15 +288,19 @@ export interface LanguageParser {
 Create `tests/unit/impact/canonical.test.ts` with these assertions:
 
 ```ts
-expect(canonicalStringify({ z: 1, a: { d: 2, b: 3 } }))
-  .toBe('{"a":{"b":3,"d":2},"z":1}');
-expect(canonicalStringify({ present: 1, absent: undefined }))
-  .toBe('{"present":1}');
+expect(canonicalStringify({ z: 1, a: { d: 2, b: 3 } })).toBe(
+  '{"a":{"b":3,"d":2},"z":1}',
+);
+expect(canonicalStringify({ present: 1, absent: undefined })).toBe(
+  '{"present":1}',
+);
 expect(sha256Hex("stable")).toMatch(/^[0-9a-f]{64}$/);
 
 const secret = ["sk", "proj", "A".repeat(32)].join("-");
 const hostile = new Proxy(new Error("unused"), {
-  get() { throw new Error(secret); },
+  get() {
+    throw new Error(secret);
+  },
 });
 expect(toPlanError(hostile)).toEqual({
   code: "PLAN_SOURCE_READ_FAILED",
@@ -268,11 +308,15 @@ expect(toPlanError(hostile)).toEqual({
 });
 expect(JSON.stringify(toPlanError(hostile))).not.toContain(secret);
 
-expect(toPlanError(new PlanFailure(
-  "PLAN_PARSE_FAILED",
-  "Could not parse changed supported source.",
-  "src/broken.py",
-))).toEqual({
+expect(
+  toPlanError(
+    new PlanFailure(
+      "PLAN_PARSE_FAILED",
+      "Could not parse changed supported source.",
+      "src/broken.py",
+    ),
+  ),
+).toEqual({
   code: "PLAN_PARSE_FAILED",
   message: "Could not parse changed supported source.",
   path: "src/broken.py",
@@ -326,23 +370,32 @@ git commit -m "feat(impact): define canonical plan contracts"
 Append focused tests using in-memory source strings. Assert all of the following exact behaviors:
 
 ```ts
-const first = await parser.snapshot("src/api.ts", `
+const first = await parser.snapshot(
+  "src/api.ts",
+  `
   /** public docs */
   export function request(value: string = "alpha"): number {
     return value.length + 1;
   }
-`);
-const formatted = await parser.snapshot("src/api.ts", `
+`,
+);
+const formatted = await parser.snapshot(
+  "src/api.ts",
+  `
 export function request(
   value: string = "alpha"
 ): number { return value.length + 1 }
-`);
-expect(formatted.symbols[0].contractFingerprint)
-  .toBe(first.symbols[0].contractFingerprint);
-expect(formatted.symbols[0].implementationFingerprint)
-  .toBe(first.symbols[0].implementationFingerprint);
-expect(formatted.symbols[0].documentationFingerprint)
-  .not.toBe(first.symbols[0].documentationFingerprint);
+`,
+);
+expect(formatted.symbols[0].contractFingerprint).toBe(
+  first.symbols[0].contractFingerprint,
+);
+expect(formatted.symbols[0].implementationFingerprint).toBe(
+  first.symbols[0].implementationFingerprint,
+);
+expect(formatted.symbols[0].documentationFingerprint).not.toBe(
+  first.symbols[0].documentationFingerprint,
+);
 expect(JSON.stringify(first)).not.toContain("alpha");
 expect(JSON.stringify(first)).not.toContain("public docs");
 ```
@@ -395,11 +448,14 @@ git commit -m "feat(parsers): snapshot TypeScript API contracts"
 Add in-memory cases parallel to TypeScript:
 
 ```ts
-const snapshot = await parser.snapshot("src/client.py", `
+const snapshot = await parser.snapshot(
+  "src/client.py",
+  `
 def request(value: str = "secret-default") -> int:
     """secret docs"""
     return len(value) + 1
-`);
+`,
+);
 expect(snapshot.symbols[0]).toMatchObject({
   language: "python",
   kind: "function",
@@ -650,7 +706,10 @@ git commit -m "feat(impact): classify public symbol changes"
 - Produces:
 
 ```ts
-export interface DocumentationFile { path: string; content: string }
+export interface DocumentationFile {
+  path: string;
+  content: string;
+}
 export interface DocumentationSection {
   file: string;
   heading: string;

@@ -21,8 +21,7 @@ scripts, `js-yaml`, Git, GitHub Actions, Dependabot, Gitleaks v8.30.1.
 
 ## Global Constraints
 
-- Work only in
-  `/Users/example/Documents/aidoc/.worktrees/release-integrity` on
+- Work only in the existing `.worktrees/release-integrity` checkout on
   `codex/release-integrity`.
 - Preserve the existing repository and sanitized authentic history; never run
   another history rewrite, squash the historical commits, or force-push.
@@ -255,9 +254,13 @@ Git repositories, and injected policy/needle files. Include these cases:
 
 ```js
 test("fails a protected identity using an unapproved email without echoing it");
-test("passes the protected identity after rewriting it to the approved noreply");
+test(
+  "passes the protected identity after rewriting it to the approved noreply",
+);
 test("fails when main is not an ancestor of the candidate");
-test("finds a private needle in reachable metadata or blobs without echoing it");
+test(
+  "finds a private needle in reachable metadata or blobs without echoing it",
+);
 test("ignores unreachable objects and scans every retained branch and tag");
 test("emits deterministic schema-valid JSON with fixed diagnostic text");
 ```
@@ -379,8 +382,9 @@ it("bounds weekly npm and Actions dependency updates", () => {
     }>;
   };
   expect(dependabot.version).toBe(2);
-  expect(dependabot.updates.map((item) => item["package-ecosystem"]).sort())
-    .toEqual(["github-actions", "npm"]);
+  expect(
+    dependabot.updates.map((item) => item["package-ecosystem"]).sort(),
+  ).toEqual(["github-actions", "npm"]);
   for (const update of dependabot.updates) {
     expect(update.schedule.interval).toBe("weekly");
     expect(update["open-pull-requests-limit"]).toBeLessThanOrEqual(5);
