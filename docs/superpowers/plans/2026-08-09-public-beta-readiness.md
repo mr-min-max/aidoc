@@ -70,8 +70,9 @@ scripts, `js-yaml`, Git, GitHub Actions, Dependabot, Gitleaks v8.30.1.
   protected maintainer identity policy consumed by the preflight.
 - `scripts/public-beta-preflight.mjs` — deterministic Git/ref/content preflight
   with value-safe JSON and human output.
-- `tests/unit/release/public-beta.test.ts` — tracked public-surface and YAML
-  contract tests.
+- `tests/unit/release/public-beta-config.test.ts` — executable GitHub YAML and
+  private-ignore boundary tests; human prose is verified through its real
+  fresh-clone workflow rather than source-text assertions.
 - `tests/e2e/public-beta-preflight.test.mjs` — temporary-repository behavior
   tests for privacy and ancestry checks.
 - `package.json` — `test:public-beta` and `verify:public-beta` scripts.
@@ -87,7 +88,6 @@ scripts, `js-yaml`, Git, GitHub Actions, Dependabot, Gitleaks v8.30.1.
 
 **Files:**
 
-- Create: `tests/unit/release/public-beta.test.ts`
 - Create: `docs/PUBLIC_BETA.md`
 - Create: `docs/releases/v0.2.0-beta.2.md`
 - Create: `SUPPORT.md`
@@ -105,69 +105,12 @@ scripts, `js-yaml`, Git, GitHub Actions, Dependabot, Gitleaks v8.30.1.
 **Interfaces:**
 
 - Consumes: `package.json` fields `name`, `version`, and `engines.node`.
-- Produces: one tested public status surface for candidate
-  `0.2.0-beta.2`; later tasks use `docs/PUBLIC_BETA.md` as the canonical known
-  limits link.
+- Produces: one public status surface for candidate `0.2.0-beta.2`; later tasks
+  use `docs/PUBLIC_BETA.md` as the canonical known limits link. Human prose is
+  not unit-tested; the documented commands are executed from a fresh clone in
+  Task 5.
 
-- [ ] **Step 1: Write the failing public-surface test**
-
-Create `tests/unit/release/public-beta.test.ts` with these exact assertions:
-
-```ts
-import * as fs from "fs";
-import * as path from "path";
-import packageJson from "../../../package.json";
-
-const read = (file: string): string =>
-  fs.readFileSync(path.resolve(file), "utf8");
-
-describe("public beta surface", () => {
-  it("advertises an honest source beta before any registry install", () => {
-    const readme = read("README.md");
-    expect(readme).toContain("Public Beta");
-    expect(readme).toContain("git clone https://github.com/mr-min-max/aidoc.git");
-    expect(readme).toContain("node dist/cli/index.js plan");
-    expect(readme).not.toContain("npx aidoc-gen");
-    expect(readme).not.toContain("npm install -g aidoc-gen");
-  });
-
-  it("keeps beta version, runtime, support, and release notes aligned", () => {
-    const beta = read("docs/PUBLIC_BETA.md");
-    const contributing = read("CONTRIBUTING.md");
-    const issue = read(".github/ISSUE_TEMPLATE/bug_report.yml");
-    expect(beta).toContain(packageJson.version);
-    expect(beta).toContain(packageJson.engines.node);
-    expect(contributing).toContain(packageJson.engines.node);
-    expect(issue).toContain(packageJson.version);
-    expect(fs.existsSync(path.resolve("SUPPORT.md"))).toBe(true);
-    expect(
-      fs.existsSync(path.resolve(`docs/releases/v${packageJson.version}.md`)),
-    ).toBe(true);
-  });
-
-  it("does not present superseded or private application drafts", () => {
-    expect(fs.existsSync(path.resolve("docs/releases/v0.1.1.md"))).toBe(false);
-    expect(
-      fs.existsSync(path.resolve("docs/openai-codex-for-oss-application.md")),
-    ).toBe(false);
-    expect(read("ROADMAP.md")).not.toContain("ProofGraph remains planned");
-  });
-});
-```
-
-- [ ] **Step 2: Run the focused test and capture RED**
-
-Run:
-
-```bash
-npx jest tests/unit/release/public-beta.test.ts --runInBand
-```
-
-Expected: FAIL because the README still advertises unavailable npm commands,
-the beta/support files do not exist, the bug template says `0.1.0`, and stale
-draft files remain.
-
-- [ ] **Step 3: Implement the public-beta documentation**
+- [ ] **Step 1: Implement the public-beta documentation**
 
 Update the tracked surface with this content contract:
 
@@ -214,30 +157,33 @@ node dist/cli/index.js plan --json
   provider-free reproduction when possible, focused tests, and
   `npm run verify:release` evidence.
 
-- [ ] **Step 4: Run focused GREEN and documentation checks**
+- [ ] **Step 2: Run formatting and the real local command examples**
 
 Run:
 
 ```bash
-npx jest tests/unit/release/public-beta.test.ts --runInBand
 npx prettier --check README.md CHANGELOG.md ROADMAP.md CONTRIBUTING.md \
   SECURITY.md SUPPORT.md docs/PUBLIC_BETA.md \
   docs/releases/v0.2.0-beta.2.md \
   .github/ISSUE_TEMPLATE/bug_report.yml \
   .github/ISSUE_TEMPLATE/feature_request.yml \
   .github/PULL_REQUEST_TEMPLATE.md
+npm run build
+node dist/cli/index.js plan
+node dist/cli/index.js plan --json
 git diff --check
 ```
 
-Expected: PASS; tracked documentation contains no unavailable npm install path.
+Expected: PASS. Manually inspect the rendered Markdown headings/links; Task 5
+pressure-tests the documented source checkout in a fresh clone.
 
-- [ ] **Step 5: Commit the public surface**
+- [ ] **Step 3: Commit the public surface**
 
 ```bash
 git add README.md CHANGELOG.md ROADMAP.md CONTRIBUTING.md SECURITY.md \
   SUPPORT.md docs/PUBLIC_BETA.md docs/releases \
   docs/openai-codex-for-oss-application.md .github/ISSUE_TEMPLATE \
-  .github/PULL_REQUEST_TEMPLATE.md tests/unit/release/public-beta.test.ts
+  .github/PULL_REQUEST_TEMPLATE.md
 git commit -m "docs(beta): publish honest source onboarding"
 ```
 
@@ -359,7 +305,7 @@ Add:
 ```json
 {
   "scripts": {
-    "test:public-beta": "node --test tests/e2e/public-beta-preflight.test.mjs && jest tests/unit/release/public-beta.test.ts --runInBand",
+    "test:public-beta": "node --test tests/e2e/public-beta-preflight.test.mjs && jest tests/unit/release/public-beta-config.test.ts --runInBand",
     "verify:public-beta": "npm run verify:release && npm run test:public-beta && node scripts/public-beta-preflight.mjs --json"
   }
 }
@@ -375,7 +321,7 @@ Run:
 
 ```bash
 node --test tests/e2e/public-beta-preflight.test.mjs
-npx jest tests/unit/release/public-beta.test.ts --runInBand
+npx jest tests/unit/release/public-beta-config.test.ts --runInBand
 npm run build
 npm run lint
 node scripts/public-beta-preflight.mjs --json
@@ -399,7 +345,7 @@ git commit -m "feat(beta): add privacy-safe publication preflight"
 **Files:**
 
 - Create: `.github/dependabot.yml`
-- Modify: `tests/unit/release/public-beta.test.ts`
+- Create: `tests/unit/release/public-beta-config.test.ts`
 - Modify: `docs/PUBLIC_BETA.md`
 
 **Interfaces:**
@@ -408,12 +354,20 @@ git commit -m "feat(beta): add privacy-safe publication preflight"
 - Produces: two weekly Dependabot update streams and six exact starter issues
   ready in the private repository for eventual public visibility.
 
-- [ ] **Step 1: Add failing Dependabot contract tests**
+- [ ] **Step 1: Add failing Dependabot behavior contract tests**
 
-Append to `tests/unit/release/public-beta.test.ts`:
+Create `tests/unit/release/public-beta-config.test.ts`. Parse the file through
+the same YAML library used by the workflow tests and assert the schedule the
+GitHub consumer receives:
 
 ```ts
+import * as fs from "fs";
+import * as path from "path";
+
 const { load } = require("js-yaml") as { load(source: string): unknown };
+
+const read = (file: string): string =>
+  fs.readFileSync(path.resolve(file), "utf8");
 
 it("bounds weekly npm and Actions dependency updates", () => {
   const dependabot = load(read(".github/dependabot.yml")) as {
@@ -439,7 +393,7 @@ it("bounds weekly npm and Actions dependency updates", () => {
 Run:
 
 ```bash
-npx jest tests/unit/release/public-beta.test.ts --runInBand
+npx jest tests/unit/release/public-beta-config.test.ts --runInBand
 ```
 
 Expected: FAIL because `.github/dependabot.yml` does not exist.
@@ -463,7 +417,7 @@ and review gates as human PRs.
 Run:
 
 ```bash
-npx jest tests/unit/release/public-beta.test.ts --runInBand
+npx jest tests/unit/release/public-beta-config.test.ts --runInBand
 npx prettier --check .github/dependabot.yml docs/PUBLIC_BETA.md
 git diff --check
 ```
@@ -472,7 +426,7 @@ Then commit:
 
 ```bash
 git add .github/dependabot.yml docs/PUBLIC_BETA.md \
-  tests/unit/release/public-beta.test.ts
+  tests/unit/release/public-beta-config.test.ts
 git commit -m "chore(beta): prepare dependency maintenance"
 ```
 
@@ -535,7 +489,7 @@ visibility stage after Support clearance.
 - Create ignored: `.private/public-beta-support.md`
 - Create ignored: `.private/public-beta-needles.txt`
 - Create ignored: `.private/gitleaks-8.30.1/` extracted verified binary
-- Modify: `tests/unit/release/public-beta.test.ts`
+- Modify: `tests/unit/release/public-beta-config.test.ts`
 
 **Interfaces:**
 
@@ -545,13 +499,20 @@ visibility stage after Support clearance.
 - Produces: an untracked audit ledger and ready-to-copy Support request. No
   network message is sent.
 
-- [ ] **Step 1: Add a failing ignore-boundary test**
+- [ ] **Step 1: Add a failing executable ignore-boundary test**
 
 Append:
 
 ```ts
+import { execFileSync } from "child_process";
+
 it("keeps private publication material outside tracked Git", () => {
-  expect(read(".gitignore").split(/\r?\n/)).toContain(".private/");
+  expect(() =>
+    execFileSync("git", ["check-ignore", "-q", ".private/probe"], {
+      cwd: path.resolve("."),
+      stdio: "pipe",
+    }),
+  ).not.toThrow();
 });
 ```
 
@@ -563,7 +524,7 @@ Add exactly `.private/` to `.gitignore`, rerun the test, then commit only the
 ignore/test change:
 
 ```bash
-git add .gitignore tests/unit/release/public-beta.test.ts
+git add .gitignore tests/unit/release/public-beta-config.test.ts
 git commit -m "chore(beta): isolate private publication evidence"
 ```
 
