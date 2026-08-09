@@ -14,6 +14,7 @@ const execFileAsync = promisify(execFile);
 const PREFLIGHT_SCRIPT = path.resolve("scripts/public-beta-preflight.mjs");
 const APPROVED_EMAIL = "100+tester@users.noreply.github.com";
 const PRIVATE_EMAIL = "private-person@example.invalid";
+const GITHUB_AUTOMATION_EMAIL = "noreply@github.com";
 
 async function git(repositoryRoot, args) {
   return execFileAsync("git", args, {
@@ -171,6 +172,48 @@ test("passes the protected identity after rewriting it to the approved noreply",
   assert.equal(report.status, "pass");
   assert.equal(findCheck(report, "identity-policy").status, "pass");
   assertValueSafe(report, fixture, [PRIVATE_EMAIL, APPROVED_EMAIL]);
+});
+
+test("repository policy allows a GitHub merge committer", async (t) => {
+  const fixture = await createFixture(t);
+  const repositoryPolicy = JSON.parse(
+    await readFile(path.resolve(".github/public-beta-policy.json"), "utf8"),
+  );
+  const fixturePolicy = JSON.parse(await readFile(fixture.policyPath, "utf8"));
+  fixturePolicy.allowedAutomationEmails =
+    repositoryPolicy.allowedAutomationEmails;
+  await writeFile(
+    fixture.policyPath,
+    `${JSON.stringify(fixturePolicy, null, 2)}\n`,
+    "utf8",
+  );
+
+  await git(fixture.repositoryRoot, ["checkout", "codex/release-integrity"]);
+  await writeFile(
+    path.join(fixture.repositoryRoot, "merge.txt"),
+    "GitHub merge fixture\n",
+    "utf8",
+  );
+  await git(fixture.repositoryRoot, ["add", "merge.txt"]);
+  await execFileAsync("git", ["commit", "-m", "GitHub merge fixture"], {
+    cwd: fixture.repositoryRoot,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_COMMITTER_NAME: "GitHub",
+      GIT_COMMITTER_EMAIL: GITHUB_AUTOMATION_EMAIL,
+    },
+  });
+
+  const report = await runPreflight(fixture);
+
+  assert.equal(report.status, "pass");
+  assert.equal(findCheck(report, "identity-policy").status, "pass");
+  assertValueSafe(report, fixture, [
+    APPROVED_EMAIL,
+    GITHUB_AUTOMATION_EMAIL,
+  ]);
 });
 
 test("fails when main is not an ancestor of the candidate", async (t) => {

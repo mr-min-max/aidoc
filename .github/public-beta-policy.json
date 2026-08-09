@@ -9,5 +9,5 @@
       "emails": ["254284659+mr-min-max@users.noreply.github.com"]
     }
   ],
-  "allowedAutomationEmails": ["noreply@anthropic.com"]
+  "allowedAutomationEmails": ["noreply@anthropic.com", "noreply@github.com"]
 }
