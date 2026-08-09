@@ -2,9 +2,22 @@ import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import * as path from "path";
-import { loadCommandContext, writeDoc } from "../context";
-import { readExistingMarkdown } from "../../output/markdown";
+import {
+  enforceGeneratedOutput,
+  hasGenerationInput,
+  loadCommandContext,
+  toWriteDocOptions,
+  writeDoc,
+} from "../context";
+import {
+  readExistingMarkdown,
+  validateChangelogEntry,
+} from "../../output/markdown";
 import { getCommitsSince, getLatestTag } from "../../git/history";
+import {
+  getSafeErrorDiagnostic,
+  getTrustErrorExitCode,
+} from "../../security/diagnostics";
 
 export const changelogCommand = new Command("changelog")
   .description("Generate CHANGELOG from git history")
@@ -13,6 +26,8 @@ export const changelogCommand = new Command("changelog")
   .option("--version <ver>", "Version string for the entry", "Unreleased")
   .option("-o, --output <path>", "Output file path", "./CHANGELOG.md")
   .option("--dry-run", "Preview without writing")
+  .option("--yes", "Apply generated changes without an interactive prompt")
+  .option("--strict-output", "Fail instead of writing malformed Markdown")
   .option("--mock", "Use mock LLM response for testing")
   .action(async (options) => {
     const spinner = ora("Reading git history...").start();
@@ -22,7 +37,13 @@ export const changelogCommand = new Command("changelog")
       const toRef = options.to;
       const commits = await getCommitsSince(fromRef, toRef);
 
-      if (commits.length === 0) {
+      if (
+        !hasGenerationInput(
+          commits.length > 0,
+          options,
+          "No commits found in the specified range.",
+        )
+      ) {
         spinner.warn(chalk.yellow("No commits found in the specified range."));
         return;
       }
@@ -36,6 +57,11 @@ export const changelogCommand = new Command("changelog")
         fromRef,
         toRef,
       } as any);
+      enforceGeneratedOutput(
+        validateChangelogEntry(entry, options.version),
+        options,
+        "CHANGELOG entry",
+      );
       genSpinner.succeed(chalk.green("CHANGELOG entry generated!"));
 
       // Changelog prepends to an existing file rather than replacing it.
@@ -47,13 +73,14 @@ export const changelogCommand = new Command("changelog")
         ? existing.replace(/^# Changelog.*?\n\n/s, header + entry + "\n\n")
         : header + entry;
 
-      await writeDoc(outputPath, content, {
-        dryRun: options.dryRun,
-        label: options.output,
-      });
-    } catch (error: any) {
+      await writeDoc(
+        outputPath,
+        content,
+        toWriteDocOptions(options, options.output),
+      );
+    } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to generate CHANGELOG"));
-      console.error(chalk.red(error.message));
-      process.exit(1);
+      console.error(chalk.red(getSafeErrorDiagnostic(error).message));
+      process.exit(getTrustErrorExitCode(error));
     }
   });

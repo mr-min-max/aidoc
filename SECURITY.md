@@ -8,8 +8,20 @@ Currently, only the latest major version is supported for security updates.
 
 Please do not report security vulnerabilities through public GitHub issues.
 
-Instead, please email the maintainers directly. We will try to acknowledge receipt of your vulnerability report within 48 hours and provide regular updates on our progress.
+Instead, use
+[GitHub private vulnerability reporting](https://github.com/mr-min-max/aidoc/security/advisories/new).
+This keeps the report private while maintainers investigate it.
 
-`aidoc` is a local CLI tool and does not send your code to any servers other than the LLM provider you configure (OpenAI, Anthropic). If you use Ollama, your code never leaves your machine.
+Provider-backed generation sends selected context to the configured provider.
+Ollama is the local-provider option; OpenAI and Anthropic are remote-provider
+options.
 
-If the project receives Codex Security access, maintainers will use it only on repositories they own or are authorized to administer, and will track validated findings through private disclosure or public issues depending on impact.
+`aidoc plan` is provider-free. Provider impact context used by `aidoc update`
+is deterministic and byte-bounded and excludes raw source, raw diffs, and
+credential values. These boundaries reduce exposure but do not turn generated
+output into trusted code or replace repository access controls.
+
+Security reports should include the affected commit or beta version, a minimal
+reproduction, and impact. Do not place working credentials or sensitive source
+material in the report; coordinate a safe transfer through the private
+advisory if maintainers need additional evidence.

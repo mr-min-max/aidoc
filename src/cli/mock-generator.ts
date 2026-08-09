@@ -1,5 +1,6 @@
 import * as path from "path";
 import { ParsedModule } from "../parsers/types";
+import type { UpdateContext } from "../core/differ";
 
 /**
  * Drop-in stand-in for Generator used by --mock. Produces deterministic output
@@ -122,14 +123,11 @@ export class MockGenerator {
     ].join("\n");
   }
 
-  /** Appends a deterministic update note for changed files. */
-  async generateUpdate(ctx: {
-    existingDoc: string;
-    changedFiles: string[];
-  }): Promise<string> {
+  /** Appends a deterministic update note for selected impact records. */
+  async generateUpdate(ctx: UpdateContext): Promise<string> {
     return (
       ctx.existingDoc +
-      `\n\n> 📅 Last updated: ${new Date().toISOString().split("T")[0]} (${ctx.changedFiles.length} files changed)\n`
+      `\n\n> 📅 Last updated: ${new Date().toISOString().split("T")[0]} (${ctx.impactPlan.changes.length} impact records)\n`
     );
   }
 }

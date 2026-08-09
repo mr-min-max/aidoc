@@ -7,6 +7,10 @@ import * as path from "path";
 import { loadCommandContext } from "../context";
 import { analyzeCodebase } from "../../core/analyzer";
 import { displayDiff } from "../../output/diff-display";
+import {
+  getSafeErrorDiagnostic,
+  getTrustErrorExitCode,
+} from "../../security/diagnostics";
 
 /** Strips ```json ... ``` fences an LLM may wrap around a JSON response. */
 function stripCodeFences(raw: string): string {
@@ -55,9 +59,7 @@ export const annotateCommand = new Command("annotate")
         annotations = JSON.parse(stripCodeFences(response));
       } catch {
         throw new Error(
-          "LLM returned malformed JSON for annotations. Try again or use --mock. " +
-            "Raw response:\n" +
-            response.slice(0, 500),
+          "LLM returned malformed JSON for annotations. Try again or use --mock.",
         );
       }
       genSpinner.succeed(chalk.green("JSDoc comments generated!"));
@@ -93,9 +95,9 @@ export const annotateCommand = new Command("annotate")
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to annotate code"));
-      console.error(chalk.red(error.message));
-      process.exit(1);
+      console.error(chalk.red(getSafeErrorDiagnostic(error).message));
+      process.exit(getTrustErrorExitCode(error));
     }
   });

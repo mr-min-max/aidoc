@@ -3,6 +3,7 @@ import { getParserForFile } from "../parsers/registry";
 import { ParsedModule } from "../parsers/types";
 import { globalCache } from "./cache";
 import { logger } from "./logger";
+import { getSafeErrorDiagnostic } from "../security/diagnostics";
 
 /** Scans configured source files and parses each supported file into AST metadata. */
 export async function analyzeCodebase(
@@ -29,8 +30,9 @@ export async function analyzeCodebase(
       globalCache.set(file, parsed);
       modules.push(parsed);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      logger.warn(`Failed to parse ${file}: ${message}`);
+      logger.warn(
+        `Failed to parse source file: ${getSafeErrorDiagnostic(error).message}`,
+      );
     }
   }
 

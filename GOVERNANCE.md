@@ -1,6 +1,8 @@
 # Governance
 
-aidoc is maintained as a public open-source project under the MIT license.
+aidoc is an MIT-licensed project intended for public open-source development.
+The canonical repository is currently private pending separate repository
+privacy cleanup.
 
 ## Maintainer Role
 
@@ -28,13 +30,10 @@ Releases are tagged with `v*` tags and published through the release workflow.
 Before a release, maintainers should run:
 
 ```bash
-npm run lint
-npm run build
-npm run test:coverage
+npm run verify:release
 ```
 
 ## Security
 
 Security reports should follow `SECURITY.md`. Codex Security, if granted, will
 only be used on repositories the maintainer owns or is authorized to administer.
-

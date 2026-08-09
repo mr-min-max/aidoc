@@ -1,23 +1,33 @@
 {
   "name": "aidoc-gen",
-  "version": "0.1.0",
+  "version": "0.2.0-beta.2",
   "description": "AI-powered documentation generator for codebases. Analyzes code via AST parsing and LLM to generate README, API docs, JSDoc, CHANGELOG, and architecture diagrams.",
   "main": "dist/cli/index.js",
   "bin": {
     "aidoc": "dist/cli/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "node scripts/clean-dist.mjs && tsc && node scripts/copy-templates.mjs",
     "dev": "tsc --watch",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:action": "jest tests/unit/action/runner.test.ts --runInBand",
     "lint": "eslint src/ tests/ --ext .ts",
     "lint:fix": "eslint src/ tests/ --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
     "score": "npm run build && node dist/cli/index.js score",
     "start": "node dist/cli/index.js",
-    "prepublishOnly": "npm run build"
+    "test:package": "node --test tests/e2e/smoke-tarball.test.mjs && node tests/e2e/package-smoke.mjs",
+    "test:mcp": "node tests/e2e/mcp-smoke.mjs",
+    "demo:impact": "npm run build && node scripts/demo-impact.mjs",
+    "test:impact-demo": "node scripts/demo-impact.mjs --verify",
+    "test:check": "npm run build && node tests/e2e/check-cli-smoke.mjs",
+    "test:public-beta": "node --test tests/e2e/public-beta-preflight.test.mjs && jest tests/unit/release/public-beta-config.test.ts --runInBand",
+    "verify:public-beta": "npm run verify:release && npm run test:public-beta && node scripts/public-beta-preflight.mjs --json",
+    "verify:release": "npm run lint && npm test -- --runInBand && npm run build && npm run test:impact-demo && npm run test:check && npm run test:package && npm run test:action && npm run test:mcp",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run lint && npm test -- --runInBand"
   },
   "keywords": [
     "ai",
@@ -40,26 +50,26 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/aidoc-dev/aidoc.git"
+    "url": "https://github.com/mr-min-max/aidoc.git"
   },
   "bugs": {
-    "url": "https://github.com/aidoc-dev/aidoc/issues"
+    "url": "https://github.com/mr-min-max/aidoc/issues"
   },
-  "homepage": "https://github.com/aidoc-dev/aidoc#readme",
+  "homepage": "https://github.com/mr-min-max/aidoc#readme",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.12.0"
   },
   "files": [
-    "dist/",
-    "src/templates/"
+    "dist/"
   ],
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "chalk": "^4.1.2",
     "chokidar": "^5.0.0",
     "commander": "^15.0.0",
     "cosmiconfig": "^9.0.2",
-    "diff": "^7.0.0",
+    "diff": "^8.0.4",
     "dotenv": "^17.4.2",
     "glob": "^11.0.2",
     "handlebars": "^4.7.8",
@@ -72,7 +82,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/diff": "^7.0.2",
     "@types/jest": "^30.0.0",
     "@types/node": "^26.0.0",
     "@types/prompts": "^2.4.9",

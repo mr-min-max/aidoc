@@ -1,11 +1,13 @@
 import * as path from "path";
 import prompts from "prompts";
 import chalk from "chalk";
-import { loadConfig, AidocConfig } from "../config/loader";
+import { loadProviderConfig, AidocConfig } from "../config/loader";
 import { createProvider } from "../providers/registry";
 import { Generator } from "../core/generator";
+import { resolveTemplatesDir } from "../core/templates";
 import { MockGenerator } from "./mock-generator";
 import {
+  ValidationResult,
   writeMarkdown,
   readExistingMarkdown,
   validateMarkdown,
@@ -16,6 +18,8 @@ import { logger } from "../core/logger";
 export interface CommandOptions {
   mock?: boolean;
   dryRun?: boolean;
+  yes?: boolean;
+  strictOutput?: boolean;
 }
 
 export interface CommandContext {
@@ -30,6 +34,20 @@ export interface ProjectInfo {
   name: string;
   description: string;
   dependencies: string[];
+}
+
+/** Applies a command-specific provider-output check at the strict boundary. */
+export function enforceGeneratedOutput(
+  result: ValidationResult,
+  options: CommandOptions,
+  label: string,
+): void {
+  if (options.strictOutput && !result.isValid) {
+    throw new Error(
+      `${label} failed validation: ${result.warnings.join("; ")}`,
+    );
+  }
+  result.warnings.forEach((warning) => logger.warn(warning));
 }
 
 /**
@@ -61,14 +79,15 @@ export async function loadCommandContext(
   options: CommandOptions,
   cwd = process.cwd(),
 ): Promise<CommandContext> {
-  const config = loadConfig();
+  const config = loadProviderConfig(cwd);
   const isMock = !!options.mock;
+  const origin = process.env.AIDOC_ORIGIN === "action" ? "action" : "cli";
   const generator = isMock
     ? new MockGenerator()
-    : new Generator(
-        createProvider(config),
-        path.resolve(__dirname, "../templates"),
-      );
+    : new Generator(createProvider(config), resolveTemplatesDir(), {
+        policy: config.trustPolicy,
+        origin,
+      });
   return { config, cwd, generator, isMock };
 }
 
@@ -80,13 +99,23 @@ export async function loadCommandContext(
 export async function writeDoc(
   outputPath: string,
   content: string,
-  opts: { dryRun?: boolean; auto?: boolean; label?: string } = {},
+  opts: {
+    dryRun?: boolean;
+    auto?: boolean;
+    label?: string;
+    strict?: boolean;
+  } = {},
 ): Promise<void> {
   const label = opts.label || path.basename(outputPath);
   const existing = readExistingMarkdown(outputPath);
 
   // Warn (don't fail) on malformed output — e.g. unclosed code fences.
-  const { warnings } = validateMarkdown(content);
+  const { isValid, warnings } = validateMarkdown(content);
+  if (opts.strict && !isValid) {
+    throw new Error(
+      `Generated Markdown failed validation: ${warnings.join("; ")}`,
+    );
+  }
   warnings.forEach((w) => logger.warn(w));
 
   if (existing) {
@@ -112,4 +141,27 @@ export async function writeDoc(
     writeMarkdown(outputPath, content);
     console.log(chalk.green(`✔ Created ${label}`));
   }
+}
+
+export function toWriteDocOptions(
+  options: CommandOptions,
+  label: string,
+): { dryRun?: boolean; auto?: boolean; strict?: boolean; label: string } {
+  return {
+    dryRun: options.dryRun,
+    auto: options.yes,
+    label,
+    strict: options.strictOutput,
+  };
+}
+
+export function hasGenerationInput(
+  condition: boolean,
+  options: CommandOptions,
+  message: string,
+): boolean {
+  if (!condition && options.strictOutput) {
+    throw new Error(message);
+  }
+  return condition;
 }

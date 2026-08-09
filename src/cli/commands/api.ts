@@ -3,12 +3,25 @@ import chalk from "chalk";
 import ora from "ora";
 import * as path from "path";
 import { analyzeCodebase } from "../../core/analyzer";
-import { loadCommandContext, writeDoc } from "../context";
+import {
+  enforceGeneratedOutput,
+  hasGenerationInput,
+  loadCommandContext,
+  toWriteDocOptions,
+  writeDoc,
+} from "../context";
+import { validateGeneratedContent } from "../../output/markdown";
+import {
+  getSafeErrorDiagnostic,
+  getTrustErrorExitCode,
+} from "../../security/diagnostics";
 
 export const apiCommand = new Command("api")
   .description("Generate API documentation from code analysis")
   .option("-o, --output <path>", "Output file path", "./docs/API.md")
   .option("--dry-run", "Preview without writing to file")
+  .option("--yes", "Apply generated changes without an interactive prompt")
+  .option("--strict-output", "Fail instead of writing malformed Markdown")
   .option("--mock", "Use mock LLM response for testing")
   .action(async (options) => {
     const spinner = ora("Scanning codebase for API symbols...").start();
@@ -20,7 +33,13 @@ export const apiCommand = new Command("api")
         ctx.config.exclude,
       );
 
-      if (modules.length === 0) {
+      if (
+        !hasGenerationInput(
+          modules.length > 0,
+          options,
+          "No supported source files found.",
+        )
+      ) {
         spinner.warn(chalk.yellow("No supported source files found."));
         return;
       }
@@ -28,15 +47,21 @@ export const apiCommand = new Command("api")
 
       const genSpinner = ora("Generating API documentation...").start();
       const apiDocs = await ctx.generator.generateApiDocs(modules);
+      enforceGeneratedOutput(
+        validateGeneratedContent(apiDocs),
+        options,
+        "API documentation",
+      );
       genSpinner.succeed(chalk.green("API documentation generated!"));
 
-      await writeDoc(path.resolve(ctx.cwd, options.output), apiDocs, {
-        dryRun: options.dryRun,
-        label: options.output,
-      });
-    } catch (error: any) {
+      await writeDoc(
+        path.resolve(ctx.cwd, options.output),
+        apiDocs,
+        toWriteDocOptions(options, options.output),
+      );
+    } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to generate API docs"));
-      console.error(chalk.red(error.message));
-      process.exit(1);
+      console.error(chalk.red(getSafeErrorDiagnostic(error).message));
+      process.exit(getTrustErrorExitCode(error));
     }
   });

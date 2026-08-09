@@ -10,7 +10,7 @@
  * - generate_readme: Generate README documentation
  * - generate_api_docs: Generate API reference documentation
  * - generate_diagram: Generate architecture diagram
- * - check_docs_freshness: Check if documentation is up-to-date
+ * - check_docs_freshness: Run an AST-backed source/document co-change guard
  *
  * Usage:
  *   npx aidoc-gen --mcp
@@ -20,44 +20,129 @@
 import { analyzeCodebase } from "../core/analyzer";
 import { Generator } from "../core/generator";
 import { createProvider } from "../providers/registry";
-import { loadConfig } from "../config/loader";
-import { getChangedFiles } from "../git/history";
-import { readExistingMarkdown } from "../output/markdown";
+import { loadProviderConfig } from "../config/loader";
+import { loadPlanningConfig } from "../config/planning";
 import { readProjectInfo } from "../cli/context";
-import * as path from "path";
+import { checkDocumentationFreshness } from "../core/freshness";
+import { createImpactPlan } from "../impact/planner";
+import {
+  PLAN_ERROR_CODES,
+  PlanFailure,
+  type PlanErrorCode,
+} from "../impact/types";
+import { readPackageVersion } from "../core/package-meta";
+import { resolveTemplatesDir } from "../core/templates";
+import {
+  getSafeErrorDiagnostic,
+  inspectSafeAllowlistedErrorCode,
+  UNKNOWN_ERROR_DIAGNOSTIC,
+} from "../security/diagnostics";
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  type Tool,
+} from "@modelcontextprotocol/sdk/types.js";
 
-/** MCP Tool Definition */
-interface MCPTool {
-  name: string;
-  description: string;
-  inputSchema: {
-    type: "object";
-    properties: Record<
-      string,
-      { type: string; description: string; default?: unknown }
-    >;
-    required?: string[];
-  };
+const SAFE_MCP_ERROR_CODES = new Set<string>([
+  ...PLAN_ERROR_CODES,
+  "TRUST_SECRET_BLOCKED",
+  "TRUST_INVALID_PROVIDER_OUTPUT",
+  "TRUST_PATH_OUTSIDE_ROOT",
+  "TRUST_UNSAFE_SYMLINK",
+  "TRUST_INVALID_TARGET_TYPE",
+  "TRUST_RACE_DETECTED",
+  "TRUST_ATOMIC_WRITE_FAILED",
+  "MCP_DIRECTORY_DENIED",
+  "MCP_INVALID_PATH_INPUT",
+]);
+const UNKNOWN_MCP_ERROR = "Unknown MCP error.";
+
+function invalidMCPRef(): PlanFailure {
+  return new PlanFailure("PLAN_INVALID_REF", "The Git reference is invalid.");
 }
 
-/** MCP JSON-RPC Request */
-interface MCPRequest {
-  jsonrpc: "2.0";
-  id: number | string;
-  method: string;
-  params?: Record<string, unknown>;
+function invalidMCPContextBudget(): PlanFailure {
+  return new PlanFailure(
+    "PLAN_INVALID_CONTEXT_BUDGET",
+    "The provider context byte budget is invalid.",
+  );
 }
 
-/** MCP JSON-RPC Response */
-interface MCPResponse {
-  jsonrpc: "2.0";
-  id: number | string;
-  result?: unknown;
-  error?: { code: number; message: string; data?: unknown };
+function readOwnMCPArgument(
+  args: unknown,
+  key: string,
+  failure: () => PlanFailure,
+): unknown {
+  if (typeof args !== "object" || args === null || Array.isArray(args)) {
+    throw failure();
+  }
+  let descriptor: PropertyDescriptor | undefined;
+  try {
+    descriptor = Object.getOwnPropertyDescriptor(args, key);
+  } catch {
+    throw failure();
+  }
+  if (descriptor === undefined) return undefined;
+  if (!("value" in descriptor)) throw failure();
+  return descriptor.value;
+}
+
+function readMCPPlanOptions(args: unknown): {
+  base?: string;
+  head?: string;
+  maxContextBytes?: number;
+} {
+  const base = readOwnMCPArgument(args, "base", invalidMCPRef);
+  const head = readOwnMCPArgument(args, "head", invalidMCPRef);
+  const maxContextBytes = readOwnMCPArgument(
+    args,
+    "max_context_bytes",
+    invalidMCPContextBudget,
+  );
+  if (base !== undefined && typeof base !== "string") throw invalidMCPRef();
+  if (head !== undefined && typeof head !== "string") throw invalidMCPRef();
+  if (
+    maxContextBytes !== undefined &&
+    (typeof maxContextBytes !== "number" ||
+      !Number.isInteger(maxContextBytes) ||
+      maxContextBytes < 1024 ||
+      maxContextBytes > 1048576)
+  ) {
+    throw invalidMCPContextBudget();
+  }
+  return { base, head, maxContextBytes };
+}
+
+export function formatMCPError(error: unknown): string {
+  const planError = PlanFailure.read(error);
+  if (planError !== undefined) {
+    return `${planError.code}: ${planError.message}`;
+  }
+
+  const diagnostic = getSafeErrorDiagnostic(error);
+  if (diagnostic.message === UNKNOWN_ERROR_DIAGNOSTIC) {
+    return UNKNOWN_MCP_ERROR;
+  }
+
+  const { code, hasUntrustedCode } = inspectSafeAllowlistedErrorCode(
+    error,
+    SAFE_MCP_ERROR_CODES,
+  );
+  if (!code) {
+    return hasUntrustedCode ? UNKNOWN_MCP_ERROR : diagnostic.message;
+  }
+  if (PLAN_ERROR_CODES.has(code as PlanErrorCode)) return UNKNOWN_MCP_ERROR;
+
+  const prefix = `${code}:`;
+  return diagnostic.message.startsWith(prefix)
+    ? diagnostic.message
+    : `${prefix} ${diagnostic.message}`;
 }
 
 /** Available MCP tools */
-const TOOLS: MCPTool[] = [
+export const TOOLS: Tool[] = [
   {
     name: "analyze_codebase",
     description:
@@ -132,7 +217,7 @@ const TOOLS: MCPTool[] = [
   {
     name: "check_docs_freshness",
     description:
-      "Check whether documentation files are up-to-date with the current codebase. Returns a report of stale sections.",
+      "Run an AST-backed documentation co-change guard. This detects source/doc co-change and does not verify semantic correctness.",
     inputSchema: {
       type: "object",
       properties: {
@@ -155,18 +240,43 @@ const TOOLS: MCPTool[] = [
       required: ["directory"],
     },
   },
+  {
+    name: "plan_documentation_impact",
+    description:
+      "Plan deterministic documentation impact for the repository where this MCP server started.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        base: {
+          type: "string",
+          description: "Explicit comparison base Git ref",
+        },
+        head: {
+          type: "string",
+          description: "Compare two committed Git refs",
+        },
+        max_context_bytes: {
+          type: "integer",
+          minimum: 1024,
+          maximum: 1048576,
+          description: "Provider-context byte ceiling",
+        },
+      },
+      additionalProperties: false,
+    },
+  },
 ];
 
 /** Handle a tool call */
-async function handleToolCall(
+export async function handleToolCall(
   name: string,
   args: Record<string, unknown>,
+  serverCwd = process.cwd(),
 ): Promise<unknown> {
-  const config = loadConfig(args.directory as string);
-
   switch (name) {
     case "analyze_codebase": {
       const dir = args.directory as string;
+      const config = loadPlanningConfig(dir);
       const include = args.include
         ? (args.include as string).split(",")
         : config.include;
@@ -208,14 +318,18 @@ async function handleToolCall(
 
     case "generate_readme": {
       const dir = args.directory as string;
+      const config = loadProviderConfig(dir);
       const modules = await analyzeCodebase(
         dir,
         config.include,
         config.exclude,
       );
       const provider = createProvider(config);
-      const templatesDir = path.resolve(__dirname, "../templates");
-      const generator = new Generator(provider, templatesDir);
+      const templatesDir = resolveTemplatesDir();
+      const generator = new Generator(provider, templatesDir, {
+        policy: config.trustPolicy,
+        origin: "mcp",
+      });
 
       const {
         name: projectName,
@@ -239,28 +353,36 @@ async function handleToolCall(
 
     case "generate_api_docs": {
       const dir = args.directory as string;
+      const config = loadProviderConfig(dir);
       const modules = await analyzeCodebase(
         dir,
         config.include,
         config.exclude,
       );
       const provider = createProvider(config);
-      const templatesDir = path.resolve(__dirname, "../templates");
-      const generator = new Generator(provider, templatesDir);
+      const templatesDir = resolveTemplatesDir();
+      const generator = new Generator(provider, templatesDir, {
+        policy: config.trustPolicy,
+        origin: "mcp",
+      });
       const apiDocs = await generator.generateApiDocs(modules);
       return { content: apiDocs, format: "markdown" };
     }
 
     case "generate_diagram": {
       const dir = args.directory as string;
+      const config = loadProviderConfig(dir);
       const modules = await analyzeCodebase(
         dir,
         config.include,
         config.exclude,
       );
       const provider = createProvider(config);
-      const templatesDir = path.resolve(__dirname, "../templates");
-      const generator = new Generator(provider, templatesDir);
+      const templatesDir = resolveTemplatesDir();
+      const generator = new Generator(provider, templatesDir, {
+        policy: config.trustPolicy,
+        origin: "mcp",
+      });
       const diagram = await generator.generateDiagram(modules);
       return { content: diagram, format: "mermaid" };
     }
@@ -270,51 +392,25 @@ async function handleToolCall(
       const docFile = (args.doc_file as string) || "README.md";
       const since = (args.since as string) || "HEAD~5";
 
-      const docPath = path.resolve(dir, docFile);
-      const existingDoc = readExistingMarkdown(docPath);
+      const report = await checkDocumentationFreshness(dir, docFile, since);
+      return {
+        ...report,
+        recommendation:
+          report.status === "stale"
+            ? "Run aidoc update to refresh documentation."
+            : null,
+      };
+    }
 
-      if (!existingDoc) {
-        return {
-          status: "missing",
-          message: `Documentation file not found: ${docFile}`,
-          recommendation: "Run aidoc readme to generate initial documentation.",
-        };
-      }
-
-      try {
-        const changedFiles = await getChangedFiles(since, "HEAD", dir);
-
-        if (changedFiles.length === 0) {
-          return {
-            status: "up-to-date",
-            message: "No code changes detected. Documentation appears current.",
-            changedFiles: [],
-          };
-        }
-
-        // Filter to source files only
-        const sourceChanges = changedFiles.filter(
-          (f) => /\.(ts|tsx|js|jsx|py)$/.test(f) && !f.includes(".test."),
-        );
-
-        return {
-          status: sourceChanges.length > 0 ? "potentially-stale" : "up-to-date",
-          message:
-            sourceChanges.length > 0
-              ? `${sourceChanges.length} source files changed since ${since}. Documentation may need updating.`
-              : "Only non-source files changed. Documentation is likely current.",
-          changedFiles: sourceChanges,
-          recommendation:
-            sourceChanges.length > 0
-              ? "Run aidoc update to refresh documentation."
-              : null,
-        };
-      } catch {
-        return {
-          status: "unknown",
-          message: "Could not access git history. Is this a git repository?",
-        };
-      }
+    case "plan_documentation_impact": {
+      const options = readMCPPlanOptions(args);
+      const result = await createImpactPlan({
+        cwd: serverCwd,
+        base: options.base,
+        head: options.head,
+        maxContextBytes: options.maxContextBytes,
+      });
+      return result.plan;
     }
 
     default:
@@ -322,106 +418,49 @@ async function handleToolCall(
   }
 }
 
-/** MCP Server over stdio */
-export async function startMCPServer(): Promise<void> {
-  const readline = await import("readline");
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    terminal: false,
-  });
+export function createMCPServer(serverCwd = process.cwd()): Server {
+  const server = new Server(
+    { name: "aidoc", version: readPackageVersion() },
+    { capabilities: { tools: {} } },
+  );
 
-  function send(response: MCPResponse): void {
-    const json = JSON.stringify(response);
-    process.stdout.write(
-      `Content-Length: ${Buffer.byteLength(json)}\r\n\r\n${json}`,
-    );
-  }
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: TOOLS,
+  }));
 
-  let buffer = "";
-
-  rl.on("line", async (line: string) => {
-    buffer += line;
-
-    // Try to parse as JSON-RPC
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
-      const request: MCPRequest = JSON.parse(buffer);
-      buffer = "";
-
-      switch (request.method) {
-        case "initialize":
-          send({
-            jsonrpc: "2.0",
-            id: request.id,
-            result: {
-              protocolVersion: "2024-11-05",
-              capabilities: { tools: {} },
-              serverInfo: {
-                name: "aidoc",
-                version: "0.1.0",
-              },
-            },
-          });
-          break;
-
-        case "tools/list":
-          send({
-            jsonrpc: "2.0",
-            id: request.id,
-            result: { tools: TOOLS },
-          });
-          break;
-
-        case "tools/call": {
-          const params = request.params as {
-            name: string;
-            arguments: Record<string, unknown>;
-          };
-          try {
-            const result = await handleToolCall(
-              params.name,
-              params.arguments || {},
-            );
-            send({
-              jsonrpc: "2.0",
-              id: request.id,
-              result: {
-                content: [
-                  {
-                    type: "text",
-                    text: JSON.stringify(result, null, 2),
-                  },
-                ],
-              },
-            });
-          } catch (error: unknown) {
-            const message =
-              error instanceof Error ? error.message : String(error);
-            send({
-              jsonrpc: "2.0",
-              id: request.id,
-              error: { code: -32000, message },
-            });
-          }
-          break;
-        }
-
-        case "notifications/initialized":
-          // Client notification, no response needed
-          break;
-
-        default:
-          send({
-            jsonrpc: "2.0",
-            id: request.id,
-            error: {
-              code: -32601,
-              message: `Method not found: ${request.method}`,
-            },
-          });
-      }
-    } catch {
-      // Not complete JSON yet, continue buffering
+      const result = await handleToolCall(
+        request.params.name,
+        request.params.arguments ?? {},
+        serverCwd,
+      );
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error: unknown) {
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text" as const,
+            text: formatMCPError(error),
+          },
+        ],
+      };
     }
   });
+
+  return server;
+}
+
+/** MCP Server over stdio */
+export async function startMCPServer(): Promise<void> {
+  const server = createMCPServer();
+  await server.connect(new StdioServerTransport());
 }

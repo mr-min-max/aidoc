@@ -1,47 +1,88 @@
 # 🗺️ Roadmap
 
-This roadmap outlines the development plan for aidoc. We welcome community feedback and contributions!
+This roadmap separates the unreleased release candidate from shipped and future
+work. We welcome community feedback and contributions.
 
-## v0.1.0 — Foundation (Current) ✅
+## Current source-beta candidate
 
-- [x] TypeScript/JavaScript AST parser (ts-morph)
-- [x] Multi-provider LLM support (OpenAI, Anthropic, Ollama)
-- [x] 6 CLI commands: readme, api, annotate, changelog, diagram, update
-- [x] Diff-aware documentation updates
-- [x] Handlebars template system
-- [x] Zod-validated configuration
-- [x] CI/CD with GitHub Actions
+### v0.2.0-beta.2 — Trust and Semantic Documentation Impact
 
-## v0.2.0 — Multi-Language & Intelligence
+- Provider Trust Gate for rendered input and completed output
+- Provider-free `aidoc plan` with human and versioned JSON output
+- Stable AST snapshots for TypeScript, JavaScript, and Python
+- Deterministic change classification and documentation mapping
+- Exact byte-bounded provider context without raw source or raw Git diffs
+- Shared planning core for CLI, MCP, and `aidoc update`
+- Packaged CLI, GitHub Action, and MCP release-integrity smoke coverage
 
-- [x] Python AST parser (via Python `ast` module subprocess)
-- [x] AST caching for faster repeated runs
-- [x] Retry logic with exponential backoff (now wired into every provider)
-- [x] Structured logging with `--verbose` flag
-- [x] MCP (Model Context Protocol) server
-- [x] GitHub Action for CI/CD integration
-- [x] Documentation health scoring (`aidoc score`) — deterministic, CI-gateable
-- [x] Live watch mode with streaming LLM output (`aidoc watch`)
-- [x] Pluggable provider registry
-- [ ] Go parser (via `go/ast`)
-- [ ] Rust parser (via `syn` subprocess)
+This candidate remains source-only until its public-beta checks, tag, npm
+publication, and GitHub prerelease are separately approved and completed.
 
-## v0.3.0 — Ecosystem & Polish
+### Additional current-branch capabilities
 
-- [ ] Plugin system for custom language parsers
-- [ ] Custom template overrides via `.aidocrc.json`
-- [ ] VS Code extension
-- [ ] Interactive `aidoc init` wizard
-- [ ] Monorepo support (workspaces)
+- Python AST parser (Python `ast` subprocess)
+- In-process AST cache for repeated analysis
+- Retry logic with exponential backoff
+- Structured logging with `--verbose`
+- Documentation health scoring (`aidoc score`)
+- Live watch mode with non-streaming LLM regeneration (`aidoc watch`)
+- Pluggable provider registry
 
-## v1.0.0 — Stable Release
+## Planned
 
-- [ ] Comprehensive E2E test suite
-- [ ] 90%+ code coverage
-- [ ] Published npm package with stable API
-- [ ] Documentation website
-- [ ] Support for 5+ programming languages
-- [ ] Community-contributed parser plugins
+### v0.2.0 — Trust Gate follow-ups
+
+- Repository-contained atomic writes
+- MCP directory allowlisting
+- Security doctor and bounded run receipts
+
+### v0.3.0 — Evidence and verification
+
+- Evidence-backed technical claims
+- `aidoc verify` and `aidoc explain`
+
+## Shipped
+
+### v0.1.0 — Source-level foundation
+
+- TypeScript/JavaScript AST parser (`ts-morph`)
+- Multi-provider LLM support (OpenAI, Anthropic, Ollama)
+- CLI commands for README, API, annotation, changelog, diagrams, and updates
+- Git-aware documentation updates
+- Handlebars prompt templates in the source tree
+- Zod-validated configuration
+- CI/CD with GitHub Actions
+
+These bullets describe source-level foundations, not release-integrity-verified
+distribution paths. The v0.1.0 distributed template, Action, and MCP paths were
+not release-integrity verified. The current `v0.2.0-beta.2` source candidate
+repairs those packaging, automation, and transport paths and adds verification
+evidence before release.
+
+## Later ideas
+
+### Language support
+
+- Go parser via `go/ast`
+- Rust parser via a `syn` subprocess
+
+### Ecosystem and polish
+
+- Plugin system for custom language parsers
+- Future custom template overrides through `.aidocrc.json` after the
+  configuration field is wired
+- VS Code extension
+- Interactive `aidoc init` wizard
+- Monorepo/workspace support
+
+### Stable release goals
+
+- Comprehensive end-to-end test suite
+- 90%+ code coverage
+- Published npm package with a stable API
+- Documentation website
+- Support for at least five programming languages
+- Community-contributed parser plugins
 
 ---
 
@@ -51,7 +92,8 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines. We especially welcome:
 
 - 🐍 **Language parsers** — Help us support more languages
 - 🔌 **LLM providers** — Add support for new AI providers
-- 📝 **Templates** — Create better documentation templates
+- 📝 **Templates** — Improve the built-in prompt templates
 - 🐛 **Bug fixes** — Help us improve reliability
 
-Use [GitHub Issues](https://github.com/aidoc-dev/aidoc/issues) to propose features or report bugs.
+Use [GitHub Issues](https://github.com/mr-min-max/aidoc/issues) to propose
+features or report bugs.

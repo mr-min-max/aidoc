@@ -1,0 +1,155 @@
+import { createHash } from "node:crypto";
+import { getSafePlanErrorCode } from "../security/diagnostics";
+import { PlanFailure, type PlanError, type SymbolChange } from "./types";
+
+const PLAN_ERROR_FALLBACK: Readonly<PlanError> = Object.freeze({
+  code: "PLAN_SOURCE_READ_FAILED",
+  message: "Documentation impact planning failed.",
+});
+
+/**
+ * Serializes supported JSON-like data with recursively sorted object keys.
+ *
+ * @param value - The value to canonicalize and serialize.
+ * @returns Deterministic JSON text for hashing and wire envelopes.
+ * @throws {TypeError} When the value is cyclic or cannot be represented.
+ */
+export function canonicalStringify(value: unknown): string {
+  const canonical = canonicalize(value, new WeakSet<object>(), false);
+  if (canonical === undefined) {
+    throw new TypeError("Cannot canonicalize unsupported value.");
+  }
+  return serializeCanonical(canonical);
+}
+
+/**
+ * Computes the lowercase SHA-256 digest of a UTF-8 string.
+ *
+ * @param value - Text whose deterministic digest is required.
+ * @returns A 64-character hexadecimal digest.
+ */
+export function sha256Hex(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+/**
+ * Converts an unknown planning failure into the stable, public error envelope.
+ *
+ * @param error - A value caught at a planning boundary.
+ * @returns An allow-listed planning error or the generic read-failure fallback.
+ */
+export function toPlanError(error: unknown): PlanError {
+  try {
+    const planError = PlanFailure.read(error);
+    if (
+      planError === undefined ||
+      getSafePlanErrorCode(planError) !== planError.code
+    ) {
+      return { ...PLAN_ERROR_FALLBACK };
+    }
+    return planError;
+  } catch {
+    return { ...PLAN_ERROR_FALLBACK };
+  }
+}
+
+/**
+ * Orders symbol changes by their stable repository and symbol identity fields.
+ *
+ * @param a - The left change to compare.
+ * @param b - The right change to compare.
+ * @returns A negative, zero, or positive value suitable for `Array.sort`.
+ */
+export function compareChangeKeys(a: SymbolChange, b: SymbolChange): number {
+  return (
+    compareStrings(a.path, b.path) ||
+    compareStrings(a.kind, b.kind) ||
+    compareStrings(a.qualifiedName ?? "", b.qualifiedName ?? "") ||
+    compareStrings(a.category, b.category) ||
+    compareStrings(a.id, b.id)
+  );
+}
+
+function canonicalize(
+  value: unknown,
+  ancestors: WeakSet<object>,
+  inArray: boolean,
+): unknown {
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean"
+  ) {
+    return value;
+  }
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) {
+      throw new TypeError("Cannot canonicalize non-finite number.");
+    }
+    return value;
+  }
+  if (
+    value === undefined ||
+    typeof value === "function" ||
+    typeof value === "symbol"
+  ) {
+    return inArray ? null : undefined;
+  }
+  if (typeof value === "bigint") {
+    throw new TypeError("Cannot canonicalize bigint.");
+  }
+
+  if (ancestors.has(value)) {
+    throw new TypeError("Cannot canonicalize cyclic value.");
+  }
+  ancestors.add(value);
+
+  try {
+    if (Array.isArray(value)) {
+      const canonical: unknown[] = [];
+      for (let index = 0; index < value.length; index += 1) {
+        canonical.push(canonicalize(value[index], ancestors, true));
+      }
+      return canonical;
+    }
+
+    const canonical: Record<string, unknown> = Object.create(null);
+    for (const key of Object.keys(value).sort()) {
+      const entry = canonicalize(
+        (value as Record<string, unknown>)[key],
+        ancestors,
+        false,
+      );
+      if (entry !== undefined) canonical[key] = entry;
+    }
+    return canonical;
+  } finally {
+    ancestors.delete(value);
+  }
+}
+
+function compareStrings(a: string, b: string): number {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
+}
+
+function serializeCanonical(value: unknown): string {
+  if (value === null) return "null";
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    const entries: string[] = [];
+    for (let index = 0; index < value.length; index += 1) {
+      entries.push(index in value ? serializeCanonical(value[index]) : "null");
+    }
+    return `[${entries.join(",")}]`;
+  }
+
+  const object = value as Record<string, unknown>;
+  const fields = Object.keys(object)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${serializeCanonical(object[key])}`);
+  return `{${fields.join(",")}}`;
+}

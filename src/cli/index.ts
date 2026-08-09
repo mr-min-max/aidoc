@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { Command } from "commander";
-import * as dotenv from "dotenv";
 import { readmeCommand } from "./commands/readme";
 import { apiCommand } from "./commands/api";
 import { annotateCommand } from "./commands/annotate";
@@ -9,9 +8,14 @@ import { diagramCommand } from "./commands/diagram";
 import { updateCommand } from "./commands/update";
 import { scoreCommand } from "./commands/score";
 import { watchCommand } from "./commands/watch";
+import { checkCommand } from "./commands/check";
+import { planCommand } from "./commands/plan";
 import { setLogLevel } from "../core/logger";
-
-dotenv.config();
+import { readPackageVersion } from "../core/package-meta";
+import {
+  getSafeErrorDiagnostic,
+  getTrustErrorExitCode,
+} from "../security/diagnostics";
 
 const program = new Command();
 
@@ -20,7 +24,7 @@ program
   .description(
     "🤖 AI-powered documentation generator for codebases. Analyzes your code via AST parsing and generates professional documentation using LLM.",
   )
-  .version("0.1.0")
+  .version(readPackageVersion())
   .option("--verbose", "Enable verbose debug logging")
   .option(
     "--mcp",
@@ -41,13 +45,21 @@ program.addCommand(diagramCommand);
 program.addCommand(updateCommand);
 program.addCommand(scoreCommand);
 program.addCommand(watchCommand);
+program.addCommand(checkCommand);
+program.addCommand(planCommand);
 
 // Handle --mcp flag before parsing commands
 const args = process.argv.slice(2);
 if (args.includes("--mcp")) {
   import("../mcp/server").then(({ startMCPServer }) => {
-    startMCPServer().catch(console.error);
+    startMCPServer().catch((error: unknown) => {
+      console.error(getSafeErrorDiagnostic(error).message);
+      process.exitCode = getTrustErrorExitCode(error);
+    });
   });
 } else {
-  program.parse();
+  program.parseAsync().catch((error: unknown) => {
+    console.error(getSafeErrorDiagnostic(error).message);
+    process.exitCode = getTrustErrorExitCode(error);
+  });
 }

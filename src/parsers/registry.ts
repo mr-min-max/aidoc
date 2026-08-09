@@ -10,6 +10,22 @@ export function getParserForFile(filePath: string): LanguageParser | null {
   return parsers.find((p) => p.supportedExtensions.includes(ext)) || null;
 }
 
+/**
+ * Returns the registered parser that supports a file's extension and exposes
+ * the value-free snapshot boundary used by impact planning.
+ *
+ * Keep this as a separate alias-safe lookup so callers that need the legacy
+ * full parser API do not accidentally depend on snapshot-specific behavior.
+ */
+export function getSnapshotParserForFile(
+  filePath: string,
+): LanguageParser | null {
+  const parser = getParserForFile(filePath);
+  return parser !== null && typeof parser.snapshot === "function"
+    ? parser
+    : null;
+}
+
 /** Adds a language parser to the in-process parser registry. */
 export function registerParser(parser: LanguageParser): void {
   parsers.push(parser);

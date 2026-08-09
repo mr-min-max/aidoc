@@ -10,7 +10,15 @@ module.exports = {
         diagnostics: false,
       },
     ],
+    'node_modules/commander/.+\\.js$': [
+      'ts-jest',
+      {
+        diagnostics: false,
+        tsconfig: { allowJs: true },
+      },
+    ],
   },
+  transformIgnorePatterns: ['/node_modules/(?!commander/)'],
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/cli/index.ts',

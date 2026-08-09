@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "aidoc.public-beta-policy.v1",
+  "canonicalRepository": "mr-min-max/aidoc",
+  "defaultBranch": "main",
+  "candidateBranch": "codex/release-integrity",
+  "protectedIdentities": [
+    {
+      "name": "mr-min-max",
+      "emails": ["254284659+mr-min-max@users.noreply.github.com"]
+    }
+  ],
+  "allowedAutomationEmails": ["noreply@anthropic.com"]
+}

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { listProviders } from "../providers/registry";
+import { TRUST_POLICIES } from "../security/types";
 
 export const ConfigSchema = z.object({
   provider: z
@@ -8,8 +9,9 @@ export const ConfigSchema = z.object({
     .refine((val: string) => listProviders().some((p) => p.name === val), {
       message: "Unknown provider. Run `aidoc` with a registered provider name.",
     }),
-  model: z.string().default("gpt-4o-mini"),
+  model: z.string().min(1).optional(),
   apiKey: z.string().optional(),
+  trustPolicy: z.enum(TRUST_POLICIES).default("redact"),
   ollamaHost: z.string().default("http://localhost:11434"),
   include: z
     .array(z.string())
@@ -30,6 +32,7 @@ export const ConfigSchema = z.object({
     ]),
   language: z.string().default("en"),
   outputDir: z.string().default("./docs"),
+  maxContextBytes: z.number().int().min(1024).max(1048576).default(12000),
   templates: z.string().optional(),
   readme: z
     .object({
