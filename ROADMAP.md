@@ -55,9 +55,9 @@ publication, and GitHub prerelease are separately approved and completed.
 
 These bullets describe source-level foundations, not release-integrity-verified
 distribution paths. The v0.1.0 distributed template, Action, and MCP paths were
-not release-integrity verified. The unreleased v0.1.1 candidate repairs those
-packaging, automation, and transport paths and adds verification evidence
-before release.
+not release-integrity verified. The current `v0.2.0-beta.2` source candidate
+repairs those packaging, automation, and transport paths and adds verification
+evidence before release.
 
 ## Later ideas
 

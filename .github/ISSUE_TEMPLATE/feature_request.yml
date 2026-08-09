@@ -7,6 +7,22 @@ body:
     attributes:
       value: |
         Thanks for your idea! Tell us what you'd like to see in aidoc.
+  - type: input
+    id: version
+    attributes:
+      label: aidoc version or commit
+      description: Provide the source-beta version or exact Git commit used for this request.
+      placeholder: "0.2.0-beta.2 or commit SHA"
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: Run `node --version` in the same environment.
+      placeholder: "22.x"
+    validations:
+      required: true
   - type: textarea
     id: problem
     attributes:
@@ -46,6 +62,11 @@ body:
     attributes:
       label: Suggested acceptance criteria
       description: What observable behavior would make this complete?
+  - type: textarea
+    id: verification
+    attributes:
+      label: Focused tests and release-gate evidence
+      description: If you have an implementation, list focused tests and the result of `npm run verify:release`.
   - type: checkboxes
     id: contribution
     attributes:
