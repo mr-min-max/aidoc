@@ -15,6 +15,8 @@ const PREFLIGHT_SCRIPT = path.resolve("scripts/public-beta-preflight.mjs");
 const APPROVED_EMAIL = "100+tester@users.noreply.github.com";
 const PRIVATE_EMAIL = "private-person@example.invalid";
 const GITHUB_AUTOMATION_EMAIL = "noreply@github.com";
+const DEPENDABOT_AUTOMATION_EMAIL =
+  "49699333+dependabot[bot]@users.noreply.github.com";
 
 async function git(repositoryRoot, args) {
   return execFileAsync("git", args, {
@@ -174,7 +176,7 @@ test("passes the protected identity after rewriting it to the approved noreply",
   assertValueSafe(report, fixture, [PRIVATE_EMAIL, APPROVED_EMAIL]);
 });
 
-test("repository policy allows a GitHub merge committer", async (t) => {
+test("repository policy allows GitHub automation commit identities", async (t) => {
   const fixture = await createFixture(t);
   const repositoryPolicy = JSON.parse(
     await readFile(path.resolve(".github/public-beta-policy.json"), "utf8"),
@@ -205,6 +207,24 @@ test("repository policy allows a GitHub merge committer", async (t) => {
       GIT_COMMITTER_EMAIL: GITHUB_AUTOMATION_EMAIL,
     },
   });
+  await writeFile(
+    path.join(fixture.repositoryRoot, "dependabot.txt"),
+    "Dependabot fixture\n",
+    "utf8",
+  );
+  await git(fixture.repositoryRoot, ["add", "dependabot.txt"]);
+  await execFileAsync("git", ["commit", "-m", "Dependabot fixture"], {
+    cwd: fixture.repositoryRoot,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      GIT_CONFIG_NOSYSTEM: "1",
+      GIT_AUTHOR_NAME: "dependabot[bot]",
+      GIT_AUTHOR_EMAIL: DEPENDABOT_AUTOMATION_EMAIL,
+      GIT_COMMITTER_NAME: "GitHub",
+      GIT_COMMITTER_EMAIL: GITHUB_AUTOMATION_EMAIL,
+    },
+  });
 
   const report = await runPreflight(fixture);
 
@@ -213,6 +233,7 @@ test("repository policy allows a GitHub merge committer", async (t) => {
   assertValueSafe(report, fixture, [
     APPROVED_EMAIL,
     GITHUB_AUTOMATION_EMAIL,
+    DEPENDABOT_AUTOMATION_EMAIL,
   ]);
 });
 
