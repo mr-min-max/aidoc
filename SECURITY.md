@@ -16,4 +16,12 @@ Provider-backed generation sends selected context to the configured provider.
 Ollama is the local-provider option; OpenAI and Anthropic are remote-provider
 options.
 
-If the project receives Codex Security access, maintainers will use it only on repositories they own or are authorized to administer, and will track validated findings through private disclosure or public issues depending on impact.
+`aidoc plan` is provider-free. Provider impact context used by `aidoc update`
+is deterministic and byte-bounded and excludes raw source, raw diffs, and
+credential values. These boundaries reduce exposure but do not turn generated
+output into trusted code or replace repository access controls.
+
+Security reports should include the affected commit or beta version, a minimal
+reproduction, and impact. Do not place working credentials or sensitive source
+material in the report; coordinate a safe transfer through the private
+advisory if maintainers need additional evidence.

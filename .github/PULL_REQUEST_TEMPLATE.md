@@ -14,6 +14,7 @@
 
 - [ ] Added/updated unit tests where behavior changed
 - [ ] `npm run verify:release` passes
+- [ ] `npm run test:public-beta` passes for beta/onboarding changes
 
 ## Known limits
 
@@ -37,3 +38,4 @@
 - [ ] New parsers/providers have unit tests
 - [ ] LLM features use the `LLMProvider` interface rather than provider-specific core logic
 - [ ] Documentation updated if needed (README, CONTRIBUTING)
+- [ ] No API keys, personal contact data, raw provider context, or private paths are included

@@ -2,6 +2,13 @@
 
 > **AI-powered documentation generator for codebases.**
 
+> [!IMPORTANT]
+> **Public Beta candidate (`0.2.0-beta.2`).** The source tree is ready for
+> early testing on Node.js `>=22.12.0`, but the npm package and GitHub Action
+> tag are not published yet. `aidoc plan` is deterministic and provider-free;
+> generation and non-empty updates require a configured LLM provider. Feedback
+> and focused contributions are welcome before v1.
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A522.12-green.svg)](https://nodejs.org/)
@@ -17,7 +24,9 @@ It is specifically designed for **Open Source maintainers** who want to spend le
 
 - 🧠 **AST-Powered Context** — Doesn't just read text; understands your code structure (functions, classes, exports) via `ts-morph` (TypeScript) and Python's `ast` module.
 - 🐍 **Multi-Language** — Built-in support for TypeScript, JavaScript, and Python with real AST parsing. Extensible parser architecture for adding more languages.
-- 🔄 **Diff-Aware Updates** — `aidoc update` supplies the selected Git changes to the configured provider as context for a documentation update; review generated content before accepting it.
+- 🔄 **Impact-Aware Updates** — `aidoc update` builds a deterministic,
+  byte-bounded semantic impact plan before provider construction; raw source
+  and raw Git diffs are excluded from provider impact context.
 - 🏠 **Local Provider Option** — Use **Ollama** when the model and code context should stay on your machine; OpenAI and Anthropic are remote provider options.
 - 🎨 **Packaged Prompts** — Built-in Handlebars prompt templates ship with the npm package.
 - 🚀 **GitHub Action** — Automate documentation generation and AST-backed source/document co-change checks with `mr-min-max/aidoc`.
@@ -44,9 +53,12 @@ See [Codex maintainer workflows](./docs/codex-maintainer-workflows.md) for the A
 ## 🚀 Quick Start
 
 ```bash
-npx aidoc-gen plan
-npx aidoc-gen update --dry-run
-npx aidoc-gen plan --json
+git clone https://github.com/mr-min-max/aidoc.git
+cd aidoc
+npm ci
+npm run build
+node dist/cli/index.js plan
+node dist/cli/index.js plan --json
 ```
 
 `plan` is deterministic, AST-backed, and requires no provider or API key. It
@@ -83,11 +95,14 @@ Try the complete fixed, temporary-repository fixture locally:
 npm run demo:impact
 ```
 
-## 📦 Installation
+## 📦 Source Beta Installation
 
-```bash
-npm install -g aidoc-gen
-```
+`aidoc-gen` is not published to npm yet. For this source beta, use the checkout
+steps above. You can optionally run `npm link` after building to make the
+`aidoc` command available globally in your local development environment.
+
+Do not depend on the `0.2.0-beta.2` package or Action ref until a matching tag,
+npm package, and GitHub prerelease are deliberately published.
 
 ## ⚙️ Configuration
 
@@ -272,8 +287,8 @@ Pull-request workflows should use
 Use aidoc as a tool in AI assistants like ChatGPT, Claude, or Cursor:
 
 ```bash
-# Start MCP server
-aidoc --mcp
+# Start the source-beta MCP server
+node /absolute/path/to/aidoc/dist/cli/index.js --mcp
 ```
 
 ### Claude Desktop / Cursor config
@@ -282,8 +297,8 @@ aidoc --mcp
 {
   "mcpServers": {
     "aidoc": {
-      "command": "npx",
-      "args": ["aidoc-gen", "--mcp"]
+      "command": "node",
+      "args": ["/absolute/path/to/aidoc/dist/cli/index.js", "--mcp"]
     }
   }
 }

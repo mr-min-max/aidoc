@@ -3,17 +3,20 @@
 This roadmap separates the unreleased release candidate from shipped and future
 work. We welcome community feedback and contributions.
 
-## Release candidate
+## Current source-beta candidate
 
-### v0.1.1 — Release Integrity
+### v0.2.0-beta.2 — Trust and Semantic Documentation Impact
 
-- Packaged Handlebars templates with tarball smoke coverage
-- Failure-propagating GitHub Action generate/check modes
-- Deterministic AST-backed documentation co-change command
-- Standards-compliant MCP stdio transport
+- Provider Trust Gate for rendered input and completed output
+- Provider-free `aidoc plan` with human and versioned JSON output
+- Stable AST snapshots for TypeScript, JavaScript, and Python
+- Deterministic change classification and documentation mapping
+- Exact byte-bounded provider context without raw source or raw Git diffs
+- Shared planning core for CLI, MCP, and `aidoc update`
+- Packaged CLI, GitHub Action, and MCP release-integrity smoke coverage
 
-`v0.1.1` remains unreleased until its tag, npm publication, and release checks
-all succeed.
+This candidate remains source-only until its public-beta checks, tag, npm
+publication, and GitHub prerelease are separately approved and completed.
 
 ### Additional current-branch capabilities
 
@@ -25,12 +28,6 @@ all succeed.
 - Live watch mode with non-streaming LLM regeneration (`aidoc watch`)
 - Pluggable provider registry
 
-## In progress
-
-### v0.2.0-beta.1 — Trust Gate
-
-- Provider-context secret detection and redaction
-
 ## Planned
 
 ### v0.2.0 — Trust Gate follow-ups
@@ -39,9 +36,8 @@ all succeed.
 - MCP directory allowlisting
 - Security doctor and bounded run receipts
 
-### v0.3.0 — ProofGraph
+### v0.3.0 — Evidence and verification
 
-- Semantic AST documentation impact
 - Evidence-backed technical claims
 - `aidoc verify` and `aidoc explain`
 

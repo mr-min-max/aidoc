@@ -41,6 +41,11 @@ body:
     attributes:
       label: Alternatives considered
       description: What workarounds or alternative approaches have you tried?
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Suggested acceptance criteria
+      description: What observable behavior would make this complete?
   - type: checkboxes
     id: contribution
     attributes:

@@ -11,8 +11,8 @@ body:
     id: version
     attributes:
       label: aidoc version
-      description: "Run `aidoc --version` to get this"
-      placeholder: "0.1.0"
+      description: "Run `aidoc --version`, or provide the Git commit for a source checkout"
+      placeholder: "0.2.0-beta.2 or commit SHA"
     validations:
       required: true
   - type: dropdown
@@ -33,6 +33,13 @@ body:
       description: What happened? What did you expect to happen?
     validations:
       required: true
+  - type: checkboxes
+    id: provider-free
+    attributes:
+      label: Provider-free reproduction
+      description: Planning bugs should be reproduced without credentials when possible.
+      options:
+        - label: I tried to reproduce this with `aidoc plan` or `aidoc plan --json`
   - type: textarea
     id: reproduce
     attributes:

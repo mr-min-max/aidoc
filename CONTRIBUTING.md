@@ -6,10 +6,11 @@ First off, thanks for taking the time to contribute! 🎉
 
 Use Node.js `>=22.12.0`.
 
-1. Clone the repo
-2. Install dependencies: `npm install`
+1. Fork or clone the repository.
+2. Install the locked dependency graph: `npm ci`.
 3. Build the CLI: `npm run build`
-4. Link it locally: `npm link` (now you can run `aidoc` anywhere)
+4. Verify the provider-free path: `node dist/cli/index.js plan`.
+5. Optionally run `npm link` to use `aidoc` globally while developing.
 
 ## Running Tests
 
@@ -26,6 +27,15 @@ Before opening a pull request, run the same release-integrity gate used by CI:
 ```bash
 npm run verify:release
 ```
+
+For public-beta preparation changes, also run:
+
+```bash
+npm run test:public-beta
+```
+
+Never include API keys, raw provider context, private paths, or personal
+contact details in issues, fixtures, logs, or pull requests.
 
 ## Architecture
 
@@ -71,6 +81,9 @@ Good starter tasks usually fit one of these areas:
 - Improve Handlebars templates in `src/templates/`.
 - Add focused tests around CLI flags and output validation.
 - Improve documentation examples for `score`, `watch`, and MCP usage.
+
+Check issues labeled [`good first issue`](https://github.com/mr-min-max/aidoc/labels/good%20first%20issue)
+for tasks with current acceptance criteria.
 
 ## Code Style
 
