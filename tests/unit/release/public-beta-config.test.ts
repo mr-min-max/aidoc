@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -40,5 +41,14 @@ describe("public beta repository configuration", () => {
       expect(update.schedule.timezone).toBe("Europe/Kiev");
       expect(update["open-pull-requests-limit"]).toBeLessThanOrEqual(5);
     }
+  });
+
+  it("keeps private publication material outside tracked Git", () => {
+    expect(() =>
+      execFileSync("git", ["check-ignore", "--quiet", ".private/probe"], {
+        cwd: path.resolve("."),
+        stdio: "pipe",
+      }),
+    ).not.toThrow();
   });
 });
