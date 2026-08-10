@@ -149,6 +149,41 @@ describe("prepareDocumentTarget", () => {
     });
     expect(fs.readdirSync(root)).toEqual(["preview.md"]);
   });
+
+  it("rejects a control-bearing dry-run target without opening a writer", async () => {
+    // Catches a terminal-output injection regression that preserves raw target
+    // text as a dry-run display label before lexical validation.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-context-"));
+    roots.push(root);
+    const open = jest.spyOn(RepositoryWriteScope, "open");
+
+    await expect(
+      prepareDocumentTarget(root, `preview/${String.fromCharCode(27)}[2J.md`, true),
+    ).rejects.toMatchObject({ code: "TRUST_INVALID_PATH" });
+
+    expect(open).not.toHaveBeenCalled();
+    expect(fs.readdirSync(root)).toEqual([]);
+  });
+
+  it("uses a basename label for a valid external dry-run preview", async () => {
+    // Catches a display-path regression that leaks an absolute external target
+    // into diffs, confirmation prompts, or status messages.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-context-"));
+    const external = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-external-"));
+    roots.push(root, external);
+    const externalTarget = path.join(external, "private-preview.md");
+    fs.writeFileSync(externalTarget, "# Preview\n");
+    const open = jest.spyOn(RepositoryWriteScope, "open");
+
+    const target = await prepareDocumentTarget(root, externalTarget, true);
+
+    expect(target).toEqual({
+      displayPath: "private-preview.md",
+      existingText: "# Preview\n",
+    });
+    expect(open).not.toHaveBeenCalled();
+    expect(fs.readdirSync(root)).toEqual([]);
+  });
 });
 
 describe("enforceGeneratedOutput", () => {

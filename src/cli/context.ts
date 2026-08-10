@@ -17,6 +17,10 @@ import {
   RepositoryWriteScope,
   type PreparedRepositoryTarget,
 } from "../security/repository-writer";
+import {
+  assertValidRepositoryTarget,
+  isRepositoryContainedPath,
+} from "../security/repository-path";
 
 export interface CommandOptions {
   mock?: boolean;
@@ -112,9 +116,12 @@ export async function prepareDocumentTarget(
   scope?: RepositoryWriteScope,
 ): Promise<DocumentTarget> {
   if (dryRun) {
+    assertValidRepositoryTarget(rawTarget);
+    const resolvedCwd = path.resolve(cwd);
+    const resolvedTarget = path.resolve(resolvedCwd, rawTarget);
     return {
-      displayPath: rawTarget,
-      existingText: readExistingMarkdown(path.resolve(cwd, rawTarget)),
+      displayPath: dryRunDisplayPath(resolvedCwd, resolvedTarget),
+      existingText: readExistingMarkdown(resolvedTarget),
     };
   }
 
@@ -125,6 +132,15 @@ export async function prepareDocumentTarget(
     existingText: prepared.existingText,
     prepared,
   };
+}
+
+function dryRunDisplayPath(cwd: string, target: string): string {
+  const relativeTarget = path.relative(cwd, target);
+  if (relativeTarget.length > 0 && isRepositoryContainedPath(cwd, target)) {
+    return relativeTarget;
+  }
+
+  return path.basename(target) || "document";
 }
 
 /**

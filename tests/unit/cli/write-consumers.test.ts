@@ -233,6 +233,38 @@ describe("generated document command write preparation", () => {
     }
   });
 
+  it("rejects a control-bearing README dry-run target before provider transport", async () => {
+    // Catches a command-order regression that permits an unsafe dry-run label
+    // to reach provider generation or rendered CLI output.
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-command-"));
+    const output = `preview/${String.fromCharCode(27)}[2JREADME.md`;
+    const generator = new MockGenerator();
+    const generate = jest
+      .spyOn(generator, "generateReadme")
+      .mockRejectedValue(new Error("provider transport was called"));
+    const load = mockCommandContext(generator, cwd);
+    const analyze = jest
+      .spyOn(analyzer, "analyzeCodebase")
+      .mockResolvedValue(parsedModules(cwd));
+    const open = jest.spyOn(RepositoryWriteScope, "open");
+    const exit = suppressCommandFailure();
+
+    try {
+      await readmeCommand.parseAsync(["--dry-run", "--output", output], {
+        from: "user",
+      });
+
+      expect(generate).not.toHaveBeenCalled();
+      expect(open).not.toHaveBeenCalled();
+      expect(exit).toHaveBeenCalledWith(2);
+      expect(fs.readdirSync(cwd)).toEqual([]);
+    } finally {
+      load.mockRestore();
+      analyze.mockRestore();
+      fs.rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+
   it("merges a changelog entry with the target snapshot instead of a post-provider file read", async () => {
     // Catches a time-of-check/time-of-use regression that discards the prepared snapshot after generation.
     const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-command-"));
