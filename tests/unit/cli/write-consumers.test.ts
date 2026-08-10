@@ -5,6 +5,7 @@ import { readmeCommand } from "../../../src/cli/commands/readme";
 import { apiCommand } from "../../../src/cli/commands/api";
 import { changelogCommand } from "../../../src/cli/commands/changelog";
 import { diagramCommand } from "../../../src/cli/commands/diagram";
+import { scoreCommand } from "../../../src/cli/commands/score";
 import { MockGenerator } from "../../../src/cli/mock-generator";
 import { defaultConfig } from "../../../src/config/loader";
 import * as commandContext from "../../../src/cli/context";
@@ -318,6 +319,139 @@ describe("generated document command write preparation", () => {
       latestTag.mockRestore();
       commits.mockRestore();
       fs.rmSync(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("score writer construction", () => {
+  const originalCwd = process.cwd();
+
+  afterEach(() => {
+    process.chdir(originalCwd);
+    jest.restoreAllMocks();
+  });
+
+  it("does not construct a writer when score has no output", async () => {
+    const invocationCwd = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-score-invocation-"),
+    );
+    const analysisDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-score-analysis-"),
+    );
+    process.chdir(invocationCwd);
+    jest.spyOn(analyzer, "analyzeCodebase").mockResolvedValue([]);
+    const open = jest.spyOn(RepositoryWriteScope, "open");
+    jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const exit = suppressCommandFailure();
+
+    try {
+      await scoreCommand.parseAsync(["--dir", analysisDir], { from: "user" });
+
+      expect(open).not.toHaveBeenCalled();
+      expect(exit).not.toHaveBeenCalled();
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(invocationCwd, { recursive: true, force: true });
+      fs.rmSync(analysisDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps score dry-run output free of writer scopes and mutation", async () => {
+    const invocationCwd = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-score-invocation-"),
+    );
+    const output = path.join("preview", "score.md");
+    process.chdir(invocationCwd);
+    jest.spyOn(analyzer, "analyzeCodebase").mockResolvedValue([]);
+    const open = jest.spyOn(RepositoryWriteScope, "open");
+    jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const exit = suppressCommandFailure();
+
+    try {
+      await scoreCommand.parseAsync(["--dry-run", "--output", output], {
+        from: "user",
+      });
+
+      expect(open).not.toHaveBeenCalled();
+      expect(fs.existsSync(path.join(invocationCwd, "preview"))).toBe(false);
+      expect(exit).not.toHaveBeenCalled();
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(invocationCwd, { recursive: true, force: true });
+    }
+  });
+
+  // Break caught: score resolves its output from a later process cwd (or the
+  // analysis directory) instead of the invocation repository captured at entry.
+  it("opens real score output from invocation cwd independently of analysis dir", async () => {
+    const invocationCwd = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-score-invocation-"),
+    );
+    const analysisDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-score-analysis-"),
+    );
+    process.chdir(invocationCwd);
+    const capturedInvocationCwd = process.cwd();
+    jest
+      .spyOn(analyzer, "analyzeCodebase")
+      .mockImplementation(async (cwd) => {
+        expect(cwd).toBe(analysisDir);
+        process.chdir(analysisDir);
+        return [];
+      });
+    const replaceText = jest.fn().mockResolvedValue(undefined);
+    const prepare = jest.fn().mockResolvedValue({
+      displayPath: "score.md",
+      existingText: null,
+      replaceText,
+    });
+    const open = jest
+      .spyOn(RepositoryWriteScope, "open")
+      .mockResolvedValue({ prepare } as unknown as RepositoryWriteScope);
+    jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const exit = suppressCommandFailure();
+
+    try {
+      await scoreCommand.parseAsync(
+        ["--dir", analysisDir, "--output", "score.md"],
+        { from: "user" },
+      );
+
+      expect(open).toHaveBeenCalledWith(capturedInvocationCwd);
+      expect(prepare).toHaveBeenCalledWith("score.md");
+      expect(replaceText).toHaveBeenCalledTimes(1);
+      expect(exit).not.toHaveBeenCalled();
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(invocationCwd, { recursive: true, force: true });
+      fs.rmSync(analysisDir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects outside score output with status 2 and no report file", async () => {
+    const invocationCwd = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-score-invocation-"),
+    );
+    const outsideDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-score-outside-"),
+    );
+    const outside = path.join(outsideDir, "score.md");
+    process.chdir(invocationCwd);
+    jest.spyOn(analyzer, "analyzeCodebase").mockResolvedValue([]);
+    const { prepare } = rejectOutsideTarget();
+    jest.spyOn(console, "log").mockImplementation(() => undefined);
+    const exit = suppressCommandFailure();
+
+    try {
+      await scoreCommand.parseAsync(["--output", outside], { from: "user" });
+
+      expect(prepare).toHaveBeenCalledWith(outside);
+      expect(exit).toHaveBeenCalledWith(2);
+      expect(fs.existsSync(outside)).toBe(false);
+    } finally {
+      process.chdir(originalCwd);
+      fs.rmSync(invocationCwd, { recursive: true, force: true });
+      fs.rmSync(outsideDir, { recursive: true, force: true });
     }
   });
 });

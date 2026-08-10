@@ -25,12 +25,13 @@ export const scoreCommand = new Command("score")
   )
   .option("--dry-run", "Preview report without writing")
   .action(async (options) => {
+    const invocationCwd = process.cwd();
+    const analysisDir = options.dir ?? invocationCwd;
     const spinner = ora("Scoring documentation health...").start();
     try {
-      const cwd = options.dir || process.cwd();
       const config = loadConfig();
       const modules = await analyzeCodebase(
-        cwd,
+        analysisDir,
         config.include,
         config.exclude,
       );
@@ -67,6 +68,7 @@ export const scoreCommand = new Command("score")
       }
 
       if (options.output) {
+        const dryRun = options.dryRun ?? false;
         const band = BAND_META[result.band];
         const tplSrc = fs.readFileSync(
           path.resolve(__dirname, "../../templates/score.hbs"),
@@ -74,15 +76,9 @@ export const scoreCommand = new Command("score")
         );
         const report = Handlebars.compile(tplSrc)({ result, bandMeta: band });
         await writeDoc(
-          await prepareDocumentTarget(
-            process.cwd(),
-            options.output,
-            options.dryRun,
-          ),
+          await prepareDocumentTarget(invocationCwd, options.output, dryRun),
           report,
-          {
-            dryRun: options.dryRun,
-          },
+          { dryRun },
         );
       }
 

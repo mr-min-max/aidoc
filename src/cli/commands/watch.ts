@@ -5,6 +5,7 @@ import * as path from "path";
 import {
   loadCommandContext,
   prepareDocumentTarget,
+  type CommandContext,
   writeDoc,
   readProjectInfo,
 } from "../context";
@@ -12,6 +13,54 @@ import { analyzeCodebase } from "../../core/analyzer";
 import { debounce, isRelevantChange } from "../../core/watcher";
 import { logger } from "../../core/logger";
 import { getSafeErrorDiagnostic } from "../../security/diagnostics";
+import { RepositoryWriteScope } from "../../security/repository-writer";
+
+export interface WatchRegeneratorOptions {
+  auto?: boolean;
+}
+
+/** Builds one regeneration pass while sharing only the pinned repository scope. */
+export function createWatchRegenerator(
+  ctx: CommandContext,
+  scope: RepositoryWriteScope,
+  rawTarget: string,
+  options: WatchRegeneratorOptions,
+): () => Promise<void> {
+  return async () => {
+    const start = Date.now();
+    try {
+      logger.info("Change detected — regenerating…");
+      const modules = await analyzeCodebase(
+        ctx.cwd,
+        ctx.config.include,
+        ctx.config.exclude,
+      );
+      const {
+        name: projectName,
+        description,
+        dependencies,
+      } = readProjectInfo(ctx.cwd);
+      const target = await prepareDocumentTarget(
+        ctx.cwd,
+        rawTarget,
+        false,
+        scope,
+      );
+      const readme = await ctx.generator.generateReadme({
+        projectName,
+        description,
+        modules,
+        dependencies,
+      } as any);
+      await writeDoc(target, readme, { auto: options.auto });
+      console.log(chalk.green(`✔ Regenerated in ${Date.now() - start}ms`));
+    } catch (error: unknown) {
+      logger.error(
+        `Regeneration failed: ${getSafeErrorDiagnostic(error).message}`,
+      );
+    }
+  };
+}
 
 export const watchCommand = new Command("watch")
   .description("Watch source files and regenerate docs live on save")
@@ -30,40 +79,11 @@ export const watchCommand = new Command("watch")
       ),
     );
 
-    const regenerate = debounce(async () => {
-      const start = Date.now();
-      try {
-        logger.info("Change detected — regenerating…");
-        const modules = await analyzeCodebase(
-          ctx.cwd,
-          ctx.config.include,
-          ctx.config.exclude,
-        );
-        const {
-          name: projectName,
-          description,
-          dependencies,
-        } = readProjectInfo(ctx.cwd);
-        const readme = await ctx.generator.generateReadme({
-          projectName,
-          description,
-          modules,
-          dependencies,
-        } as any);
-        await writeDoc(
-          await prepareDocumentTarget(ctx.cwd, options.target, false),
-          readme,
-          {
-            auto: options.auto,
-          },
-        );
-        console.log(chalk.green(`✔ Regenerated in ${Date.now() - start}ms`));
-      } catch (error: unknown) {
-        logger.error(
-          `Regeneration failed: ${getSafeErrorDiagnostic(error).message}`,
-        );
-      }
-    }, 300);
+    const scope = await RepositoryWriteScope.open(ctx.cwd);
+    const regenerate = debounce(
+      createWatchRegenerator(ctx, scope, options.target, options),
+      300,
+    );
 
     const watcher = chokidar.watch(globs, {
       ignored: ctx.config.exclude,

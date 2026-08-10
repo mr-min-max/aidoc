@@ -14,7 +14,10 @@ import type {
   ImpactProviderContext,
 } from "../../../src/impact/types";
 import * as providerRegistry from "../../../src/providers/registry";
-import { TrustViolationError } from "../../../src/security/types";
+import {
+  RepositoryWriteError,
+  TrustViolationError,
+} from "../../../src/security/types";
 
 const byCategory = {
   added: 0,
@@ -149,10 +152,15 @@ describe("update impact flow", () => {
       .spyOn(impactPlanner, "createImpactPlan")
       .mockResolvedValue(planningResult(false));
     const loadContext = jest.spyOn(commandContext, "loadCommandContext");
+    const prepareTarget = jest.spyOn(
+      commandContext,
+      "prepareDocumentTarget",
+    );
 
     expect(await executeUpdateCommand({}, root)).toBe(0);
 
     expect(loadContext).not.toHaveBeenCalled();
+    expect(prepareTarget).not.toHaveBeenCalled();
     expect(consoleLog.mock.calls.flat().join("\n")).toContain(
       "No documentation updates are indicated.",
     );
@@ -186,11 +194,20 @@ describe("update impact flow", () => {
     expect(createPlan).not.toHaveBeenCalled();
   });
 
-  // Break caught: the mock path keeps the legacy changedFiles shape or dry-run
-  // stops flowing to the shared preview/write boundary.
-  it("passes the same safe update context through mock dry-run generation", async () => {
+  // Break caught: update reads the output path independently instead of using
+  // the prepared writer snapshot for both generation and replacement.
+  it("uses one prepared snapshot for update generation and replacement", async () => {
     const result = planningResult(true);
+    writeFileSync(join(root, "README.md"), "# Live read must be ignored\n");
     jest.spyOn(impactPlanner, "createImpactPlan").mockResolvedValue(result);
+    const target = {
+      displayPath: "README.md",
+      existingText: "# Existing\n",
+      prepared: { replaceText: jest.fn() },
+    };
+    const prepareDocumentTarget = jest
+      .spyOn(commandContext, "prepareDocumentTarget")
+      .mockResolvedValue(target as never);
     const generateUpdate = jest.fn().mockResolvedValue("# Updated\n");
     jest.spyOn(commandContext, "loadCommandContext").mockResolvedValue({
       config: defaultConfig,
@@ -202,22 +219,51 @@ describe("update impact flow", () => {
       .spyOn(commandContext, "writeDoc")
       .mockResolvedValue(undefined);
 
-    expect(await executeUpdateCommand({ mock: true, dryRun: true }, root)).toBe(
-      0,
-    );
+    expect(await executeUpdateCommand({ mock: true }, root)).toBe(0);
 
+    expect(prepareDocumentTarget).toHaveBeenCalledWith(
+      root,
+      "./README.md",
+      false,
+    );
     expect(generateUpdate).toHaveBeenCalledWith({
       existingDoc: "# Existing\n",
       impactPlan: result.providerContext,
     });
     expect(writeDoc).toHaveBeenCalledWith(
-      {
-        displayPath: "./README.md",
-        existingText: "# Existing\n",
-      },
+      expect.objectContaining({ existingText: "# Existing\n" }),
       "# Updated\n",
-      { dryRun: true },
+      { dryRun: false },
     );
+  });
+
+  // Break caught: an unsafe update target reaches provider construction and
+  // generation before repository containment rejects it.
+  it("rejects an unsafe target before provider construction", async () => {
+    jest
+      .spyOn(impactPlanner, "createImpactPlan")
+      .mockResolvedValue(planningResult(true));
+    jest
+      .spyOn(commandContext, "prepareDocumentTarget")
+      .mockRejectedValue(
+        new RepositoryWriteError("TRUST_PATH_OUTSIDE_ROOT"),
+      );
+    const generateUpdate = jest.fn().mockResolvedValue("# Updated\n");
+    const loadContext = jest
+      .spyOn(commandContext, "loadCommandContext")
+      .mockResolvedValue({
+        config: defaultConfig,
+        cwd: root,
+        generator: { generateUpdate } as never,
+        isMock: false,
+      });
+
+    expect(await executeUpdateCommand({ target: "../outside.md" }, root)).toBe(
+      2,
+    );
+
+    expect(loadContext).not.toHaveBeenCalled();
+    expect(generateUpdate).not.toHaveBeenCalled();
   });
 
   // Break caught: the update wrapper collapses Trust Gate rejection to the

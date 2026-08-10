@@ -1,14 +1,12 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
-import * as path from "path";
 import {
   loadCommandContext,
   prepareDocumentTarget,
   type CommandOptions,
   writeDoc,
 } from "../context";
-import { readExistingMarkdown } from "../../output/markdown";
 import { buildUpdateContext } from "../../core/differ";
 import { createImpactPlan } from "../../impact/planner";
 import type { ImpactPlan } from "../../impact/types";
@@ -39,12 +37,12 @@ export async function executeUpdateCommand(
     if (!hasDocumentationImpact(result.plan)) return 0;
 
     const target = options.target ?? "./README.md";
-    const targetPath = path.resolve(cwd, target);
-    const existingDoc = readExistingMarkdown(targetPath);
-    if (!existingDoc) {
+    const dryRun = options.dryRun ?? false;
+    const documentTarget = await prepareDocumentTarget(cwd, target, dryRun);
+    if (documentTarget.existingText === null) {
       console.error(
         chalk.red(
-          `File not found: ${target}. Run 'aidoc readme' first to generate it.`,
+          "Documentation target does not exist. Run 'aidoc readme' first to generate it.",
         ),
       );
       return 1;
@@ -54,16 +52,10 @@ export async function executeUpdateCommand(
     const genSpinner = ora("Updating documentation with AI...").start();
     try {
       const updatedDoc = await ctx.generator.generateUpdate(
-        buildUpdateContext(existingDoc, result.providerContext),
+        buildUpdateContext(documentTarget.existingText, result.providerContext),
       );
       genSpinner.succeed(chalk.green("Documentation updated!"));
-      await writeDoc(
-        await prepareDocumentTarget(cwd, target, options.dryRun),
-        updatedDoc,
-        {
-          dryRun: options.dryRun,
-        },
-      );
+      await writeDoc(documentTarget, updatedDoc, { dryRun });
       return 0;
     } catch (error: unknown) {
       genSpinner.fail(chalk.red("Failed to update documentation"));
