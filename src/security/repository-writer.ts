@@ -58,7 +58,7 @@ export interface PreparedRepositoryTarget {
 /** Pins one canonical Git worktree for repository-contained file writes. */
 export class RepositoryWriteScope {
   readonly #root: string;
-  readonly #lexicalRoot: string;
+  readonly #lexicalRoot: string | undefined;
   readonly #invocationCwd: string;
   readonly #gitDirectory: string;
   readonly #rootIdentity: FileIdentity;
@@ -68,7 +68,7 @@ export class RepositoryWriteScope {
 
   private constructor(
     root: string,
-    lexicalRoot: string,
+    lexicalRoot: string | undefined,
     invocationCwd: string,
     gitDirectory: string,
     rootIdentity: FileIdentity,
@@ -104,9 +104,13 @@ export class RepositoryWriteScope {
     await requireStableIdentity(discovery.gitDirectory, gitDirectoryIdentity);
     await requireStableIdentity(gitEntryPath, gitEntryIdentity);
 
-    const lexicalRoot = resolve(
+    const lexicalRootCandidate = resolve(
       lexicalCwd,
       relative(canonicalCwd, discovery.root),
+    );
+    const lexicalRoot = await verifiedLexicalRoot(
+      lexicalRootCandidate,
+      discovery.root,
     );
 
     return new RepositoryWriteScope(
@@ -174,7 +178,7 @@ export class RepositoryWriteScope {
 
 function resolveTarget(
   root: string,
-  lexicalRoot: string,
+  lexicalRoot: string | undefined,
   invocationCwd: string,
   rawTarget: string,
 ): string {
@@ -182,10 +186,27 @@ function resolveTarget(
 
   const lexicalTarget = resolve(rawTarget);
   if (isRepositoryContainedPath(root, lexicalTarget)) return lexicalTarget;
-  if (!isRepositoryContainedPath(lexicalRoot, lexicalTarget)) {
+  if (
+    lexicalRoot === undefined ||
+    !isRepositoryContainedPath(lexicalRoot, lexicalTarget)
+  ) {
     return lexicalTarget;
   }
   return resolve(root, relative(lexicalRoot, lexicalTarget));
+}
+
+async function verifiedLexicalRoot(
+  candidate: string,
+  canonicalRoot: string,
+): Promise<string | undefined> {
+  try {
+    const physicalCandidate = await realpath(candidate);
+    return relative(canonicalRoot, physicalCandidate).length === 0
+      ? candidate
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 class PreparedRepositoryTargetImpl implements PreparedRepositoryTarget {
@@ -233,11 +254,14 @@ async function discoverGitScope(canonicalCwd: string): Promise<GitDiscovery> {
       ["rev-parse", "--show-toplevel", "--absolute-git-dir"],
       {
         cwd: canonicalCwd,
-        env: Object.fromEntries(
-          Object.entries(process.env).filter(
-            ([key]) => !key.toUpperCase().startsWith("GIT_"),
+        env: {
+          ...Object.fromEntries(
+            Object.entries(process.env).filter(
+              ([key]) => !key.toUpperCase().startsWith("GIT_"),
+            ),
           ),
-        ),
+          LC_ALL: "C",
+        },
         encoding: "utf8",
         timeout: GIT_DISCOVERY_TIMEOUT_MS,
         maxBuffer: GIT_DISCOVERY_MAX_BUFFER,

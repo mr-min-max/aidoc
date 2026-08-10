@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -9,7 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { RepositoryWriteScope } from "../../../src/security/repository-writer";
 
 describe("repository write target preparation", () => {
@@ -93,6 +94,63 @@ describe("repository write target preparation", () => {
     expect(target.displayPath).toBe("README.md");
     expect(target.existingText).toBe("# Before\n");
   });
+
+  it("rejects external absolute targets when the invocation cwd is a symlink", async () => {
+    const root = createRepository();
+    const nested = join(root, "nested");
+    const outside = createDirectory();
+    const linkedCwd = join(outside, "linked-cwd");
+    mkdirSync(nested);
+    symlinkSync(
+      nested,
+      linkedCwd,
+      process.platform === "win32" ? "junction" : "dir",
+    );
+
+    const scope = await RepositoryWriteScope.open(linkedCwd);
+
+    await expect(
+      scope.prepare(join(outside, "unrelated.md")),
+    ).rejects.toMatchObject({ code: "TRUST_PATH_OUTSIDE_ROOT" });
+  });
+
+  (process.platform === "win32" ? it.skip : it)(
+    "forces a deterministic Git locale before classifying non-repositories",
+    async () => {
+      const fakeBin = createDirectory();
+      const fakeGit = join(fakeBin, "git");
+      writeFileSync(
+        fakeGit,
+        [
+          "#!/bin/sh",
+          'if [ "$LC_ALL" = "C" ]; then',
+          "  echo 'fatal: not a git repository' >&2",
+          "else",
+          "  echo 'fatal: depot introuvable' >&2",
+          "fi",
+          "exit 128",
+          "",
+        ].join("\n"),
+      );
+      chmodSync(fakeGit, 0o755);
+      const originalPath = process.env.PATH;
+      const originalLocale = process.env.LC_ALL;
+
+      try {
+        process.env.PATH = `${fakeBin}${delimiter}${originalPath ?? ""}`;
+        process.env.LC_ALL = "aidoc_TEST.UTF-8";
+
+        await expect(
+          RepositoryWriteScope.open(createDirectory()),
+        ).rejects.toMatchObject({ code: "TRUST_REPOSITORY_REQUIRED" });
+      } finally {
+        if (originalPath === undefined) delete process.env.PATH;
+        else process.env.PATH = originalPath;
+        if (originalLocale === undefined) delete process.env.LC_ALL;
+        else process.env.LC_ALL = originalLocale;
+      }
+    },
+  );
 
   it("keeps canonical repository paths out of the runtime object surface", async () => {
     const root = createRepository();
