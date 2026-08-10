@@ -1,18 +1,29 @@
 import { isUtf8 } from "node:buffer";
 import { execFile } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { constants, type BigIntStats } from "node:fs";
-import { lstat, open, realpath, type FileHandle } from "node:fs/promises";
+import {
+  lstat,
+  mkdir,
+  open,
+  realpath,
+  rename,
+  unlink,
+  type FileHandle,
+} from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import {
   assertValidRepositoryTarget,
   isRepositoryContainedPath,
 } from "./repository-path";
-import { RepositoryWriteError } from "./types";
+import { RepositoryWriteError, type AtomicWriteStage } from "./types";
 
 const execFileAsync = promisify(execFile);
 const GIT_DISCOVERY_TIMEOUT_MS = 5_000;
 const GIT_DISCOVERY_MAX_BUFFER = 16 * 1024;
+const TEMPORARY_FILE_PREFIX = ".aidoc-write-";
+const TEMPORARY_CREATE_ATTEMPTS = 8;
 
 type FileType = "directory" | "regular-file";
 
@@ -42,11 +53,24 @@ interface MissingComponentSnapshot {
 type ComponentSnapshot = ExistingComponentSnapshot | MissingComponentSnapshot;
 
 interface PreparedTargetState {
+  readonly rootPath: string;
   readonly absolutePath: string;
   readonly rootIdentity: FileIdentity;
   readonly components: readonly ComponentSnapshot[];
   readonly leafIdentity: ExistingLeafIdentity | null;
 }
+
+interface RepositoryLockState {
+  tail: Promise<void>;
+  pending: number;
+}
+
+interface TrustedDirectory {
+  readonly absolutePath: string;
+  readonly identity: FileIdentity;
+}
+
+const repositoryLocks = new Map<string, RepositoryLockState>();
 
 /** A safely inspected repository target and its exact UTF-8 snapshot. */
 export interface PreparedRepositoryTarget {
@@ -161,6 +185,7 @@ export class RepositoryWriteScope {
       relativeTarget,
       targetSnapshot.existingText,
       {
+        rootPath: this.#root,
         absolutePath: absoluteTarget,
         rootIdentity: this.#rootIdentity,
         components: targetSnapshot.components,
@@ -222,11 +247,378 @@ class PreparedRepositoryTargetImpl implements PreparedRepositoryTarget {
   }
 
   async replaceText(content: string): Promise<void> {
-    if (!this.#consumed) this.#consumed = true;
-    void content;
-    void this.#state;
-    throw new RepositoryWriteError("TRUST_ATOMIC_WRITE_FAILED", "replace");
+    if (this.#consumed) {
+      throw new RepositoryWriteError("TRUST_RACE_DETECTED");
+    }
+    this.#consumed = true;
+
+    await withRepositoryLock(this.#state.rootIdentity, async () => {
+      await commitReplacement(this.#state, content);
+    });
   }
+}
+
+async function withRepositoryLock<T>(
+  rootIdentity: FileIdentity,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const key = repositoryLockKey(rootIdentity);
+  let state = repositoryLocks.get(key);
+  if (state === undefined) {
+    state = { tail: Promise.resolve(), pending: 0 };
+    repositoryLocks.set(key, state);
+  }
+
+  const previous = state.tail;
+  let release = (): void => undefined;
+  state.tail = new Promise<void>((resolveTail) => {
+    release = resolveTail;
+  });
+  state.pending += 1;
+
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    state.pending -= 1;
+    if (state.pending === 0 && repositoryLocks.get(key) === state) {
+      repositoryLocks.delete(key);
+    }
+  }
+}
+
+function repositoryLockKey(identity: FileIdentity): string {
+  return `${identity.dev.toString()}:${identity.ino.toString()}:${identity.type}`;
+}
+
+async function commitReplacement(
+  state: PreparedTargetState,
+  content: string,
+): Promise<void> {
+  const trustedDirectories = await revalidatePreparedTarget(state);
+  await createMissingDirectories(state, trustedDirectories);
+
+  let temporaryPath: string | undefined;
+  let temporaryHandle: FileHandle | undefined;
+  let temporaryIdentity: FileIdentity | undefined;
+  let failure: RepositoryWriteError;
+
+  try {
+    for (let attempt = 0; attempt < TEMPORARY_CREATE_ATTEMPTS; attempt += 1) {
+      temporaryPath = join(
+        trustedDirectories[trustedDirectories.length - 1].absolutePath,
+        `${TEMPORARY_FILE_PREFIX}${randomTemporarySuffix()}`,
+      );
+      try {
+        temporaryHandle = await open(
+          temporaryPath,
+          constants.O_CREAT |
+            constants.O_EXCL |
+            constants.O_WRONLY |
+            noFollowFlag(),
+          0o600,
+        );
+        break;
+      } catch (error) {
+        temporaryPath = undefined;
+        if (readErrnoCode(error) !== "EEXIST") {
+          throw atomicWriteFailure("temp-create");
+        }
+      }
+    }
+
+    if (temporaryHandle === undefined || temporaryPath === undefined) {
+      throw atomicWriteFailure("temp-create");
+    }
+
+    try {
+      const temporaryStats = await temporaryHandle.stat({ bigint: true });
+      if (!temporaryStats.isFile()) {
+        throw new RepositoryWriteError("TRUST_RACE_DETECTED");
+      }
+      temporaryIdentity = identityFromStats(temporaryStats, "regular-file");
+    } catch (error) {
+      if (error instanceof RepositoryWriteError) throw error;
+      throw atomicWriteFailure("temp-create");
+    }
+
+    await refreshMutatedDirectory(trustedDirectories);
+
+    try {
+      await temporaryHandle.writeFile(content, { encoding: "utf8" });
+    } catch {
+      throw atomicWriteFailure("temp-write");
+    }
+
+    if (process.platform !== "win32") {
+      const finalMode =
+        state.leafIdentity === null
+          ? 0o666 & ~process.umask()
+          : Number(state.leafIdentity.mode & 0o777n);
+      try {
+        await temporaryHandle.chmod(finalMode);
+      } catch {
+        throw atomicWriteFailure("permission");
+      }
+    }
+
+    try {
+      await temporaryHandle.sync();
+      await temporaryHandle.close();
+      temporaryHandle = undefined;
+    } catch {
+      throw atomicWriteFailure("temp-sync");
+    }
+
+    await revalidateBeforeRename(
+      state,
+      trustedDirectories,
+      temporaryPath,
+      temporaryIdentity,
+    );
+
+    try {
+      await rename(temporaryPath, state.absolutePath);
+    } catch {
+      throw atomicWriteFailure("replace");
+    }
+    return;
+  } catch (error) {
+    failure = classifyReplacementFailure(error);
+  }
+
+  if (temporaryHandle !== undefined) {
+    try {
+      await temporaryHandle.close();
+      temporaryHandle = undefined;
+    } catch {
+      failure = atomicWriteFailure("temp-sync");
+    }
+  }
+
+  if (temporaryPath !== undefined) {
+    const cleanupFailure = await cleanupTemporaryFile(
+      trustedDirectories,
+      temporaryPath,
+      temporaryIdentity,
+    );
+    if (cleanupFailure !== undefined) throw cleanupFailure;
+  }
+
+  throw failure;
+}
+
+async function cleanupTemporaryFile(
+  trustedDirectories: readonly TrustedDirectory[],
+  temporaryPath: string,
+  temporaryIdentity: FileIdentity | undefined,
+): Promise<RepositoryWriteError | undefined> {
+  if (temporaryIdentity === undefined) {
+    return new RepositoryWriteError("TRUST_RACE_DETECTED");
+  }
+
+  try {
+    await requireStableIdentity(
+      trustedDirectories[0].absolutePath,
+      trustedDirectories[0].identity,
+    );
+    const parent = trustedDirectories[trustedDirectories.length - 1];
+    if (parent.absolutePath !== trustedDirectories[0].absolutePath) {
+      await requireStableIdentity(parent.absolutePath, parent.identity);
+    }
+
+    const stats = await lstat(temporaryPath, { bigint: true });
+    if (
+      stats.isSymbolicLink() ||
+      !stats.isFile() ||
+      !sameIdentity(temporaryIdentity, identityFromStats(stats, "regular-file"))
+    ) {
+      return new RepositoryWriteError("TRUST_RACE_DETECTED");
+    }
+  } catch {
+    return new RepositoryWriteError("TRUST_RACE_DETECTED");
+  }
+
+  try {
+    await unlink(temporaryPath);
+  } catch {
+    return atomicWriteFailure("cleanup");
+  }
+  return undefined;
+}
+
+function classifyReplacementFailure(error: unknown): RepositoryWriteError {
+  return error instanceof RepositoryWriteError
+    ? error
+    : atomicWriteFailure("replace");
+}
+
+async function revalidatePreparedTarget(
+  state: PreparedTargetState,
+): Promise<TrustedDirectory[]> {
+  await requireStableIdentity(state.rootPath, state.rootIdentity);
+
+  for (const component of state.components.slice(0, -1)) {
+    if ("missing" in component) {
+      await requireAbsent(component.absolutePath);
+    } else {
+      await requireStableIdentity(component.absolutePath, component.identity);
+    }
+  }
+  await requireStableDestination(state);
+
+  return [
+    { absolutePath: state.rootPath, identity: state.rootIdentity },
+    ...state.components.slice(0, -1).flatMap((component) =>
+      "missing" in component
+        ? []
+        : [
+            {
+              absolutePath: component.absolutePath,
+              identity: component.identity,
+            },
+          ],
+    ),
+  ];
+}
+
+async function createMissingDirectories(
+  state: PreparedTargetState,
+  trustedDirectories: TrustedDirectory[],
+): Promise<void> {
+  for (const component of state.components.slice(0, -1)) {
+    if (!("missing" in component)) continue;
+
+    try {
+      await mkdir(component.absolutePath);
+    } catch (error) {
+      if (readErrnoCode(error) !== "EEXIST") {
+        throw atomicWriteFailure("directory-create");
+      }
+    }
+
+    let stats: BigIntStats;
+    try {
+      stats = await lstat(component.absolutePath, { bigint: true });
+    } catch {
+      throw atomicWriteFailure("directory-create");
+    }
+    if (stats.isSymbolicLink() || !stats.isDirectory()) {
+      throw new RepositoryWriteError("TRUST_RACE_DETECTED");
+    }
+
+    await refreshMutatedDirectory(trustedDirectories);
+    trustedDirectories.push({
+      absolutePath: component.absolutePath,
+      identity: identityFromStats(stats, "directory"),
+    });
+  }
+}
+
+async function refreshMutatedDirectory(
+  trustedDirectories: TrustedDirectory[],
+): Promise<void> {
+  const index = trustedDirectories.length - 1;
+  const previous = trustedDirectories[index];
+  let stats: BigIntStats;
+  try {
+    stats = await lstat(previous.absolutePath, { bigint: true });
+  } catch {
+    throw new RepositoryWriteError("TRUST_RACE_DETECTED");
+  }
+  if (
+    stats.isSymbolicLink() ||
+    !stats.isDirectory() ||
+    !sameIdentity(previous.identity, identityFromStats(stats, "directory"))
+  ) {
+    throw new RepositoryWriteError("TRUST_RACE_DETECTED");
+  }
+  trustedDirectories[index] = {
+    absolutePath: previous.absolutePath,
+    identity: identityFromStats(stats, "directory"),
+  };
+}
+
+async function revalidateBeforeRename(
+  state: PreparedTargetState,
+  trustedDirectories: readonly TrustedDirectory[],
+  temporaryPath: string,
+  temporaryIdentity: FileIdentity,
+): Promise<void> {
+  for (const directory of trustedDirectories) {
+    await requireStableIdentity(directory.absolutePath, directory.identity);
+  }
+  await requireStableDestination(state);
+
+  let temporaryStats: BigIntStats;
+  try {
+    temporaryStats = await lstat(temporaryPath, { bigint: true });
+  } catch {
+    throw new RepositoryWriteError("TRUST_RACE_DETECTED");
+  }
+  if (
+    temporaryStats.isSymbolicLink() ||
+    !temporaryStats.isFile() ||
+    !sameIdentity(
+      temporaryIdentity,
+      identityFromStats(temporaryStats, "regular-file"),
+    )
+  ) {
+    throw new RepositoryWriteError("TRUST_RACE_DETECTED");
+  }
+}
+
+async function requireStableDestination(
+  state: PreparedTargetState,
+): Promise<void> {
+  if (state.leafIdentity === null) {
+    await requireAbsent(state.absolutePath);
+    return;
+  }
+
+  let stats: BigIntStats;
+  try {
+    stats = await lstat(state.absolutePath, { bigint: true });
+  } catch {
+    throw new RepositoryWriteError("TRUST_RACE_DETECTED");
+  }
+  if (
+    stats.isSymbolicLink() ||
+    !stats.isFile() ||
+    !sameExistingLeaf(state.leafIdentity, leafIdentityFromStats(stats))
+  ) {
+    throw new RepositoryWriteError("TRUST_RACE_DETECTED");
+  }
+}
+
+async function requireAbsent(path: string): Promise<void> {
+  try {
+    await lstat(path, { bigint: true });
+  } catch (error) {
+    if (readErrnoCode(error) === "ENOENT") return;
+    throw new RepositoryWriteError("TRUST_RACE_DETECTED");
+  }
+  throw new RepositoryWriteError("TRUST_RACE_DETECTED");
+}
+
+function randomTemporarySuffix(): string {
+  try {
+    return randomBytes(16).toString("hex");
+  } catch {
+    throw atomicWriteFailure("temp-create");
+  }
+}
+
+function noFollowFlag(): number {
+  return process.platform !== "win32" &&
+    typeof constants.O_NOFOLLOW === "number"
+    ? constants.O_NOFOLLOW
+    : 0;
+}
+
+function atomicWriteFailure(stage: AtomicWriteStage): RepositoryWriteError {
+  return new RepositoryWriteError("TRUST_ATOMIC_WRITE_FAILED", stage);
 }
 
 interface GitDiscovery {
