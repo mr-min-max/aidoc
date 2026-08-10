@@ -1,12 +1,12 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
-import * as path from "path";
 import { analyzeCodebase } from "../../core/analyzer";
 import {
   enforceGeneratedOutput,
   hasGenerationInput,
   loadCommandContext,
+  prepareDocumentTarget,
   readProjectInfo,
   toWriteDocOptions,
   writeDoc,
@@ -49,6 +49,11 @@ export const readmeCommand = new Command("readme")
         );
         return;
       }
+      const target = await prepareDocumentTarget(
+        ctx.cwd,
+        options.output,
+        options.dryRun,
+      );
       spinner.succeed(
         chalk.green(`Found ${modules.length} modules to analyze`),
       );
@@ -92,9 +97,9 @@ export const readmeCommand = new Command("readme")
       genSpinner.succeed(chalk.green("README generated!"));
 
       await writeDoc(
-        path.resolve(ctx.cwd, options.output),
+        target,
         readme,
-        toWriteDocOptions(options, options.output),
+        toWriteDocOptions(options),
       );
     } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to generate README"));

@@ -211,9 +211,12 @@ describe("update impact flow", () => {
       impactPlan: result.providerContext,
     });
     expect(writeDoc).toHaveBeenCalledWith(
-      join(root, "README.md"),
+      {
+        displayPath: "./README.md",
+        existingText: "# Existing\n",
+      },
       "# Updated\n",
-      { dryRun: true, label: "./README.md" },
+      { dryRun: true },
     );
   });
 

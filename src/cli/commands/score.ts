@@ -6,7 +6,7 @@ import Handlebars from "handlebars";
 import * as fs from "fs";
 import { analyzeCodebase } from "../../core/analyzer";
 import { scoreModules, BAND_META } from "../../core/score";
-import { writeDoc } from "../context";
+import { prepareDocumentTarget, writeDoc } from "../context";
 import { loadConfig } from "../../config/loader";
 import {
   getSafeErrorDiagnostic,
@@ -73,10 +73,17 @@ export const scoreCommand = new Command("score")
           "utf8",
         );
         const report = Handlebars.compile(tplSrc)({ result, bandMeta: band });
-        await writeDoc(path.resolve(options.output), report, {
-          dryRun: options.dryRun,
-          label: options.output,
-        });
+        await writeDoc(
+          await prepareDocumentTarget(
+            process.cwd(),
+            options.output,
+            options.dryRun,
+          ),
+          report,
+          {
+            dryRun: options.dryRun,
+          },
+        );
       }
 
       if (options.min !== undefined && result.score < options.min) {

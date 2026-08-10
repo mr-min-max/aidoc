@@ -8,12 +8,15 @@ import { resolveTemplatesDir } from "../core/templates";
 import { MockGenerator } from "./mock-generator";
 import {
   ValidationResult,
-  writeMarkdown,
   readExistingMarkdown,
   validateMarkdown,
 } from "../output/markdown";
 import { displayDiff } from "../output/diff-display";
 import { logger } from "../core/logger";
+import {
+  RepositoryWriteScope,
+  type PreparedRepositoryTarget,
+} from "../security/repository-writer";
 
 export interface CommandOptions {
   mock?: boolean;
@@ -27,6 +30,13 @@ export interface CommandContext {
   cwd: string;
   generator: Generator | MockGenerator;
   isMock: boolean;
+}
+
+/** A document snapshot prepared for either preview or repository replacement. */
+export interface DocumentTarget {
+  readonly displayPath: string;
+  readonly existingText: string | null;
+  readonly prepared?: PreparedRepositoryTarget;
 }
 
 /** Project metadata extracted from package.json, with sane fallbacks. */
@@ -92,22 +102,47 @@ export async function loadCommandContext(
 }
 
 /**
+ * Captures the document state needed by the shared output flow. Real writes
+ * are prepared through the repository writer; dry-runs only read a preview.
+ */
+export async function prepareDocumentTarget(
+  cwd: string,
+  rawTarget: string,
+  dryRun: boolean | undefined,
+  scope?: RepositoryWriteScope,
+): Promise<DocumentTarget> {
+  if (dryRun) {
+    return {
+      displayPath: rawTarget,
+      existingText: readExistingMarkdown(path.resolve(cwd, rawTarget)),
+    };
+  }
+
+  const writeScope = scope ?? (await RepositoryWriteScope.open(cwd));
+  const prepared = await writeScope.prepare(rawTarget);
+  return {
+    displayPath: prepared.displayPath,
+    existingText: prepared.existingText,
+    prepared,
+  };
+}
+
+/**
  * Writes a generated document with the standard flow: show diff if a file
  * exists, confirm (unless dry-run/--auto), write, validate. Centralizes the
  * logic that was copy-pasted across commands.
  */
 export async function writeDoc(
-  outputPath: string,
+  target: DocumentTarget,
   content: string,
   opts: {
     dryRun?: boolean;
     auto?: boolean;
-    label?: string;
     strict?: boolean;
   } = {},
 ): Promise<void> {
-  const label = opts.label || path.basename(outputPath);
-  const existing = readExistingMarkdown(outputPath);
+  const label = target.displayPath;
+  const existing = target.existingText;
 
   // Warn (don't fail) on malformed output — e.g. unclosed code fences.
   const { isValid, warnings } = validateMarkdown(content);
@@ -118,7 +153,7 @@ export async function writeDoc(
   }
   warnings.forEach((w) => logger.warn(w));
 
-  if (existing) {
+  if (existing !== null) {
     displayDiff(label, existing, content);
     if (opts.dryRun) return;
     const { confirm } = opts.auto
@@ -130,7 +165,7 @@ export async function writeDoc(
           initial: true,
         });
     if (confirm) {
-      writeMarkdown(outputPath, content);
+      await requirePreparedTarget(target).replaceText(content);
       console.log(chalk.green(`✔ Updated ${label}`));
     } else {
       console.log(chalk.yellow("Skipped."));
@@ -138,19 +173,26 @@ export async function writeDoc(
   } else if (opts.dryRun) {
     console.log("\n" + content);
   } else {
-    writeMarkdown(outputPath, content);
+    await requirePreparedTarget(target).replaceText(content);
     console.log(chalk.green(`✔ Created ${label}`));
   }
 }
 
+function requirePreparedTarget(
+  target: DocumentTarget,
+): PreparedRepositoryTarget {
+  if (target.prepared === undefined) {
+    throw new Error("Document target was not prepared for writing.");
+  }
+  return target.prepared;
+}
+
 export function toWriteDocOptions(
   options: CommandOptions,
-  label: string,
-): { dryRun?: boolean; auto?: boolean; strict?: boolean; label: string } {
+): { dryRun?: boolean; auto?: boolean; strict?: boolean } {
   return {
     dryRun: options.dryRun,
     auto: options.yes,
-    label,
     strict: options.strictOutput,
   };
 }

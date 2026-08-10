@@ -1,18 +1,15 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
-import * as path from "path";
 import {
   enforceGeneratedOutput,
   hasGenerationInput,
   loadCommandContext,
+  prepareDocumentTarget,
   toWriteDocOptions,
   writeDoc,
 } from "../context";
-import {
-  readExistingMarkdown,
-  validateChangelogEntry,
-} from "../../output/markdown";
+import { validateChangelogEntry } from "../../output/markdown";
 import { getCommitsSince, getLatestTag } from "../../git/history";
 import {
   getSafeErrorDiagnostic,
@@ -47,6 +44,11 @@ export const changelogCommand = new Command("changelog")
         spinner.warn(chalk.yellow("No commits found in the specified range."));
         return;
       }
+      const target = await prepareDocumentTarget(
+        ctx.cwd,
+        options.output,
+        options.dryRun,
+      );
       spinner.succeed(chalk.green(`Found ${commits.length} commits`));
 
       const genSpinner = ora("Generating CHANGELOG entry...").start();
@@ -65,18 +67,17 @@ export const changelogCommand = new Command("changelog")
       genSpinner.succeed(chalk.green("CHANGELOG entry generated!"));
 
       // Changelog prepends to an existing file rather than replacing it.
-      const outputPath = path.resolve(ctx.cwd, options.output);
       const header =
         "# Changelog\n\nAll notable changes to this project will be documented in this file.\n\n";
-      const existing = readExistingMarkdown(outputPath);
+      const existing = target.existingText;
       const content = existing
         ? existing.replace(/^# Changelog.*?\n\n/s, header + entry + "\n\n")
         : header + entry;
 
       await writeDoc(
-        outputPath,
+        target,
         content,
-        toWriteDocOptions(options, options.output),
+        toWriteDocOptions(options),
       );
     } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to generate CHANGELOG"));

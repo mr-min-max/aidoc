@@ -1,11 +1,15 @@
 import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
+import { execFileSync } from "child_process";
 import {
   enforceGeneratedOutput,
   loadCommandContext,
+  prepareDocumentTarget,
   writeDoc,
 } from "../../../src/cli/context";
+import { RepositoryWriteScope } from "../../../src/security/repository-writer";
+import * as diffDisplay from "../../../src/output/diff-display";
 
 describe("loadCommandContext", () => {
   it("returns a mock generator when mock is set", async () => {
@@ -30,32 +34,120 @@ describe("loadCommandContext", () => {
 });
 
 describe("writeDoc", () => {
-  const tmp = path.join(os.tmpdir(), `aidoc-test-${Date.now()}.md`);
+  it("uses the prepared snapshot for a diff before replacing the document once", async () => {
+    // Catches a write adapter regression that re-reads a live output path or
+    // bypasses PreparedRepositoryTarget.replaceText().
+    const replaceText = jest.fn().mockResolvedValue(undefined);
+    const displayDiff = jest
+      .spyOn(diffDisplay, "displayDiff")
+      .mockImplementation(() => undefined);
 
-  afterEach(() => {
     try {
-      fs.unlinkSync(tmp);
-    } catch {
-      /* ignore */
+      await writeDoc(
+        {
+          displayPath: "README.md",
+          existingText: "# Before\n",
+          prepared: {
+            displayPath: "README.md",
+            existingText: "# Before\n",
+            replaceText,
+          },
+        },
+        "# After\n",
+        { auto: true },
+      );
+
+      expect(displayDiff).toHaveBeenCalledWith(
+        "README.md",
+        "# Before\n",
+        "# After\n",
+      );
+      expect(replaceText).toHaveBeenCalledTimes(1);
+      expect(replaceText).toHaveBeenCalledWith("# After\n");
+    } finally {
+      displayDiff.mockRestore();
     }
   });
 
-  it("creates a new file (no existing, no dry-run)", async () => {
-    await writeDoc(tmp, "# Hello\n", {});
-    expect(fs.readFileSync(tmp, "utf8")).toBe("# Hello\n");
-  });
-
-  it("dry-run writes nothing", async () => {
-    await writeDoc(tmp, "# Hello\n", { dryRun: true });
-    expect(fs.existsSync(tmp)).toBe(false);
-  });
-
-  it("rejects invalid Markdown before writing in strict-output mode", async () => {
-    const target = path.join(os.tmpdir(), `aidoc-strict-${Date.now()}.md`);
+  it("rejects invalid Markdown before replacing a prepared document in strict-output mode", async () => {
+    // Catches a strict-output regression that invokes the atomic writer before validation.
+    const replaceText = jest.fn().mockResolvedValue(undefined);
     await expect(
-      writeDoc(target, "not a Markdown document", { strict: true }),
+      writeDoc(
+        {
+          displayPath: "README.md",
+          existingText: null,
+          prepared: {
+            displayPath: "README.md",
+            existingText: null,
+            replaceText,
+          },
+        },
+        "not a Markdown document",
+        { strict: true },
+      ),
     ).rejects.toThrow(/failed validation/i);
-    expect(fs.existsSync(target)).toBe(false);
+    expect(replaceText).not.toHaveBeenCalled();
+  });
+});
+
+describe("prepareDocumentTarget", () => {
+  const roots: string[] = [];
+
+  function createRepository(): string {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-context-"));
+    execFileSync("git", ["init", "-q", "--initial-branch", "main"], {
+      cwd: root,
+    });
+    roots.push(root);
+    return root;
+  }
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    for (const root of roots.splice(0)) {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("opens the repository writer and snapshots the requested real target", async () => {
+    // Catches a regression that resolves a raw output path or reads it outside
+    // RepositoryWriteScope before it has been trusted.
+    const root = createRepository();
+    fs.mkdirSync(path.join(root, "docs"));
+    fs.writeFileSync(path.join(root, "docs", "README.md"), "# Before\n");
+    const scope = await RepositoryWriteScope.open(root);
+    const prepare = jest.spyOn(scope, "prepare");
+    const open = jest
+      .spyOn(RepositoryWriteScope, "open")
+      .mockResolvedValue(scope);
+
+    const target = await prepareDocumentTarget(root, "docs/README.md", false);
+
+    expect(open).toHaveBeenCalledWith(root);
+    expect(prepare).toHaveBeenCalledWith("docs/README.md");
+    expect(target).toMatchObject({
+      displayPath: path.join("docs", "README.md"),
+      existingText: "# Before\n",
+    });
+    expect(target.prepared).toBeDefined();
+  });
+
+  it("reads a dry-run preview without opening the repository writer", async () => {
+    // Catches a dry-run regression that creates a writer scope, directories, or temp files.
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-context-"));
+    roots.push(root);
+    fs.writeFileSync(path.join(root, "preview.md"), "# Preview\n");
+    const open = jest.spyOn(RepositoryWriteScope, "open");
+
+    const target = await prepareDocumentTarget(root, "preview.md", true);
+
+    expect(open).not.toHaveBeenCalled();
+    expect(target).toEqual({
+      displayPath: "preview.md",
+      existingText: "# Preview\n",
+    });
+    expect(fs.readdirSync(root)).toEqual(["preview.md"]);
   });
 });
 

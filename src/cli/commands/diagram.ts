@@ -1,12 +1,12 @@
 import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
-import * as path from "path";
 import { analyzeCodebase } from "../../core/analyzer";
 import {
   enforceGeneratedOutput,
   hasGenerationInput,
   loadCommandContext,
+  prepareDocumentTarget,
   toWriteDocOptions,
   writeDoc,
 } from "../context";
@@ -43,6 +43,11 @@ export const diagramCommand = new Command("diagram")
         spinner.warn(chalk.yellow("No supported source files found."));
         return;
       }
+      const target = await prepareDocumentTarget(
+        ctx.cwd,
+        options.output,
+        options.dryRun,
+      );
       spinner.succeed(chalk.green(`Analyzed ${modules.length} modules`));
 
       const genSpinner = ora("Generating architecture diagram...").start();
@@ -56,9 +61,9 @@ export const diagramCommand = new Command("diagram")
 
       const output = `# Architecture\n\n\`\`\`mermaid\n${diagram}\n\`\`\`\n`;
       await writeDoc(
-        path.resolve(ctx.cwd, options.output),
+        target,
         output,
-        toWriteDocOptions(options, options.output),
+        toWriteDocOptions(options),
       );
     } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to generate diagram"));

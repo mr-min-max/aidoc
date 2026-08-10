@@ -116,12 +116,10 @@ describe("Action-compatible generation commands", () => {
     expect(
       toWriteDocOptions(
         { yes: true, dryRun: false, strictOutput: true },
-        "README.md",
       ),
     ).toEqual({
       auto: true,
       dryRun: false,
-      label: "README.md",
       strict: true,
     });
   });

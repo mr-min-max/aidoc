@@ -2,7 +2,12 @@ import { Command } from "commander";
 import chalk from "chalk";
 import ora from "ora";
 import * as path from "path";
-import { loadCommandContext, type CommandOptions, writeDoc } from "../context";
+import {
+  loadCommandContext,
+  prepareDocumentTarget,
+  type CommandOptions,
+  writeDoc,
+} from "../context";
 import { readExistingMarkdown } from "../../output/markdown";
 import { buildUpdateContext } from "../../core/differ";
 import { createImpactPlan } from "../../impact/planner";
@@ -52,10 +57,13 @@ export async function executeUpdateCommand(
         buildUpdateContext(existingDoc, result.providerContext),
       );
       genSpinner.succeed(chalk.green("Documentation updated!"));
-      await writeDoc(targetPath, updatedDoc, {
-        dryRun: options.dryRun,
-        label: target,
-      });
+      await writeDoc(
+        await prepareDocumentTarget(cwd, target, options.dryRun),
+        updatedDoc,
+        {
+          dryRun: options.dryRun,
+        },
+      );
       return 0;
     } catch (error: unknown) {
       genSpinner.fail(chalk.red("Failed to update documentation"));

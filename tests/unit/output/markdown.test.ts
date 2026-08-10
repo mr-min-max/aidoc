@@ -3,7 +3,7 @@ import {
   validateGeneratedContent,
   validateMarkdown,
   validateMermaidSource,
-  writeMarkdown,
+  readExistingMarkdown,
 } from "../../../src/output/markdown";
 import * as fs from "fs";
 import * as path from "path";
@@ -28,21 +28,16 @@ describe("Markdown Output", () => {
     expect(result.warnings.some((w) => w.includes("code blocks"))).toBe(true);
   });
 
-  it("should write markdown to file", () => {
+  it("reads existing markdown for a read-only preview", () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-test-"));
     const outPath = path.join(tmpDir, "test.md");
-    writeMarkdown(outPath, "# Test\n\nContent");
-    expect(fs.existsSync(outPath)).toBe(true);
-    expect(fs.readFileSync(outPath, "utf8")).toBe("# Test\n\nContent");
-    fs.rmSync(tmpDir, { recursive: true });
-  });
-
-  it("should create directories if they do not exist", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-test-"));
-    const outPath = path.join(tmpDir, "subdir", "deep", "test.md");
-    writeMarkdown(outPath, "# Deep\n\nNested");
-    expect(fs.existsSync(outPath)).toBe(true);
-    fs.rmSync(tmpDir, { recursive: true });
+    fs.writeFileSync(outPath, "# Test\n\nContent");
+    try {
+      expect(readExistingMarkdown(outPath)).toBe("# Test\n\nContent");
+      expect(readExistingMarkdown(path.join(tmpDir, "missing.md"))).toBeNull();
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true });
+    }
   });
 });
 

@@ -1,5 +1,4 @@
 import * as fs from "fs";
-import * as path from "path";
 
 export interface ValidationResult {
   isValid: boolean;
@@ -83,15 +82,6 @@ export function validateMarkdown(content: string): ValidationResult {
   }
 
   return { isValid: warnings.length === 0, warnings };
-}
-
-/** Writes markdown to disk, creating parent directories as needed. */
-export function writeMarkdown(filePath: string, content: string): void {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  fs.writeFileSync(filePath, content, "utf8");
 }
 
 /** Reads an existing markdown file or returns null when it is absent. */

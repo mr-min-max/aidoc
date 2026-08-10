@@ -2,7 +2,12 @@ import { Command } from "commander";
 import chalk from "chalk";
 import chokidar from "chokidar";
 import * as path from "path";
-import { loadCommandContext, writeDoc, readProjectInfo } from "../context";
+import {
+  loadCommandContext,
+  prepareDocumentTarget,
+  writeDoc,
+  readProjectInfo,
+} from "../context";
 import { analyzeCodebase } from "../../core/analyzer";
 import { debounce, isRelevantChange } from "../../core/watcher";
 import { logger } from "../../core/logger";
@@ -15,7 +20,6 @@ export const watchCommand = new Command("watch")
   .option("--mock", "Use mock generator (no API key needed)")
   .action(async (options) => {
     const ctx = await loadCommandContext(options);
-    const targetPath = path.resolve(ctx.cwd, options.target);
     const globs = ctx.config.include.map((g) => path.join(ctx.cwd, g));
 
     console.log(chalk.cyan(`👁  Watching ${ctx.config.include.join(", ")}…`));
@@ -46,10 +50,13 @@ export const watchCommand = new Command("watch")
           modules,
           dependencies,
         } as any);
-        await writeDoc(targetPath, readme, {
-          auto: options.auto,
-          label: options.target,
-        });
+        await writeDoc(
+          await prepareDocumentTarget(ctx.cwd, options.target, false),
+          readme,
+          {
+            auto: options.auto,
+          },
+        );
         console.log(chalk.green(`✔ Regenerated in ${Date.now() - start}ms`));
       } catch (error: unknown) {
         logger.error(
