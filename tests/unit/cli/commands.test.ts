@@ -6,7 +6,11 @@ import { annotateCommand } from "../../../src/cli/commands/annotate";
 import { updateCommand } from "../../../src/cli/commands/update";
 import { MockGenerator } from "../../../src/cli/mock-generator";
 import { defaultConfig } from "../../../src/config/loader";
-import { TrustViolationError } from "../../../src/security/types";
+import {
+  RepositoryWriteError,
+  TrustViolationError,
+} from "../../../src/security/types";
+import { RepositoryWriteScope } from "../../../src/security/repository-writer";
 import {
   hasGenerationInput,
   toWriteDocOptions,
@@ -166,6 +170,85 @@ describe("Action-compatible generation commands", () => {
 });
 
 describe("annotate command diagnostics", () => {
+  it("rejects an unsafe source target before provider transport", async () => {
+    const generator = new MockGenerator();
+    const generate = jest.spyOn(generator, "generateJsDoc");
+    const loadContext = jest
+      .spyOn(commandContext, "loadCommandContext")
+      .mockResolvedValue({
+        config: defaultConfig,
+        cwd: process.cwd(),
+        generator,
+        isMock: true,
+      });
+    const unsafe = path.resolve("src/unsafe.ts");
+    const analyze = jest.spyOn(analyzer, "analyzeCodebase").mockResolvedValue([
+      {
+        filePath: unsafe,
+        language: "typescript",
+        functions: [
+          {
+            name: "unsafe",
+            parameters: [],
+            returnType: "void",
+            isAsync: false,
+            isExported: true,
+            lineRange: [1, 1],
+            signature: "export function unsafe(): void",
+          },
+        ],
+        classes: [],
+        types: [],
+        imports: [],
+      },
+    ]);
+    const prepare = jest
+      .fn()
+      .mockRejectedValue(new RepositoryWriteError("TRUST_PATH_OUTSIDE_ROOT"));
+    const open = jest
+      .spyOn(RepositoryWriteScope, "open")
+      .mockResolvedValue({ prepare } as unknown as RepositoryWriteScope);
+    const consoleError = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const exit = jest
+      .spyOn(process, "exit")
+      .mockImplementation((() => undefined) as never);
+
+    try {
+      await annotateCommand.parseAsync(["--all"], { from: "user" });
+
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(prepare).toHaveBeenCalledWith(unsafe);
+      expect(generate).not.toHaveBeenCalled();
+      expect(exit).toHaveBeenCalledWith(2);
+    } finally {
+      generate.mockRestore();
+      loadContext.mockRestore();
+      analyze.mockRestore();
+      open.mockRestore();
+      consoleError.mockRestore();
+      exit.mockRestore();
+    }
+  });
+
+  it("contains no direct filesystem read or write bypass", () => {
+    const project = new Project({
+      tsConfigFilePath: path.resolve("tsconfig.json"),
+    });
+    const source = project.getSourceFileOrThrow(
+      path.resolve("src/cli/commands/annotate.ts"),
+    );
+    const directCalls = source
+      .getDescendantsOfKind(SyntaxKind.CallExpression)
+      .map((call) => call.getExpression().getText())
+      .filter((expression) =>
+        ["fs.readFileSync", "fs.writeFileSync"].includes(expression),
+      );
+
+    expect(directCalls).toEqual([]);
+  });
+
   it("reports malformed annotation JSON without the raw provider response", async () => {
     const fakeKey = ["sk", "proj", "A".repeat(32)].join("-");
     const generator = new MockGenerator();
@@ -200,6 +283,14 @@ describe("annotate command diagnostics", () => {
         imports: [],
       },
     ]);
+    const prepare = jest.fn().mockResolvedValue({
+      displayPath: "src/example.ts",
+      existingText: "export function example(): void {}\n",
+      replaceText: jest.fn().mockResolvedValue(undefined),
+    });
+    const open = jest
+      .spyOn(RepositoryWriteScope, "open")
+      .mockResolvedValue({ prepare } as unknown as RepositoryWriteScope);
     const consoleError = jest
       .spyOn(console, "error")
       .mockImplementation(() => undefined);
@@ -219,6 +310,7 @@ describe("annotate command diagnostics", () => {
       generate.mockRestore();
       loadContext.mockRestore();
       analyze.mockRestore();
+      open.mockRestore();
       consoleError.mockRestore();
       exit.mockRestore();
     }
