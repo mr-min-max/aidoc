@@ -60,11 +60,15 @@ export function assertValidWindowsTarget(rawTarget: string): void {
   const components = rawTarget
     .split(/[\\/]+/)
     .filter((component) => component.length > 0);
-  for (const component of components) {
+  const hasDriveAbsolutePrefix = /^[A-Za-z]:[\\/]/.test(rawTarget);
+  for (const [index, component] of components.entries()) {
+    const isDriveAbsolutePrefix =
+      index === 0 && hasDriveAbsolutePrefix && /^[A-Za-z]:$/.test(component);
     if (
       component.endsWith(".") ||
       component.endsWith(" ") ||
-      /[<>:"|?*]/.test(component)
+      /[<>"|?*]/.test(component) ||
+      (component.includes(":") && !isDriveAbsolutePrefix)
     ) {
       throwInvalidPath();
     }

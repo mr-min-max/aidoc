@@ -31,6 +31,14 @@ describe("repository path policy", () => {
     );
   });
 
+  it.each(["C:\\repo\\file.md", "C:/repo/file.md"])(
+    "accepts a drive-absolute Win32 target %j for containment validation",
+    (target) => {
+      expect(() => assertValidWindowsTarget(target)).not.toThrow();
+      expect(() => assertValidRepositoryTarget(target, "win32")).not.toThrow();
+    },
+  );
+
   it("accepts a lexical .git path for later resolved-path inspection", () => {
     expect(() =>
       assertValidRepositoryTarget(".git/config", "linux"),
