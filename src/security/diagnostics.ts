@@ -8,7 +8,14 @@ import { PLAN_ERROR_CODES, type PlanErrorCode } from "../impact/types";
 
 /** Stable, value-free diagnostic used when unknown errors cannot be inspected safely. */
 export const UNKNOWN_ERROR_DIAGNOSTIC = "Unknown error.";
-const TRUST_POLICY_REJECTION_CODES = new Set(["TRUST_SECRET_BLOCKED"]);
+const TRUST_POLICY_REJECTION_CODES = new Set<string>([
+  "TRUST_SECRET_BLOCKED",
+  "TRUST_REPOSITORY_REQUIRED",
+  "TRUST_INVALID_PATH",
+  "TRUST_PATH_OUTSIDE_ROOT",
+  "TRUST_UNSAFE_SYMLINK",
+  "TRUST_INVALID_TARGET_TYPE",
+]);
 
 /** A diagnostic that is safe to log or return to a caller. */
 export interface SafeErrorDiagnostic {
@@ -89,8 +96,8 @@ export function inspectSafeAllowlistedErrorCode(
 
 /** Maps only safely extracted Trust Gate policy codes to CLI input-rejection status. */
 export function getTrustErrorExitCode(error: unknown): 1 | 2 {
-  return getSafeAllowlistedErrorCode(error, TRUST_POLICY_REJECTION_CODES) ===
-    "TRUST_SECRET_BLOCKED"
+  return getSafeAllowlistedErrorCode(error, TRUST_POLICY_REJECTION_CODES) !==
+    undefined
     ? 2
     : 1;
 }

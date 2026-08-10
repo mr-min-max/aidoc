@@ -4,7 +4,12 @@ import {
   TrustGateway,
 } from "../../../src/security/gateway";
 import { GenerateOptions, LLMProvider } from "../../../src/providers/types";
+import { getTrustErrorExitCode } from "../../../src/security/diagnostics";
 import * as scanner from "../../../src/security/scanner";
+import {
+  RepositoryWriteError,
+  type RepositoryWriteErrorCode,
+} from "../../../src/security/types";
 
 const fakeSecret = ["sk", "proj", "D".repeat(32)].join("-");
 
@@ -510,5 +515,87 @@ describe("TrustGateway", () => {
     } finally {
       sanitize.mockRestore();
     }
+  });
+});
+
+describe("repository write error diagnostics", () => {
+  const policyCases = [
+    "TRUST_REPOSITORY_REQUIRED",
+    "TRUST_INVALID_PATH",
+    "TRUST_PATH_OUTSIDE_ROOT",
+    "TRUST_UNSAFE_SYMLINK",
+    "TRUST_INVALID_TARGET_TYPE",
+  ] as const;
+
+  const expectedMessages: ReadonlyArray<
+    readonly [RepositoryWriteErrorCode, string]
+  > = [
+    [
+      "TRUST_REPOSITORY_REQUIRED",
+      "A Git worktree is required for file writes.",
+    ],
+    ["TRUST_INVALID_PATH", "The output path is invalid."],
+    [
+      "TRUST_PATH_OUTSIDE_ROOT",
+      "The output path is outside the current Git worktree.",
+    ],
+    [
+      "TRUST_UNSAFE_SYMLINK",
+      "The output path contains an unsafe symbolic link.",
+    ],
+    ["TRUST_INVALID_TARGET_TYPE", "The output target type is not supported."],
+    ["TRUST_RACE_DETECTED", "The output path changed during generation."],
+    [
+      "TRUST_INSPECTION_FAILED",
+      "The repository output path could not be safely inspected.",
+    ],
+  ];
+
+  it.each(policyCases)("maps %s to CLI exit 2", (code) => {
+    expect(getTrustErrorExitCode(new RepositoryWriteError(code))).toBe(2);
+  });
+
+  it.each(["TRUST_RACE_DETECTED", "TRUST_INSPECTION_FAILED"] as const)(
+    "maps %s to CLI exit 1",
+    (code) => {
+      expect(getTrustErrorExitCode(new RepositoryWriteError(code))).toBe(1);
+    },
+  );
+
+  it.each(expectedMessages)(
+    "uses a fixed value-free message for %s",
+    (code, message) => {
+      const error = new RepositoryWriteError(code);
+
+      expect(error.message).toBe(message);
+      expect(Object.keys(error)).toEqual(["code", "stage", "name"]);
+    },
+  );
+
+  it("allows only a fixed atomic stage", () => {
+    const error = new RepositoryWriteError(
+      "TRUST_ATOMIC_WRITE_FAILED",
+      "temp-sync",
+    );
+    expect(error.message).toBe("Atomic file replacement failed (temp-sync).");
+    expect(getTrustErrorExitCode(error)).toBe(1);
+  });
+
+  it("rejects an atomic error configuration that could retain a caller value", () => {
+    const untrustedStage = "caller-supplied-stage";
+
+    expect(() => new RepositoryWriteError("TRUST_ATOMIC_WRITE_FAILED")).toThrow(
+      "Invalid repository write error configuration.",
+    );
+    expect(
+      () =>
+        new RepositoryWriteError(
+          "TRUST_ATOMIC_WRITE_FAILED",
+          untrustedStage as never,
+        ),
+    ).toThrow("Invalid repository write error configuration.");
+    expect(
+      () => new RepositoryWriteError("TRUST_INVALID_PATH", "temp-sync"),
+    ).toThrow("Invalid repository write error configuration.");
   });
 });
