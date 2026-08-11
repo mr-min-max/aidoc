@@ -41,7 +41,10 @@ function parsedModules(cwd: string): ParsedModule[] {
   ];
 }
 
-function mockCommandContext(generator: MockGenerator, cwd: string): jest.SpyInstance {
+function mockCommandContext(
+  generator: MockGenerator,
+  cwd: string,
+): jest.SpyInstance {
   return jest.spyOn(commandContext, "loadCommandContext").mockResolvedValue({
     config: defaultConfig,
     cwd,
@@ -142,7 +145,9 @@ describe("generated document command write preparation", () => {
       .spyOn(generator, "generateChangelog")
       .mockRejectedValue(new Error("provider transport was called"));
     const load = mockCommandContext(generator, cwd);
-    const latestTag = jest.spyOn(history, "getLatestTag").mockResolvedValue("v1.0.0");
+    const latestTag = jest
+      .spyOn(history, "getLatestTag")
+      .mockResolvedValue("v1.0.0");
     const commits = jest.spyOn(history, "getCommitsSince").mockResolvedValue([
       {
         hash: "1234567",
@@ -282,7 +287,8 @@ describe("generated document command write preparation", () => {
       .spyOn(RepositoryWriteScope, "open")
       .mockResolvedValue({ prepare } as unknown as RepositoryWriteScope);
     const generator = new MockGenerator();
-    const entry = "## [Unreleased] - 2026-08-11\n\n### Added\n\n- Prepared output\n";
+    const entry =
+      "## [Unreleased] - 2026-08-11\n\n### Added\n\n- Prepared output\n";
     const generate = jest
       .spyOn(generator, "generateChangelog")
       .mockImplementation(async () => {
@@ -293,7 +299,9 @@ describe("generated document command write preparation", () => {
         return entry;
       });
     const load = mockCommandContext(generator, cwd);
-    const latestTag = jest.spyOn(history, "getLatestTag").mockResolvedValue("v1.0.0");
+    const latestTag = jest
+      .spyOn(history, "getLatestTag")
+      .mockResolvedValue("v1.0.0");
     const commits = jest.spyOn(history, "getCommitsSince").mockResolvedValue([
       {
         hash: "1234567",
@@ -312,7 +320,9 @@ describe("generated document command write preparation", () => {
       expect(generate).toHaveBeenCalledTimes(1);
       expect(replaceText).toHaveBeenCalledTimes(1);
       expect(replaceText.mock.calls[0]?.[0]).toContain("Snapshot entry");
-      expect(replaceText.mock.calls[0]?.[0]).not.toContain("Post-provider entry");
+      expect(replaceText.mock.calls[0]?.[0]).not.toContain(
+        "Post-provider entry",
+      );
       expect(exit).not.toHaveBeenCalled();
     } finally {
       load.mockRestore();
@@ -392,13 +402,11 @@ describe("score writer construction", () => {
     );
     process.chdir(invocationCwd);
     const capturedInvocationCwd = process.cwd();
-    jest
-      .spyOn(analyzer, "analyzeCodebase")
-      .mockImplementation(async (cwd) => {
-        expect(cwd).toBe(analysisDir);
-        process.chdir(analysisDir);
-        return [];
-      });
+    jest.spyOn(analyzer, "analyzeCodebase").mockImplementation(async (cwd) => {
+      expect(cwd).toBe(analysisDir);
+      process.chdir(analysisDir);
+      return [];
+    });
     const replaceText = jest.fn().mockResolvedValue(undefined);
     const prepare = jest.fn().mockResolvedValue({
       displayPath: "score.md",

@@ -145,31 +145,28 @@ describe("annotate command repository writes", () => {
     cwd: string,
     generator: MockGenerator,
   ): jest.SpyInstance {
-    return jest
-      .spyOn(commandContext, "loadCommandContext")
-      .mockResolvedValue({
-        config: defaultConfig,
-        cwd,
-        generator,
-        isMock: true,
-      });
+    return jest.spyOn(commandContext, "loadCommandContext").mockResolvedValue({
+      config: defaultConfig,
+      cwd,
+      generator,
+      isMock: true,
+    });
   }
 
   function suppressOutput(): void {
     jest.spyOn(console, "log").mockImplementation(() => undefined);
     jest.spyOn(console, "error").mockImplementation(() => undefined);
-    jest
-      .spyOn(process, "exit")
-      .mockImplementation((() => undefined) as never);
-    jest
-      .spyOn(diffDisplay, "displayDiff")
-      .mockImplementation(() => undefined);
+    jest.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+    jest.spyOn(diffDisplay, "displayDiff").mockImplementation(() => undefined);
   }
 
   it("prepares every unique source file before provider transport", async () => {
     const { cwd, firstFile, secondFile, firstSource, secondSource, modules } =
       fixture();
-    const first = preparedTarget(path.join("src", "one", "index.ts"), firstSource);
+    const first = preparedTarget(
+      path.join("src", "one", "index.ts"),
+      firstSource,
+    );
     const second = preparedTarget(
       path.join("src", "two", "index.ts"),
       secondSource,
@@ -220,18 +217,16 @@ describe("annotate command repository writes", () => {
 
     const generator = new MockGenerator();
     const generate = jest.spyOn(generator, "generateJsDoc");
-    jest
-      .spyOn(commandContext, "loadCommandContext")
-      .mockResolvedValue({
-        config: {
-          ...defaultConfig,
-          include: [sourcePath, caseAlias],
-          exclude: [],
-        },
-        cwd,
-        generator,
-        isMock: true,
-      });
+    jest.spyOn(commandContext, "loadCommandContext").mockResolvedValue({
+      config: {
+        ...defaultConfig,
+        include: [sourcePath, caseAlias],
+        exclude: [],
+      },
+      cwd,
+      generator,
+      isMock: true,
+    });
     const originalPrepare = RepositoryWriteScope.prototype.prepare;
     const replacements: string[] = [];
     jest
@@ -263,7 +258,10 @@ describe("annotate command repository writes", () => {
   it("collects per-symbol decisions and replaces each accepted file once", async () => {
     const { cwd, firstFile, secondFile, firstSource, secondSource, modules } =
       fixture();
-    const first = preparedTarget(path.join("src", "one", "index.ts"), firstSource);
+    const first = preparedTarget(
+      path.join("src", "one", "index.ts"),
+      firstSource,
+    );
     const second = preparedTarget(
       path.join("src", "two", "index.ts"),
       secondSource,
@@ -272,7 +270,9 @@ describe("annotate command repository writes", () => {
       [firstFile, first],
       [secondFile, second],
     ]);
-    const prepare = jest.fn(async (rawTarget: string) => targets.get(rawTarget)!);
+    const prepare = jest.fn(
+      async (rawTarget: string) => targets.get(rawTarget)!,
+    );
     const open = jest
       .spyOn(RepositoryWriteScope, "open")
       .mockResolvedValue({ prepare } as unknown as RepositoryWriteScope);
@@ -308,7 +308,10 @@ describe("annotate command repository writes", () => {
 
   it("performs no replacement when every symbol is rejected", async () => {
     const { cwd, firstFile, firstSource, modules } = fixture();
-    const first = preparedTarget(path.join("src", "one", "index.ts"), firstSource);
+    const first = preparedTarget(
+      path.join("src", "one", "index.ts"),
+      firstSource,
+    );
     const prepare = jest.fn().mockResolvedValue(first);
     const open = jest
       .spyOn(RepositoryWriteScope, "open")
@@ -321,9 +324,7 @@ describe("annotate command repository writes", () => {
       ]),
     );
     mockContext(cwd, generator);
-    jest
-      .spyOn(analyzer, "analyzeCodebase")
-      .mockResolvedValue([modules[0]]);
+    jest.spyOn(analyzer, "analyzeCodebase").mockResolvedValue([modules[0]]);
     prompt.mockResolvedValue({ apply: false });
     suppressOutput();
 
@@ -359,10 +360,12 @@ describe("annotate command repository writes", () => {
       ]),
     );
     mockContext(cwd, generator);
-    jest.spyOn(analyzer, "analyzeCodebase").mockResolvedValue([
-      parsedModule(firstFile, [undocumentedFunction("first", 1)]),
-      parsedModule(secondFile, [undocumentedFunction("second", 1)]),
-    ]);
+    jest
+      .spyOn(analyzer, "analyzeCodebase")
+      .mockResolvedValue([
+        parsedModule(firstFile, [undocumentedFunction("first", 1)]),
+        parsedModule(secondFile, [undocumentedFunction("second", 1)]),
+      ]);
     const open = jest.spyOn(RepositoryWriteScope, "open");
     suppressOutput();
 
@@ -388,13 +391,13 @@ describe("annotate command repository writes", () => {
   it("keeps dry-run scope-free, read-only, and mutation-free", async () => {
     const { cwd, firstFile, firstSource, modules } = fixture();
     const generator = new MockGenerator();
-    jest.spyOn(generator, "generateJsDoc").mockResolvedValue(
-      JSON.stringify([{ name: "first", jsdoc: "/** First. */" }]),
-    );
-    mockContext(cwd, generator);
     jest
-      .spyOn(analyzer, "analyzeCodebase")
-      .mockResolvedValue([modules[0]]);
+      .spyOn(generator, "generateJsDoc")
+      .mockResolvedValue(
+        JSON.stringify([{ name: "first", jsdoc: "/** First. */" }]),
+      );
+    mockContext(cwd, generator);
+    jest.spyOn(analyzer, "analyzeCodebase").mockResolvedValue([modules[0]]);
     const open = jest.spyOn(RepositoryWriteScope, "open");
     suppressOutput();
 
@@ -406,9 +409,9 @@ describe("annotate command repository writes", () => {
     expect(prompt).not.toHaveBeenCalled();
     expect(fs.readFileSync(firstFile, "utf8")).toBe(firstSource);
     expect(
-      fs.readdirSync(path.dirname(firstFile)).filter((name) =>
-        name.startsWith(".aidoc-write-"),
-      ),
+      fs
+        .readdirSync(path.dirname(firstFile))
+        .filter((name) => name.startsWith(".aidoc-write-")),
     ).toEqual([]);
   });
 });

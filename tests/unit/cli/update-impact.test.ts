@@ -152,10 +152,7 @@ describe("update impact flow", () => {
       .spyOn(impactPlanner, "createImpactPlan")
       .mockResolvedValue(planningResult(false));
     const loadContext = jest.spyOn(commandContext, "loadCommandContext");
-    const prepareTarget = jest.spyOn(
-      commandContext,
-      "prepareDocumentTarget",
-    );
+    const prepareTarget = jest.spyOn(commandContext, "prepareDocumentTarget");
 
     expect(await executeUpdateCommand({}, root)).toBe(0);
 
@@ -245,9 +242,7 @@ describe("update impact flow", () => {
       .mockResolvedValue(planningResult(true));
     jest
       .spyOn(commandContext, "prepareDocumentTarget")
-      .mockRejectedValue(
-        new RepositoryWriteError("TRUST_PATH_OUTSIDE_ROOT"),
-      );
+      .mockRejectedValue(new RepositoryWriteError("TRUST_PATH_OUTSIDE_ROOT"));
     const generateUpdate = jest.fn().mockResolvedValue("# Updated\n");
     const loadContext = jest
       .spyOn(commandContext, "loadCommandContext")

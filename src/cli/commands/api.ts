@@ -59,11 +59,7 @@ export const apiCommand = new Command("api")
       );
       genSpinner.succeed(chalk.green("API documentation generated!"));
 
-      await writeDoc(
-        target,
-        apiDocs,
-        toWriteDocOptions(options),
-      );
+      await writeDoc(target, apiDocs, toWriteDocOptions(options));
     } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to generate API docs"));
       console.error(chalk.red(getSafeErrorDiagnostic(error).message));

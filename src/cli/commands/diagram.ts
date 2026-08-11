@@ -60,11 +60,7 @@ export const diagramCommand = new Command("diagram")
       genSpinner.succeed(chalk.green("Architecture diagram generated!"));
 
       const output = `# Architecture\n\n\`\`\`mermaid\n${diagram}\n\`\`\`\n`;
-      await writeDoc(
-        target,
-        output,
-        toWriteDocOptions(options),
-      );
+      await writeDoc(target, output, toWriteDocOptions(options));
     } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to generate diagram"));
       console.error(chalk.red(getSafeErrorDiagnostic(error).message));

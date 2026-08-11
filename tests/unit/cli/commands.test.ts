@@ -118,9 +118,7 @@ describe("Action-compatible generation commands", () => {
 
   it("maps CI flags to the existing write boundary", () => {
     expect(
-      toWriteDocOptions(
-        { yes: true, dryRun: false, strictOutput: true },
-      ),
+      toWriteDocOptions({ yes: true, dryRun: false, strictOutput: true }),
     ).toEqual({
       auto: true,
       dryRun: false,

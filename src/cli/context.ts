@@ -203,9 +203,11 @@ function requirePreparedTarget(
   return target.prepared;
 }
 
-export function toWriteDocOptions(
-  options: CommandOptions,
-): { dryRun?: boolean; auto?: boolean; strict?: boolean } {
+export function toWriteDocOptions(options: CommandOptions): {
+  dryRun?: boolean;
+  auto?: boolean;
+  strict?: boolean;
+} {
   return {
     dryRun: options.dryRun,
     auto: options.yes,

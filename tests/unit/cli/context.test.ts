@@ -158,7 +158,11 @@ describe("prepareDocumentTarget", () => {
     const open = jest.spyOn(RepositoryWriteScope, "open");
 
     await expect(
-      prepareDocumentTarget(root, `preview/${String.fromCharCode(27)}[2J.md`, true),
+      prepareDocumentTarget(
+        root,
+        `preview/${String.fromCharCode(27)}[2J.md`,
+        true,
+      ),
     ).rejects.toMatchObject({ code: "TRUST_INVALID_PATH" });
 
     expect(open).not.toHaveBeenCalled();

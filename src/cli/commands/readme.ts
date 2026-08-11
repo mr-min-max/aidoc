@@ -96,11 +96,7 @@ export const readmeCommand = new Command("readme")
       );
       genSpinner.succeed(chalk.green("README generated!"));
 
-      await writeDoc(
-        target,
-        readme,
-        toWriteDocOptions(options),
-      );
+      await writeDoc(target, readme, toWriteDocOptions(options));
     } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to generate README"));
       console.error(chalk.red(getSafeErrorDiagnostic(error).message));

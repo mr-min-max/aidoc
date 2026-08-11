@@ -74,11 +74,7 @@ export const changelogCommand = new Command("changelog")
         ? existing.replace(/^# Changelog.*?\n\n/s, header + entry + "\n\n")
         : header + entry;
 
-      await writeDoc(
-        target,
-        content,
-        toWriteDocOptions(options),
-      );
+      await writeDoc(target, content, toWriteDocOptions(options));
     } catch (error: unknown) {
       spinner.fail(chalk.red("Failed to generate CHANGELOG"));
       console.error(chalk.red(getSafeErrorDiagnostic(error).message));
