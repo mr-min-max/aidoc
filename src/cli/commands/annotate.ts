@@ -110,6 +110,7 @@ export const annotateCommand = new Command("annotate")
       const displayPathByFile = new Map<string, string>();
       const targetsByFilePath = new Map<string, DocumentTarget>();
       const targetsByDisplayPath = new Map<string, DocumentTarget>();
+      const canonicalFilePathByDisplayPath = new Map<string, string>();
 
       for (const filePath of uniqueFilePaths) {
         const target = await prepareDocumentTarget(
@@ -123,11 +124,25 @@ export const annotateCommand = new Command("annotate")
         }
         displayPathByFile.set(filePath, target.displayPath);
         targetsByFilePath.set(filePath, target);
-        targetsByDisplayPath.set(target.displayPath, target);
+        if (!targetsByDisplayPath.has(target.displayPath)) {
+          targetsByDisplayPath.set(target.displayPath, target);
+          canonicalFilePathByDisplayPath.set(target.displayPath, filePath);
+        }
       }
 
+      const generationInput = options.dryRun
+        ? undocumented
+        : undocumented.filter((func) => {
+            const filePath = path.resolve(func.filePath);
+            const displayPath = displayPathByFile.get(filePath);
+            return (
+              displayPath !== undefined &&
+              canonicalFilePathByDisplayPath.get(displayPath) === filePath
+            );
+          });
+
       const genSpinner = ora("Generating JSDoc comments with AI...").start();
-      const response = await ctx.generator.generateJsDoc(undocumented);
+      const response = await ctx.generator.generateJsDoc(generationInput);
       let annotations: GeneratedAnnotation[];
       try {
         annotations = JSON.parse(stripCodeFences(response));
@@ -139,7 +154,7 @@ export const annotateCommand = new Command("annotate")
       genSpinner.succeed(chalk.green("JSDoc comments generated!"));
 
       const functionsByName = new Map<string, UndocumentedFunction[]>();
-      for (const func of undocumented) {
+      for (const func of generationInput) {
         const namedFunctions = functionsByName.get(func.name) ?? [];
         namedFunctions.push(func);
         functionsByName.set(func.name, namedFunctions);

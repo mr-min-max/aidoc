@@ -181,8 +181,13 @@ export class RepositoryWriteScope {
 
     await this.requireStableScope();
 
+    const displayPath =
+      targetSnapshot.physicalPath === null
+        ? relativeTarget
+        : relative(this.#root, targetSnapshot.physicalPath);
+
     return new PreparedRepositoryTargetImpl(
-      relativeTarget,
+      displayPath,
       targetSnapshot.existingText,
       {
         rootPath: this.#root,
@@ -729,6 +734,7 @@ async function inspectTarget(
   readonly components: readonly ComponentSnapshot[];
   readonly leafIdentity: ExistingLeafIdentity | null;
   readonly existingText: string | null;
+  readonly physicalPath: string | null;
 }> {
   const parts = relativeTarget.split(sep);
   const components: ComponentSnapshot[] = [];
@@ -786,16 +792,26 @@ async function inspectTarget(
 
   await requireStableIdentity(root, rootIdentity);
   if (leafIdentity === null) {
-    return { components, leafIdentity, existingText: null };
+    return {
+      components,
+      leafIdentity,
+      existingText: null,
+      physicalPath: null,
+    };
   }
 
-  const existingText = await readExistingSnapshot(
+  const snapshot = await readExistingSnapshot(
     root,
     gitDirectory,
     absoluteTarget,
     leafIdentity,
   );
-  return { components, leafIdentity, existingText };
+  return {
+    components,
+    leafIdentity,
+    existingText: snapshot.text,
+    physicalPath: snapshot.physicalPath,
+  };
 }
 
 async function readExistingSnapshot(
@@ -803,7 +819,7 @@ async function readExistingSnapshot(
   gitDirectory: string,
   absoluteTarget: string,
   preOpenIdentity: ExistingLeafIdentity,
-): Promise<string> {
+): Promise<{ readonly text: string; readonly physicalPath: string }> {
   const initialPhysicalPath = await inspectPhysicalTarget(
     root,
     gitDirectory,
@@ -881,7 +897,7 @@ async function readExistingSnapshot(
   if (text === undefined) {
     throw new RepositoryWriteError("TRUST_INSPECTION_FAILED");
   }
-  return text;
+  return { text, physicalPath: initialPhysicalPath };
 }
 
 async function inspectPhysicalTarget(

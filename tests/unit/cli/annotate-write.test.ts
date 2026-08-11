@@ -1,6 +1,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { execFileSync } from "node:child_process";
 import prompts from "prompts";
 import {
   annotateCommand,
@@ -203,6 +204,60 @@ describe("annotate command repository writes", () => {
       `prepare:${secondFile}`,
       "generate",
     ]);
+  });
+
+  it("deduplicates case aliases of one source identity", async () => {
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-annotate-alias-"));
+    roots.push(cwd);
+    execFileSync("git", ["init", "-q", "--initial-branch", "main"], {
+      cwd,
+    });
+    const sourcePath = path.join(cwd, "src", "target.ts");
+    const caseAlias = path.join(cwd, "SRC", "TARGET.TS");
+    fs.mkdirSync(path.dirname(sourcePath), { recursive: true });
+    fs.writeFileSync(sourcePath, "export function target(): void {}\n");
+    if (!fs.existsSync(caseAlias)) return;
+
+    const generator = new MockGenerator();
+    const generate = jest.spyOn(generator, "generateJsDoc");
+    jest
+      .spyOn(commandContext, "loadCommandContext")
+      .mockResolvedValue({
+        config: {
+          ...defaultConfig,
+          include: [sourcePath, caseAlias],
+          exclude: [],
+        },
+        cwd,
+        generator,
+        isMock: true,
+      });
+    const originalPrepare = RepositoryWriteScope.prototype.prepare;
+    const replacements: string[] = [];
+    jest
+      .spyOn(RepositoryWriteScope.prototype, "prepare")
+      .mockImplementation(async function (rawTarget: string) {
+        const target = await originalPrepare.call(this, rawTarget);
+        const originalReplace = target.replaceText.bind(target);
+        jest
+          .spyOn(target, "replaceText")
+          .mockImplementation(async (content: string) => {
+            replacements.push(target.displayPath);
+            await originalReplace(content);
+          });
+        return target;
+      });
+    prompt.mockResolvedValue({ apply: true });
+    suppressOutput();
+    const exit = jest.mocked(process.exit);
+
+    await annotateCommand.parseAsync(["--all"], { from: "user" });
+
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate.mock.calls[0]?.[0]).toHaveLength(1);
+    expect(prompt).toHaveBeenCalledTimes(1);
+    expect(replacements).toHaveLength(1);
+    expect(exit).not.toHaveBeenCalled();
   });
 
   it("collects per-symbol decisions and replaces each accepted file once", async () => {

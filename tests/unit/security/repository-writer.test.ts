@@ -15,7 +15,7 @@ import {
 } from "node:fs";
 import fsPromises = require("node:fs/promises");
 import { tmpdir } from "node:os";
-import { basename, delimiter, dirname, join } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, join } from "node:path";
 import { RepositoryWriteScope } from "../../../src/security/repository-writer";
 
 describe("repository write target preparation", () => {
@@ -150,6 +150,36 @@ describe("repository write target preparation", () => {
 
     expect(target.displayPath).toBe(join("docs", "guides", "README.md"));
     expect(target.existingText).toBe("# Before\n");
+  });
+
+  it("canonicalizes existing case aliases to one safe display path", async () => {
+    const root = createRepository();
+    const source = join(root, "src", "target.ts");
+    const caseAlias = join(root, "SRC", "TARGET.TS");
+    mkdirSync(dirname(source), { recursive: true });
+    writeFileSync(source, "export function target(): void {}\n");
+
+    if (!existsSync(caseAlias)) {
+      // The temporary fixture is on a case-sensitive filesystem; skip only
+      // the alias-specific contract when the casing alias cannot resolve.
+      return;
+    }
+
+    const sourceStats = statSync(source);
+    const aliasStats = statSync(caseAlias);
+    expect([aliasStats.dev, aliasStats.ino]).toEqual([
+      sourceStats.dev,
+      sourceStats.ino,
+    ]);
+
+    const scope = await RepositoryWriteScope.open(root);
+    const canonicalTarget = await scope.prepare(source);
+    const aliasTarget = await scope.prepare(caseAlias);
+
+    expect(aliasTarget.displayPath).toBe(canonicalTarget.displayPath);
+    expect(canonicalTarget.displayPath).toBe(join("src", "target.ts"));
+    expect(isAbsolute(canonicalTarget.displayPath)).toBe(false);
+    expect(aliasTarget.existingText).toBe(canonicalTarget.existingText);
   });
 
   it("accepts an absolute target inside the pinned worktree", async () => {
