@@ -151,10 +151,16 @@ deprecated, has lower precedence than environment credentials, and remains
 readable only for a beta compatibility window.
 
 Streaming responses are buffered until the complete output passes the same
-policy check, so progressive token display is temporarily unavailable. This
-beta does not yet provide filesystem containment, MCP directory allowlisting,
-`aidoc doctor --security`, or persisted receipts. Secret redaction is not a
-prompt-injection defense or an operating-system sandbox.
+policy check, so progressive token display is temporarily unavailable.
+
+Real CLI, GitHub Action, and watch-mode file mutations require a current Git
+worktree. They reject traversal, external, and symlink or junction targets,
+compare the prepared file snapshot before replacement, and commit through a
+same-directory rename. Dry-run, `check`, `plan`, current MCP generation tools,
+and `score` without `--output` are non-mutating. MCP directory allowlisting,
+`aidoc doctor --security`, and persisted receipts remain unimplemented. These
+repository-contained write controls are not an operating-system sandbox; Trust
+Gate redaction is not a prompt-injection defense.
 
 ## 🛠️ Commands
 

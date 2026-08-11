@@ -28,11 +28,15 @@ publication, and GitHub prerelease are separately approved and completed.
 - Live watch mode with non-streaming LLM regeneration (`aidoc watch`)
 - Pluggable provider registry
 
+### Implemented on the current source branch
+
+- Repository-contained atomic writes for real CLI, GitHub Action, and watch
+  mutations, with prepared snapshots and same-directory atomic replacement
+
 ## Planned
 
 ### v0.2.0 — Trust Gate follow-ups
 
-- Repository-contained atomic writes
 - MCP directory allowlisting
 - Security doctor and bounded run receipts
 

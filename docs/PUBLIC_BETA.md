@@ -18,6 +18,16 @@ analysis. It requires Node.js `>=22.12.0`.
 The npm package and GitHub Action tag are not published. Use the source
 checkout in the README until a separately verified prerelease exists.
 
+### Repository-contained writes
+
+Real CLI, GitHub Action, and watch-mode file mutations require a current Git
+worktree. The writer rejects traversal, external, and symlink or junction
+targets, compares the prepared file snapshot before replacement, and commits
+through a same-directory rename. Dry-run, `check`, `plan`, current MCP
+generation, and `score` without `--output` are non-mutating. Current MCP
+generation remains return-only; MCP directory allowlisting, `aidoc doctor
+--security`, and persisted receipts are not implemented.
+
 ## Beta boundaries
 
 - Planning identifies structured public-code changes and documentation
@@ -32,6 +42,16 @@ checkout in the README until a separately verified prerelease exists.
   repositories need derived empty-tree support.
 - Provider-backed generation can produce incorrect content. Review diffs before
   writing or committing documentation.
+- Only relevant ordinary file mode bits are preserved on supported POSIX flows;
+  ownership, timestamps, ACLs/xattrs, and other metadata are not guaranteed.
+- Network or distributed filesystems may not provide the assumed inode identity
+  or same-directory rename semantics.
+- File content is synced, but the parent directory is not fsynced, so power-loss
+  durability of the rename is not guaranteed.
+- Windows does not provide the `O_NOFOLLOW` guarantee used where supported.
+- The lock is in-process only. Hostile or privileged concurrent processes
+  remain outside the guarantee, and identity checks fail closed rather than
+  forming an OS sandbox.
 - Trust Gate redaction is not a prompt-injection defense or operating-system
   sandbox.
 
