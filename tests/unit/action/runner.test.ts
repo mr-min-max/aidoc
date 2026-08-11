@@ -95,6 +95,32 @@ describe("action/run.sh", () => {
     expect(result.status).toBe(2);
   });
 
+  it("propagates an external-output rejection without claiming changed files", () => {
+    const externalRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-action-external-"),
+    );
+    const sentinel = path.join(externalRoot, "sentinel.txt");
+    const outputDirectory = path.join(externalRoot, "generated");
+    const sentinelContents = "external sentinel\n";
+    fs.writeFileSync(sentinel, sentinelContents);
+
+    try {
+      const result = runRunner({
+        AIDOC_INPUT_COMMANDS: "api",
+        AIDOC_INPUT_OUTPUT_DIR: outputDirectory,
+        AIDOC_FAKE_EXIT: "2",
+      });
+
+      expect(result.status).toBe(2);
+      expect(result.log).toContain(`api --output ${outputDirectory}/API.md`);
+      expect(result.changedFiles.trim()).toBe("");
+      expect(result.output).not.toContain("changed=true");
+      expect(fs.readFileSync(sentinel, "utf8")).toBe(sentinelContents);
+    } finally {
+      fs.rmSync(externalRoot, { recursive: true, force: true });
+    }
+  });
+
   it("fails generation when a remote provider credential is missing", () => {
     const result = runRunner({ AIDOC_INPUT_API_KEY: "" });
     expect(result.status).toBe(2);

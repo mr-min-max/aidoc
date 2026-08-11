@@ -19,8 +19,12 @@ jest.mock("../../../src/core/generator", () => ({
 import { analyzeCodebase } from "../../../src/core/analyzer";
 import { Generator } from "../../../src/core/generator";
 import { loadProviderConfig } from "../../../src/config/loader";
-import { formatMCPError, handleToolCall } from "../../../src/mcp/server";
+import { formatMCPError, handleToolCall, TOOLS } from "../../../src/mcp/server";
 import { createProvider } from "../../../src/providers/registry";
+import {
+  RepositoryWriteError,
+  REPOSITORY_WRITE_ERROR_CODES,
+} from "../../../src/security/types";
 
 const analyzeCodebaseMock = analyzeCodebase as jest.MockedFunction<
   typeof analyzeCodebase
@@ -84,5 +88,52 @@ describe("MCP Trust Gate wiring", () => {
     });
 
     expect(formatMCPError(error)).toBe("Unknown MCP error.");
+  });
+
+  it.each(REPOSITORY_WRITE_ERROR_CODES)(
+    "serializes %s with one stable prefix and no caller values",
+    (code) => {
+      const fakeTarget = `/outside/hostile-${code}.md`;
+      const fakeSecret = ["sk", "proj", "M".repeat(32)].join("-");
+      const error = Object.assign(
+        code === "TRUST_ATOMIC_WRITE_FAILED"
+          ? new RepositoryWriteError(code, "replace")
+          : new RepositoryWriteError(code),
+        { fakeTarget, fakeSecret },
+      );
+
+      const formatted = formatMCPError(error);
+
+      expect(formatted.startsWith(`${code}: `)).toBe(true);
+      expect(formatted.match(new RegExp(code, "gu"))).toHaveLength(1);
+      expect(formatted).not.toContain(fakeTarget);
+      expect(formatted).not.toContain(fakeSecret);
+    },
+  );
+
+  it("exposes only content-oriented MCP tools without output or mutators", () => {
+    const mutatingToolNames = new Set([
+      "apply_patch",
+      "append_file",
+      "delete_file",
+      "mkdir",
+      "patch_file",
+      "remove_file",
+      "rename_file",
+      "rmdir",
+      "save_file",
+      "write",
+      "write_file",
+      "writeFile",
+      "write_document",
+    ]);
+
+    expect(
+      TOOLS.some((tool) => {
+        const properties = tool.inputSchema.properties;
+        return properties !== undefined && Object.hasOwn(properties, "output");
+      }),
+    ).toBe(false);
+    expect(TOOLS.some((tool) => mutatingToolNames.has(tool.name))).toBe(false);
   });
 });
