@@ -125,6 +125,11 @@ function addImportBindings(
       addBinding(bindings, namespaceImport, namespaceBinding(module));
     }
 
+    const defaultImport = clause.getDefaultImport();
+    if (defaultImport !== undefined) {
+      addBinding(bindings, defaultImport, namespaceBinding(module));
+    }
+
     const namedBindings = clause.getNamedBindings();
     if (!namedBindings || !Node.isNamedImports(namedBindings)) continue;
 
@@ -412,6 +417,8 @@ scope.open();
 import { promises as fsPromises } from "node:fs";
 import * as fs from "node:fs";
 import fsRequire = require("fs/promises");
+import defaultFs from "node:fs";
+import defaultFsPromises from "node:fs/promises";
 const requiredFs = require("node:fs");
 const { writeFileSync: saveRequired } = require("node:fs");
 const { promises: requiredPromises } = require("node:fs");
@@ -422,17 +429,21 @@ fsRequire.writeFile("import-equals", "content");
 requiredFs.writeFileSync("require-namespace", "content");
 saveRequired("require-alias", "content");
 requiredPromises.writeFile("require-promises", "content");
+defaultFs.writeFileSync("default-namespace", "content");
+defaultFsPromises.writeFile("default-promises", "content");
 `,
     );
 
     expect(scanSourceFile(source)).toEqual([
-      expect.stringContaining(":8:writeFileSync"),
-      expect.stringContaining(":9:writeFile"),
       expect.stringContaining(":10:writeFileSync"),
       expect.stringContaining(":11:writeFile"),
       expect.stringContaining(":12:writeFileSync"),
       expect.stringContaining(":13:writeFile"),
-      expect.stringContaining(":14:writeFile"),
+      expect.stringContaining(":14:writeFileSync"),
+      expect.stringContaining(":15:writeFileSync"),
+      expect.stringContaining(":16:writeFile"),
+      expect.stringContaining(":17:writeFileSync"),
+      expect.stringContaining(":18:writeFile"),
     ]);
   });
 
