@@ -22,12 +22,20 @@ describe("loadConfig environment overrides", () => {
     const config = loadConfig(root, {
       AIDOC_PROVIDER: "anthropic",
       AIDOC_MODEL: "env-model",
+      AIDOC_PROVIDER_BASE_URL: "https://gateway.example.test/v1",
+      AIDOC_ALLOW_LOCAL_HTTP: "true",
+      AIDOC_QWEN_REGION: "singapore",
+      AIDOC_QWEN_WORKSPACE_ID: "workspace-123",
       AIDOC_OLLAMA_HOST: "http://ollama.internal:11434",
       AIDOC_TRUST_POLICY: "strict",
     });
 
     expect(config.provider).toBe("anthropic");
     expect(config.model).toBe("env-model");
+    expect(config.providerBaseUrl).toBe("https://gateway.example.test/v1");
+    expect(config.allowLocalHttp).toBe(true);
+    expect(config.qwenRegion).toBe("singapore");
+    expect(config.qwenWorkspaceId).toBe("workspace-123");
     expect(config.ollamaHost).toBe("http://ollama.internal:11434");
     expect(config.trustPolicy).toBe("strict");
   });
@@ -45,5 +53,13 @@ describe("loadConfig environment overrides", () => {
     );
     const config = loadConfig(root, {});
     expect(config.model).toBeUndefined();
+  });
+
+  it("does not treat an invalid local-http environment value as permission", () => {
+    const config = loadConfig(root, {
+      AIDOC_ALLOW_LOCAL_HTTP: "yes",
+    });
+
+    expect(config.allowLocalHttp).toBe(false);
   });
 });

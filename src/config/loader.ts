@@ -3,12 +3,29 @@ import * as dotenv from "dotenv";
 import { ConfigSchema, AidocConfig, defaultConfig } from "./schema";
 
 function environmentConfig(env: NodeJS.ProcessEnv): Record<string, unknown> {
+  const allowLocalHttp = parseBooleanEnvironment(env.AIDOC_ALLOW_LOCAL_HTTP);
   return {
     ...(env.AIDOC_PROVIDER ? { provider: env.AIDOC_PROVIDER } : {}),
     ...(env.AIDOC_MODEL ? { model: env.AIDOC_MODEL } : {}),
+    ...(env.AIDOC_PROVIDER_BASE_URL
+      ? { providerBaseUrl: env.AIDOC_PROVIDER_BASE_URL }
+      : {}),
+    ...(allowLocalHttp === undefined ? {} : { allowLocalHttp }),
+    ...(env.AIDOC_QWEN_REGION ? { qwenRegion: env.AIDOC_QWEN_REGION } : {}),
+    ...(env.AIDOC_QWEN_WORKSPACE_ID
+      ? { qwenWorkspaceId: env.AIDOC_QWEN_WORKSPACE_ID }
+      : {}),
     ...(env.AIDOC_OLLAMA_HOST ? { ollamaHost: env.AIDOC_OLLAMA_HOST } : {}),
     ...(env.AIDOC_TRUST_POLICY ? { trustPolicy: env.AIDOC_TRUST_POLICY } : {}),
   };
+}
+
+function parseBooleanEnvironment(
+  value: string | undefined,
+): boolean | undefined {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return undefined;
 }
 
 export function loadConfig(

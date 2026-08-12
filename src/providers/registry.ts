@@ -2,6 +2,7 @@ import { LLMProvider } from "./types";
 import { OpenAIProvider } from "./openai";
 import { AnthropicProvider } from "./anthropic";
 import { OllamaProvider } from "./ollama";
+import { ProviderConfigurationError } from "./errors";
 
 export interface ProviderDefinition {
   name: string;
@@ -17,6 +18,10 @@ export interface ProviderConfig {
   apiKey?: string;
   model?: string;
   ollamaHost?: string;
+  providerBaseUrl?: string;
+  allowLocalHttp?: boolean;
+  /** Approved endpoint metadata is passed through for later transport pinning. */
+  endpoint?: import("./endpoints").ApprovedProviderEndpoint;
 }
 
 const registry = new Map<string, ProviderDefinition>();
@@ -39,6 +44,9 @@ export function listProviders(): ProviderDefinition[] {
 
 /** Creates a configured LLM provider after validating prerequisites. */
 export function createProvider(config: ProviderConfig): LLMProvider {
+  if (config.provider === "auto") {
+    throw new ProviderConfigurationError("PROVIDER_SELECTION_REQUIRED");
+  }
   const def = registry.get(config.provider);
   if (!def) {
     throw new Error(

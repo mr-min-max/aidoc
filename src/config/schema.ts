@@ -1,16 +1,37 @@
 import { z } from "zod";
 import { listProviders } from "../providers/registry";
+import { getProviderProfile } from "../providers/profiles";
 import { TRUST_POLICIES } from "../security/types";
 
 export const ConfigSchema = z.object({
   provider: z
     .string()
-    .default("openai")
-    .refine((val: string) => listProviders().some((p) => p.name === val), {
-      message: "Unknown provider. Run `aidoc` with a registered provider name.",
-    }),
+    .default("auto")
+    .refine(
+      (val: string) =>
+        val === "auto" ||
+        getProviderProfile(val) !== undefined ||
+        listProviders().some((p) => p.name === val),
+      {
+        message:
+          "Unknown provider. Run `aidoc` with a registered provider name.",
+      },
+    ),
   model: z.string().min(1).optional(),
   apiKey: z.string().optional(),
+  providerBaseUrl: z.string().min(1).optional(),
+  allowLocalHttp: z.boolean().default(false),
+  qwenRegion: z
+    .enum([
+      "china-beijing",
+      "china-hongkong",
+      "singapore",
+      "japan-tokyo",
+      "germany-frankfurt",
+      "us-virginia",
+    ])
+    .optional(),
+  qwenWorkspaceId: z.string().min(1).optional(),
   trustPolicy: z.enum(TRUST_POLICIES).default("redact"),
   ollamaHost: z.string().default("http://localhost:11434"),
   include: z

@@ -3,7 +3,8 @@ import { ConfigSchema, defaultConfig } from "../../../src/config/schema";
 describe("ConfigSchema", () => {
   it("should parse empty object with defaults", () => {
     const result = ConfigSchema.parse({});
-    expect(result.provider).toBe("openai");
+    expect(result.provider).toBe("auto");
+    expect(result.allowLocalHttp).toBe(false);
     expect(result.model).toBeUndefined();
     expect(result.language).toBe("en");
     expect(result.exclude).toContain("**/node_modules/**");
@@ -27,7 +28,7 @@ describe("ConfigSchema", () => {
   });
 
   it("should export defaultConfig with sensible values", () => {
-    expect(defaultConfig.provider).toBe("openai");
+    expect(defaultConfig.provider).toBe("auto");
     expect(defaultConfig.exclude.length).toBeGreaterThan(0);
   });
 

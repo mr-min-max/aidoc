@@ -3,6 +3,12 @@ import prompts from "prompts";
 import chalk from "chalk";
 import { loadProviderConfig, AidocConfig } from "../config/loader";
 import { createProvider } from "../providers/registry";
+import {
+  resolveProviderSelection,
+  ProviderConfigurationError,
+  type ResolvedProviderSelection,
+} from "../providers/selection";
+import { getProviderProfile } from "../providers/profiles";
 import { Generator } from "../core/generator";
 import { resolveTemplatesDir } from "../core/templates";
 import { MockGenerator } from "./mock-generator";
@@ -27,6 +33,10 @@ export interface CommandOptions {
   dryRun?: boolean;
   yes?: boolean;
   strictOutput?: boolean;
+  provider?: string;
+  model?: string;
+  providerBaseUrl?: string;
+  allowLocalHttp?: boolean;
 }
 
 export interface CommandContext {
@@ -34,6 +44,67 @@ export interface CommandContext {
   cwd: string;
   generator: Generator | MockGenerator;
   isMock: boolean;
+  selection?: ResolvedProviderSelection;
+}
+
+export interface CommandContextLoadRuntime {
+  beforeProviderCreate?(
+    selection: ResolvedProviderSelection,
+    config: AidocConfig,
+  ): Promise<void>;
+}
+
+function cloneApprovedEndpoint(
+  endpoint: ResolvedProviderSelection["endpoint"],
+): ResolvedProviderSelection["endpoint"] {
+  if (endpoint === undefined) return undefined;
+  return {
+    url: new URL(endpoint.url.href),
+    origin: endpoint.origin,
+    local: endpoint.local,
+    addresses: endpoint.addresses.map(({ address, family }) => ({
+      address,
+      family,
+    })),
+  };
+}
+
+function cloneProviderSelection(
+  selection: ResolvedProviderSelection,
+): ResolvedProviderSelection {
+  const endpoint = cloneApprovedEndpoint(selection.endpoint);
+  return {
+    provider: selection.provider,
+    ...(selection.model === undefined ? {} : { model: selection.model }),
+    ...(endpoint === undefined ? {} : { endpoint }),
+    source: selection.source,
+    boundary: selection.boundary,
+    ...(selection.credentialEnv === undefined
+      ? {}
+      : { credentialEnv: selection.credentialEnv }),
+    ...(selection.qwen === undefined
+      ? {}
+      : {
+          qwen: {
+            region: selection.qwen.region,
+            ...(selection.qwen.workspaceId === undefined
+              ? {}
+              : { workspaceId: selection.qwen.workspaceId }),
+          },
+        }),
+  };
+}
+
+function sanitizedProviderBoundaryConfig(config: AidocConfig): AidocConfig {
+  const sanitized = {
+    ...config,
+    include: [...config.include],
+    exclude: [...config.exclude],
+    readme: { ...config.readme },
+  } as AidocConfig & { apiKey?: string; providerBaseUrl?: string };
+  delete sanitized.apiKey;
+  delete sanitized.providerBaseUrl;
+  return sanitized;
 }
 
 /** A document snapshot prepared for either preview or repository replacement. */
@@ -92,17 +163,77 @@ export function readProjectInfo(cwd: string): ProjectInfo {
 export async function loadCommandContext(
   options: CommandOptions,
   cwd = process.cwd(),
+  runtime?: CommandContextLoadRuntime,
 ): Promise<CommandContext> {
   const config = loadProviderConfig(cwd);
   const isMock = !!options.mock;
   const origin = process.env.AIDOC_ORIGIN === "action" ? "action" : "cli";
-  const generator = isMock
-    ? new MockGenerator()
-    : new Generator(createProvider(config), resolveTemplatesDir(), {
-        policy: config.trustPolicy,
-        origin,
-      });
-  return { config, cwd, generator, isMock };
+  if (isMock) {
+    return { config, cwd, generator: new MockGenerator(), isMock };
+  }
+
+  const selection = await resolveProviderSelection({
+    config,
+    overrides: {
+      provider: options.provider,
+      model: options.model,
+      providerBaseUrl: options.providerBaseUrl,
+      allowLocalHttp: options.allowLocalHttp,
+    },
+    interactive: process.stdin.isTTY === true && process.stdout.isTTY === true,
+  });
+  if (selection === null) {
+    throw new ProviderConfigurationError("PROVIDER_SELECTION_CANCELLED");
+  }
+  const acceptedSelection = cloneProviderSelection(selection);
+  const gateSelection = cloneProviderSelection(acceptedSelection);
+  const acceptedEndpointUrl = acceptedSelection.endpoint?.url.href;
+  const isBuiltInProvider =
+    getProviderProfile(acceptedSelection.provider) !== undefined;
+  const acceptedProviderBaseUrl =
+    acceptedEndpointUrl ??
+    (isBuiltInProvider
+      ? undefined
+      : (options.providerBaseUrl ?? config.providerBaseUrl));
+  const acceptedAllowLocalHttp =
+    acceptedSelection.endpoint !== undefined
+      ? acceptedSelection.endpoint.local &&
+        acceptedSelection.endpoint.url.protocol === "http:"
+      : isBuiltInProvider
+        ? false
+        : (options.allowLocalHttp ?? config.allowLocalHttp);
+  const acceptedOllamaHost =
+    acceptedSelection.provider === "ollama"
+      ? acceptedEndpointUrl
+      : config.ollamaHost;
+  const legacyApiKey =
+    config.provider === acceptedSelection.provider &&
+    typeof config.apiKey === "string" &&
+    config.apiKey.length > 0
+      ? config.apiKey
+      : undefined;
+  await runtime?.beforeProviderCreate?.(
+    gateSelection,
+    sanitizedProviderBoundaryConfig(config),
+  );
+  const factorySelection = cloneProviderSelection(acceptedSelection);
+  const generator = new Generator(
+    createProvider({
+      provider: factorySelection.provider,
+      model: factorySelection.model,
+      ollamaHost: acceptedOllamaHost,
+      providerBaseUrl: acceptedProviderBaseUrl,
+      allowLocalHttp: acceptedAllowLocalHttp,
+      endpoint: factorySelection.endpoint,
+      ...(legacyApiKey === undefined ? {} : { apiKey: legacyApiKey }),
+    }),
+    resolveTemplatesDir(),
+    {
+      policy: config.trustPolicy,
+      origin,
+    },
+  );
+  return { config, cwd, generator, isMock, selection: acceptedSelection };
 }
 
 /**
