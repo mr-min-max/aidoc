@@ -37,8 +37,11 @@ generates, previews, confirms, and atomically writes each target.
 - No-impact and cancelled flows exit `0` without provider construction.
 - Ambiguous non-interactive selection exits `1`; repository/Trust failures use
   the existing safe exit-code mapping.
-- Stage only this plan's files. Do not run repository-wide formatting or the
-  full release gate while Slice B is active.
+- The shared SUBCULTURE checkout has one Git index. Do not stage, commit, switch
+  branches, reset, clean, or checkout. Treat each commit step below as a
+  terminal curator checkpoint and report the exact changed paths instead. Do
+  not run repository-wide formatting or the full release gate while Slice B is
+  active.
 
 ---
 

@@ -43,6 +43,9 @@ repository writer, impact planner/target resolver, diff, MCP SDK, Jest.
   other host tools or repository context.
 - A candidate must validate before host write. A changed plan or target snapshot
   produces a stale-preparation failure; there is no force bypass.
+- The shared SUBCULTURE checkout has one Git index. Do not stage, commit, switch
+  branches, reset, clean, or checkout. Treat commit steps below as curator
+  checkpoints and report exact changed paths.
 
 ---
 

@@ -38,6 +38,9 @@ and Trust Gateway, Jest protocol doubles.
 - No fallback follows any provider/model/origin/HTTP/network error.
 - Provider errors must remain sanitizable by the existing Trust Gateway; tests
   must not include real keys or paid API calls.
+- The shared SUBCULTURE checkout has one Git index. Do not stage, commit, switch
+  branches, reset, clean, or checkout. Treat commit steps below as curator
+  checkpoints and report exact changed paths.
 
 ---
 

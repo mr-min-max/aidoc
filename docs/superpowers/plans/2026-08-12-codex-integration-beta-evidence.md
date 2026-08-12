@@ -42,6 +42,9 @@ scripts, existing MCP process, Jest/Node test runner.
   needs a separately designed hosted/remote integration.
 - Do not claim AiDoc controls context Codex/Claude reads through other tools.
 - Package/lockfile/version/script wiring remains Sol-owned final integration.
+- The shared SUBCULTURE checkout has one Git index. Do not stage, commit, switch
+  branches, reset, clean, or checkout. Treat commit steps below as curator
+  checkpoints and report exact changed paths.
 
 ---
 

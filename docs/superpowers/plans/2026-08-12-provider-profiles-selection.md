@@ -41,8 +41,11 @@ provider registry and repository writer, Jest.
 - New persistence writes only non-secret fields through
   `RepositoryWriteScope`; it must refuse to rewrite a config containing legacy
   plaintext `apiKey`.
-- Stage only this plan's files. Run focused tests and `npx tsc --noEmit`, not
-  repository-wide formatting/full gates while Slice A is active.
+- The shared SUBCULTURE checkout has one Git index. Do not stage, commit, switch
+  branches, reset, clean, or checkout. Treat each commit step below as a
+  terminal curator checkpoint and report the exact changed paths instead. Run
+  focused tests and `npx tsc --noEmit`, not repository-wide formatting/full
+  gates while Slice A is active.
 
 ---
 

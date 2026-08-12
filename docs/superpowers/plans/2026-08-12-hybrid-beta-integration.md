@@ -38,8 +38,11 @@ Handlebars, OpenAI SDK, Anthropic SDK, MCP SDK, Jest.
 - MCP prepare/validate tools are repository-scoped and non-mutating.
 - Do not publish npm, create a tag/release, open the repository, or add a
   marketplace entry in this plan.
-- During the parallel frontier, workers stage only their owned files and run
-  focused Jest plus `npx tsc --noEmit`; Sol runs shared/full gates after handoff.
+- During SUBCULTURE execution, workers share one local checkout and Git index.
+  They must not run `git add`, `git commit`, branch switching, reset, clean, or
+  checkout commands. Commit steps in slice plans are curator checkpoints: Sol
+  stages exact accepted paths after handoff. Workers run focused Jest plus
+  `npx tsc --noEmit`; Sol runs shared/full gates after handoff.
 
 ---
 
