@@ -10,6 +10,7 @@ import { scoreCommand } from "./commands/score";
 import { watchCommand } from "./commands/watch";
 import { checkCommand } from "./commands/check";
 import { planCommand } from "./commands/plan";
+import { executeDefaultCommand } from "./commands/default";
 import { setLogLevel } from "../core/logger";
 import { readPackageVersion } from "../core/package-meta";
 import {
@@ -36,6 +37,10 @@ program
       setLogLevel("debug");
     }
   });
+
+program.action(async () => {
+  process.exitCode = await executeDefaultCommand();
+});
 
 program.addCommand(readmeCommand);
 program.addCommand(apiCommand);

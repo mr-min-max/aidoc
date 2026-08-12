@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import { toPlanError } from "../../impact/canonical";
 import { createImpactPlan } from "../../impact/planner";
+import { inspectDocumentationTargets } from "../../impact/targets";
 import type { PlanCommandResult } from "../../impact/types";
 import {
   formatImpactPlan,
@@ -38,11 +39,21 @@ export async function executePlanCommand(
       maxContextBytes: normalizeContextBudget(options.maxContextBytes),
     });
     const commandResult: PlanCommandResult = { ok: true, plan: result.plan };
-    io.stdout(
-      options.json
-        ? serializePlanCommandResult(commandResult)
-        : `${formatImpactPlan(result.plan, options.verbose)}\n`,
-    );
+    if (options.json) {
+      io.stdout(serializePlanCommandResult(commandResult));
+    } else {
+      const targets = await inspectDocumentationTargets({
+        plan: result.plan,
+        cwd,
+      });
+      io.stdout(
+        `${formatImpactPlan(result.plan, options.verbose, {
+          targets,
+          requiresExplicitTarget:
+            targets.length === 0 && result.plan.documentation.length > 0,
+        })}\n`,
+      );
+    }
     return 0;
   } catch (error: unknown) {
     const planError = toPlanError(error);

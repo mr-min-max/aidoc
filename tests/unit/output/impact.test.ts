@@ -83,6 +83,7 @@ describe("impact-plan output", () => {
     expect(output).toContain("Context: 812 / 12000 bytes");
     expect(output).not.toContain("Base:");
     expect(output).not.toContain("Head:");
+    expect(output).toContain("Targets:\n  CHANGELOG.md\n  docs/API.md");
     expect(output).toMatch(/Next: aidoc update$/);
   });
 
@@ -115,8 +116,7 @@ describe("impact-plan output", () => {
     expect(formatImpactPlan(empty)).toBe(
       "Documentation impact: 0 public API changes\n" +
         "No documentation updates are indicated.\n" +
-        "Context: 0 / 12000 bytes\n\n" +
-        "Next: aidoc update",
+        "Context: 0 / 12000 bytes",
     );
   });
 
@@ -192,6 +192,45 @@ describe("impact-plan output", () => {
     );
     expect(output).toContain("Context: 812 / 12000 bytes");
     expect(output).toMatch(/Next: aidoc update$/u);
+  });
+
+  it("renders one target and explicit-target guidance", () => {
+    expect(
+      formatImpactPlan(plan(), false, {
+        targets: [
+          {
+            path: "docs/API.md",
+            reasons: ["direct-reference"],
+            sections: ["LLMProvider"],
+          },
+        ],
+        requiresExplicitTarget: false,
+      }),
+    ).toContain("Target: docs/API.md");
+
+    const noSafeTarget = formatImpactPlan(
+      plan({
+        documentation: [
+          {
+            changeId: "change-1",
+            directReferences: [
+              {
+                file: "docs/Missing.md",
+                section: "Missing",
+                slug: "missing",
+                reason: "source-link",
+              },
+            ],
+            recommendations: [],
+            unmapped: false,
+          },
+        ],
+      }),
+      false,
+      { targets: [], requiresExplicitTarget: true },
+    );
+    expect(noSafeTarget).toContain("Use --target <file>");
+    expect(noSafeTarget).not.toContain("Next: aidoc update");
   });
 
   // Break caught: JSON output gains whitespace/log framing or relies on object
