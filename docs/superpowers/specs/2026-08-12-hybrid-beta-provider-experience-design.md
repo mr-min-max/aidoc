@@ -285,6 +285,14 @@ Alibaba endpoint, and stores only the non-secret endpoint/profile choice. A key
 from another region or plan must fail with vendor-specific guidance rather than
 retrying another host.
 
+The direct AiDoc CLI supports only Model Studio pay-as-you-go API keys. The
+current Alibaba documentation limits Coding Plan and Token Plan keys to
+approved programming tools and explicitly excludes custom applications and
+automated scripts. Selecting either plan in onboarding therefore explains the
+restriction and stops before a request; it does not attempt to disguise AiDoc
+as an approved client. Pay-as-you-go region selection uses fixed documented
+hosts or a validated workspace ID to construct the documented regional host.
+
 ### 7.6 Advanced OpenAI-compatible profile
 
 The advanced profile requires all of:
@@ -629,3 +637,7 @@ MCP subscription use, and the Codex integration.
   <https://api-docs.deepseek.com/>
 - Alibaba Model Studio OpenAI compatibility:
   <https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions>
+- Alibaba Model Studio plan restrictions and endpoints:
+  <https://www.alibabacloud.com/help/en/model-studio/more-tools>
+- OpenAI plugin packaging and bundled MCP configuration:
+  <https://developers.openai.com/plugins/build/plugins>
