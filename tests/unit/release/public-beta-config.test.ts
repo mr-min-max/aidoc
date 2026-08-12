@@ -83,4 +83,14 @@ describe("public beta repository configuration", () => {
       }),
     ).not.toThrow();
   });
+
+  it("verifies the current candidate revision in the public-beta gate", () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.resolve("package.json"), "utf8"),
+    ) as { scripts?: Record<string, string> };
+
+    expect(packageJson.scripts?.["verify:public-beta"]).toBe(
+      "npm run verify:release && npm run test:public-beta && node scripts/public-beta-preflight.mjs --json --candidate-ref HEAD",
+    );
+  });
 });

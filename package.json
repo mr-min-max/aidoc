@@ -24,7 +24,7 @@
     "test:impact-demo": "node scripts/demo-impact.mjs --verify",
     "test:check": "npm run build && node tests/e2e/check-cli-smoke.mjs",
     "test:public-beta": "node --test tests/e2e/public-beta-preflight.test.mjs && jest tests/unit/release/public-beta-config.test.ts --runInBand",
-    "verify:public-beta": "npm run verify:release && npm run test:public-beta && node scripts/public-beta-preflight.mjs --json",
+    "verify:public-beta": "npm run verify:release && npm run test:public-beta && node scripts/public-beta-preflight.mjs --json --candidate-ref HEAD",
     "verify:release": "npm run lint && npm test -- --runInBand && npm run build && npm run test:impact-demo && npm run test:check && npm run test:package && npm run test:action && npm run test:mcp",
     "prepack": "npm run build",
     "prepublishOnly": "npm run lint && npm test -- --runInBand"
