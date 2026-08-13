@@ -10,6 +10,17 @@ import {
   type ApprovedProviderEndpoint,
 } from "./endpoints";
 
+export type ProviderCredentialName =
+  | "OPENAI_API_KEY"
+  | "ANTHROPIC_API_KEY"
+  | "DEEPSEEK_API_KEY"
+  | "DASHSCOPE_API_KEY"
+  | "AIDOC_COMPAT_API_KEY";
+
+export type ProviderCredentialEnvironment = Readonly<
+  Partial<Record<ProviderCredentialName, string>>
+>;
+
 export interface ProviderDefinition {
   name: string;
   /** Returns true when all prerequisites are met (key present, SDK installed). */
@@ -30,6 +41,8 @@ export interface ProviderConfig {
   endpoint?: ApprovedProviderEndpoint;
   /** Accepted Qwen region metadata used to bind its credential to one origin. */
   qwen?: Parameters<typeof buildQwenPaygEndpoint>[0];
+  /** Explicit credential authority for isolated MCP provider construction. */
+  credentialEnvironment?: ProviderCredentialEnvironment;
 }
 
 const registry = new Map<string, ProviderDefinition>();
@@ -41,9 +54,10 @@ function nonEmpty(value: string | undefined): value is string {
 function selectedCredential(
   config: ProviderConfig,
   provider: string,
-  envName: string,
+  envName: ProviderCredentialName,
 ): string | undefined {
-  const environmentValue = process.env[envName];
+  const source = config.credentialEnvironment ?? process.env;
+  const environmentValue = source[envName];
   if (nonEmpty(environmentValue)) return environmentValue;
   return config.provider === provider && nonEmpty(config.apiKey)
     ? config.apiKey

@@ -29,7 +29,7 @@ const DEFAULT_EXCLUDE = [
 const DEFAULT_OUTPUT_DIR = "./docs";
 const DEFAULT_CONTEXT_BYTES = 12000;
 
-function defaults(): PlanningConfig {
+export function defaultPlanningConfig(): PlanningConfig {
   return {
     include: [...DEFAULT_INCLUDE],
     exclude: [...DEFAULT_EXCLUDE],
@@ -55,8 +55,8 @@ function safeOwnValue(config: object, key: string): unknown {
   return descriptor && "value" in descriptor ? descriptor.value : undefined;
 }
 
-function parseFileConfig(value: unknown): PlanningConfig {
-  const result = defaults();
+export function parsePlanningConfig(value: unknown): PlanningConfig {
+  const result = defaultPlanningConfig();
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new Error("invalid planning config");
   }
@@ -102,10 +102,12 @@ export function loadPlanningConfig(
     overrideMaxContextBytes === undefined
       ? undefined
       : parseContextBudget(overrideMaxContextBytes);
-  let config = defaults();
+  let config = defaultPlanningConfig();
   try {
     const result = cosmiconfigSync("aidoc").search(cwd);
-    if (result && !result.isEmpty) config = parseFileConfig(result.config);
+    if (result && !result.isEmpty) {
+      config = parsePlanningConfig(result.config);
+    }
   } catch (error) {
     if (
       error instanceof Error &&
@@ -113,7 +115,7 @@ export function loadPlanningConfig(
     ) {
       throw error;
     }
-    config = defaults();
+    config = defaultPlanningConfig();
   }
   if (override !== undefined) config.maxContextBytes = override;
   return config;

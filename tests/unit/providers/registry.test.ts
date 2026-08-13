@@ -116,6 +116,150 @@ describe("provider registry", () => {
     }
   });
 
+  it("uses an explicit credential snapshot as the complete authority", () => {
+    const credentialNames = [
+      "OPENAI_API_KEY",
+      "ANTHROPIC_API_KEY",
+      "DEEPSEEK_API_KEY",
+      "DASHSCOPE_API_KEY",
+      "AIDOC_COMPAT_API_KEY",
+    ] as const;
+    const previous = new Map(
+      credentialNames.map((name) => [name, process.env[name]] as const),
+    );
+    for (const name of credentialNames) delete process.env[name];
+    const qwenEndpoint = {
+      url: new URL("https://dashscope.aliyuncs.com/compatible-mode/v1"),
+      origin: "https://dashscope.aliyuncs.com",
+      local: false,
+      addresses: [{ address: "93.184.216.34", family: 4 as const }],
+    };
+    const compatibleEndpoint = {
+      url: new URL("https://gateway.example.test/v1"),
+      origin: "https://gateway.example.test",
+      local: false,
+      addresses: [{ address: "93.184.216.35", family: 4 as const }],
+    };
+    const snapshot = Object.freeze({
+      OPENAI_API_KEY: "snapshot-openai",
+      ANTHROPIC_API_KEY: "snapshot-anthropic",
+      DEEPSEEK_API_KEY: "snapshot-deepseek",
+      DASHSCOPE_API_KEY: "snapshot-qwen",
+      AIDOC_COMPAT_API_KEY: "snapshot-compatible",
+    });
+    try {
+      expect(
+        createProvider({
+          provider: "openai",
+          credentialEnvironment: snapshot,
+        }).name,
+      ).toBe("openai");
+      expect(
+        createProvider({
+          provider: "anthropic",
+          credentialEnvironment: snapshot,
+        }).name,
+      ).toBe("anthropic");
+      expect(
+        createProvider({
+          provider: "deepseek",
+          credentialEnvironment: snapshot,
+        }).name,
+      ).toBe("deepseek");
+      expect(
+        createProvider({
+          provider: "qwen",
+          credentialEnvironment: snapshot,
+          endpoint: qwenEndpoint,
+          qwen: { region: "china-beijing" },
+        }).name,
+      ).toBe("qwen");
+      expect(
+        createProvider({
+          provider: "openai-compatible",
+          credentialEnvironment: snapshot,
+          model: "snapshot-model",
+          endpoint: compatibleEndpoint,
+        }).name,
+      ).toBe("openai-compatible");
+    } finally {
+      for (const [name, value] of previous) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  });
+
+  it("does not fall back to ambient credentials when a snapshot omits them", () => {
+    const credentialNames = [
+      "OPENAI_API_KEY",
+      "ANTHROPIC_API_KEY",
+      "DEEPSEEK_API_KEY",
+      "DASHSCOPE_API_KEY",
+      "AIDOC_COMPAT_API_KEY",
+    ] as const;
+    const previous = new Map(
+      credentialNames.map((name) => [name, process.env[name]] as const),
+    );
+    for (const name of credentialNames) process.env[name] = "ambient-secret";
+    const emptySnapshot = Object.freeze(
+      Object.create(null) as Record<string, string>,
+    );
+    const qwenEndpoint = {
+      url: new URL("https://dashscope.aliyuncs.com/compatible-mode/v1"),
+      origin: "https://dashscope.aliyuncs.com",
+      local: false,
+      addresses: [{ address: "93.184.216.34", family: 4 as const }],
+    };
+    const compatibleEndpoint = {
+      url: new URL("https://gateway.example.test/v1"),
+      origin: "https://gateway.example.test",
+      local: false,
+      addresses: [{ address: "93.184.216.35", family: 4 as const }],
+    };
+    try {
+      expect(() =>
+        createProvider({
+          provider: "openai",
+          credentialEnvironment: emptySnapshot,
+        }),
+      ).toThrow(/OPENAI_API_KEY/);
+      expect(() =>
+        createProvider({
+          provider: "anthropic",
+          credentialEnvironment: emptySnapshot,
+        }),
+      ).toThrow(/ANTHROPIC_API_KEY/);
+      expect(() =>
+        createProvider({
+          provider: "deepseek",
+          credentialEnvironment: emptySnapshot,
+        }),
+      ).toThrow(/DEEPSEEK_API_KEY/);
+      expect(() =>
+        createProvider({
+          provider: "qwen",
+          credentialEnvironment: emptySnapshot,
+          endpoint: qwenEndpoint,
+          qwen: { region: "china-beijing" },
+        }),
+      ).toThrow(/DASHSCOPE_API_KEY/);
+      expect(() =>
+        createProvider({
+          provider: "openai-compatible",
+          credentialEnvironment: emptySnapshot,
+          model: "snapshot-model",
+          endpoint: compatibleEndpoint,
+        }),
+      ).toThrow(/AIDOC_COMPAT_API_KEY/);
+    } finally {
+      for (const [name, value] of previous) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  });
+
   it("never lets a DeepSeek credential cross the fixed DeepSeek origin", () => {
     const original = process.env.DEEPSEEK_API_KEY;
     process.env.DEEPSEEK_API_KEY = "fake-deepseek-key";

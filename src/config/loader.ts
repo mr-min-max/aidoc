@@ -2,21 +2,45 @@ import { cosmiconfigSync } from "cosmiconfig";
 import * as dotenv from "dotenv";
 import { ConfigSchema, AidocConfig, defaultConfig } from "./schema";
 
-function environmentConfig(env: NodeJS.ProcessEnv): Record<string, unknown> {
-  const allowLocalHttp = parseBooleanEnvironment(env.AIDOC_ALLOW_LOCAL_HTTP);
+function ownString(
+  env: Readonly<Record<string, unknown>>,
+  key: string,
+): string | undefined {
+  if (typeof env !== "object" || env === null) return undefined;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(env, key);
+    return descriptor &&
+      "value" in descriptor &&
+      typeof descriptor.value === "string"
+      ? descriptor.value
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function environmentConfig(
+  env: Readonly<NodeJS.ProcessEnv>,
+): Record<string, unknown> {
+  const allowLocalHttp = parseBooleanEnvironment(
+    ownString(env, "AIDOC_ALLOW_LOCAL_HTTP"),
+  );
+  const provider = ownString(env, "AIDOC_PROVIDER");
+  const model = ownString(env, "AIDOC_MODEL");
+  const providerBaseUrl = ownString(env, "AIDOC_PROVIDER_BASE_URL");
+  const qwenRegion = ownString(env, "AIDOC_QWEN_REGION");
+  const qwenWorkspaceId = ownString(env, "AIDOC_QWEN_WORKSPACE_ID");
+  const ollamaHost = ownString(env, "AIDOC_OLLAMA_HOST");
+  const trustPolicy = ownString(env, "AIDOC_TRUST_POLICY");
   return {
-    ...(env.AIDOC_PROVIDER ? { provider: env.AIDOC_PROVIDER } : {}),
-    ...(env.AIDOC_MODEL ? { model: env.AIDOC_MODEL } : {}),
-    ...(env.AIDOC_PROVIDER_BASE_URL
-      ? { providerBaseUrl: env.AIDOC_PROVIDER_BASE_URL }
-      : {}),
+    ...(provider ? { provider } : {}),
+    ...(model ? { model } : {}),
+    ...(providerBaseUrl ? { providerBaseUrl } : {}),
     ...(allowLocalHttp === undefined ? {} : { allowLocalHttp }),
-    ...(env.AIDOC_QWEN_REGION ? { qwenRegion: env.AIDOC_QWEN_REGION } : {}),
-    ...(env.AIDOC_QWEN_WORKSPACE_ID
-      ? { qwenWorkspaceId: env.AIDOC_QWEN_WORKSPACE_ID }
-      : {}),
-    ...(env.AIDOC_OLLAMA_HOST ? { ollamaHost: env.AIDOC_OLLAMA_HOST } : {}),
-    ...(env.AIDOC_TRUST_POLICY ? { trustPolicy: env.AIDOC_TRUST_POLICY } : {}),
+    ...(qwenRegion ? { qwenRegion } : {}),
+    ...(qwenWorkspaceId ? { qwenWorkspaceId } : {}),
+    ...(ollamaHost ? { ollamaHost } : {}),
+    ...(trustPolicy ? { trustPolicy } : {}),
   };
 }
 
@@ -37,11 +61,11 @@ export function loadConfig(
   let fileConfig: AidocConfig = defaultConfig;
 
   if (result && !result.isEmpty) {
-    if (
-      typeof result.config === "object" &&
-      result.config !== null &&
-      Object.prototype.hasOwnProperty.call(result.config, "apiKey")
-    ) {
+    const apiKeyDescriptor =
+      typeof result.config === "object" && result.config !== null
+        ? Object.getOwnPropertyDescriptor(result.config, "apiKey")
+        : undefined;
+    if (apiKeyDescriptor !== undefined) {
       console.warn(
         'Deprecated Aidoc config field "apiKey" detected; use the provider-specific environment variable instead.',
       );
@@ -56,8 +80,55 @@ export function loadConfig(
     }
   }
 
+  return parseConfigValues(fileConfig, env);
+}
+
+/** Loads provider environment immediately before resolving full configuration. */
+export function loadProviderConfig(searchFrom?: string): AidocConfig {
+  dotenv.config({ quiet: true });
+  return loadConfig(searchFrom);
+}
+
+function safeFileRecord(value: unknown): Record<string, unknown> {
+  if (value === undefined) return {};
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("invalid aidoc configuration");
+  }
+
+  const result: Record<string, unknown> = Object.create(null) as Record<
+    string,
+    unknown
+  >;
+  let keys: string[];
+  try {
+    keys = Object.keys(value);
+  } catch {
+    throw new Error("invalid aidoc configuration");
+  }
+  for (const key of keys) {
+    let descriptor: PropertyDescriptor | undefined;
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(value, key);
+    } catch {
+      throw new Error("invalid aidoc configuration");
+    }
+    if (descriptor === undefined || !("value" in descriptor)) {
+      throw new Error("invalid aidoc configuration");
+    }
+    result[key] = descriptor.value;
+  }
+  return result;
+}
+
+export function parseConfigValues(
+  fileValue: unknown,
+  env: Readonly<NodeJS.ProcessEnv>,
+): AidocConfig {
+  const fileConfig = ConfigSchema.parse({
+    ...defaultConfig,
+    ...safeFileRecord(fileValue),
+  });
   const envConfig = environmentConfig(env);
-  const fileProvider = fileConfig.provider;
   const effectiveConfig = ConfigSchema.parse({
     ...fileConfig,
     ...envConfig,
@@ -67,17 +138,11 @@ export function loadConfig(
   // If the environment selects another provider, do not transport that file key
   // across provider boundaries; provider-specific environment keys still win in
   // the registry for the selected provider.
-  if (envConfig.provider && envConfig.provider !== fileProvider) {
+  if (envConfig.provider && envConfig.provider !== fileConfig.provider) {
     return { ...effectiveConfig, apiKey: undefined };
   }
 
   return effectiveConfig;
-}
-
-/** Loads provider environment immediately before resolving full configuration. */
-export function loadProviderConfig(searchFrom?: string): AidocConfig {
-  dotenv.config({ quiet: true });
-  return loadConfig(searchFrom);
 }
 
 export { defaultConfig, ConfigSchema, AidocConfig };

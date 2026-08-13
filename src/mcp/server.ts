@@ -41,6 +41,7 @@ import {
   MCPRepositoryScopeError,
   readOwnMCPArgument,
 } from "./repository-scope";
+import { MCPUnsafeConfigurationError } from "./scoped-config";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -122,6 +123,13 @@ export function formatMCPError(error: unknown): string {
     return `${planError.code}: ${planError.message}`;
   }
   if (MCPRepositoryScopeError.isCandidate(error)) {
+    return UNKNOWN_MCP_ERROR;
+  }
+  const configurationError = MCPUnsafeConfigurationError.read(error);
+  if (configurationError !== undefined) {
+    return `${configurationError.code}: ${configurationError.message}`;
+  }
+  if (MCPUnsafeConfigurationError.isCandidate(error)) {
     return UNKNOWN_MCP_ERROR;
   }
 

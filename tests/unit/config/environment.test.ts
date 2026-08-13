@@ -1,7 +1,11 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { loadConfig } from "../../../src/config/loader";
+import {
+  environmentConfig,
+  loadConfig,
+  parseConfigValues,
+} from "../../../src/config/loader";
 
 describe("loadConfig environment overrides", () => {
   let root: string;
@@ -61,5 +65,34 @@ describe("loadConfig environment overrides", () => {
     });
 
     expect(config.allowLocalHttp).toBe(false);
+  });
+
+  it("projects only own data environment values", () => {
+    const getter = jest.fn(() => "should-not-run");
+    const env = Object.create({ AIDOC_PROVIDER: "inherited" }) as Record<
+      string,
+      string
+    >;
+    Object.defineProperty(env, "AIDOC_MODEL", { get: getter });
+    env.AIDOC_ALLOW_LOCAL_HTTP = "false";
+    env.UNKNOWN = "ignored";
+
+    expect(environmentConfig(env)).toEqual({ allowLocalHttp: false });
+    expect(getter).not.toHaveBeenCalled();
+  });
+
+  it("keeps legacy apiKey compatibility scoped to the recorded provider", () => {
+    expect(
+      parseConfigValues(
+        { provider: "openai", apiKey: "file-key" },
+        Object.create(null),
+      ).apiKey,
+    ).toBe("file-key");
+    expect(
+      parseConfigValues(
+        { provider: "openai", apiKey: "file-key" },
+        { AIDOC_PROVIDER: "anthropic" },
+      ).apiKey,
+    ).toBeUndefined();
   });
 });

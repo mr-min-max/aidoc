@@ -3,8 +3,10 @@ import os from "node:os";
 import path from "node:path";
 
 import {
+  defaultPlanningConfig,
   loadPlanningConfig,
   parseContextBudget,
+  parsePlanningConfig,
 } from "../../../src/config/planning";
 import { ConfigSchema } from "../../../src/config/schema";
 
@@ -104,5 +106,28 @@ describe("planning configuration", () => {
   it("keeps the full schema budget validation provider-independent", () => {
     expect(ConfigSchema.parse({}).maxContextBytes).toBe(12000);
     expect(() => ConfigSchema.parse({ maxContextBytes: 1023 })).toThrow();
+  });
+
+  it("exports pure defaults and safe planning projection helpers", () => {
+    const first = defaultPlanningConfig();
+    const second = defaultPlanningConfig();
+    first.include.push("**/*.md");
+    expect(second.include).not.toContain("**/*.md");
+    expect(
+      parsePlanningConfig({ include: ["src/**"], outputDir: "./api" }),
+    ).toEqual({
+      include: ["src/**"],
+      exclude: second.exclude,
+      outputDir: "./api",
+      maxContextBytes: 12000,
+    });
+  });
+
+  it("does not evaluate accessors in pure planning input", () => {
+    const getter = jest.fn(() => ["**/*.ts"]);
+    const value = Object.create(null) as Record<string, unknown>;
+    Object.defineProperty(value, "include", { get: getter });
+    expect(parsePlanningConfig(value)).toEqual(defaultPlanningConfig());
+    expect(getter).not.toHaveBeenCalled();
   });
 });

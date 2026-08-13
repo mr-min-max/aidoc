@@ -39,6 +39,7 @@ import {
   MCPRepositoryScopeError,
   MCP_SCOPE_ERROR_CODES,
 } from "../../../src/mcp/repository-scope";
+import { MCPUnsafeConfigurationError } from "../../../src/mcp/scoped-config";
 
 const analyzeCodebaseMock = analyzeCodebase as jest.MockedFunction<
   typeof analyzeCodebase
@@ -168,6 +169,59 @@ describe("MCP Trust Gate wiring", () => {
       MCP_INVALID_PATH_INPUT,
       MCP_DIRECTORY_DENIED,
     ]);
+  });
+
+  it("formats only authentic fixed MCP configuration errors", () => {
+    const authentic = new MCPUnsafeConfigurationError();
+    expect(formatMCPError(authentic)).toBe(
+      "MCP_UNSAFE_CONFIGURATION: The MCP project configuration cannot be loaded safely.",
+    );
+    expect(
+      formatMCPError({
+        code: "MCP_UNSAFE_CONFIGURATION",
+        message: "/private/hostile/path fake-credential",
+      }),
+    ).toBe("Unknown MCP error.");
+
+    const messageGetter = jest.fn(
+      () => "/private/hostile/path fake-credential",
+    );
+    Object.defineProperty(authentic, "message", {
+      configurable: true,
+      get: messageGetter,
+    });
+    expect(formatMCPError(authentic)).toBe("Unknown MCP error.");
+    expect(messageGetter).not.toHaveBeenCalled();
+
+    const proxyGet = jest.fn(() => {
+      throw new Error("hostile getter");
+    });
+    const proxy = new Proxy(
+      {
+        code: "MCP_UNSAFE_CONFIGURATION",
+        message: "/private/hostile/path fake-credential",
+      },
+      { get: proxyGet },
+    );
+    expect(formatMCPError(proxy)).toBe("Unknown MCP error.");
+    expect(proxyGet).not.toHaveBeenCalled();
+
+    const inherited = Object.create({
+      code: "MCP_UNSAFE_CONFIGURATION",
+      message: "/private/hostile/path fake-credential",
+    });
+    expect(formatMCPError(inherited)).toBe("Unknown MCP error.");
+    expect(formatMCPError({ code: "UNAPPROVED_CODE", message: "secret" })).toBe(
+      "Unknown MCP error.",
+    );
+    expect(formatMCPError({ code: "__proto__", message: "secret" })).toBe(
+      "Unknown MCP error.",
+    );
+    expect(
+      formatMCPError(new MCPUnsafeConfigurationError()).match(
+        /MCP_UNSAFE_CONFIGURATION/gu,
+      ),
+    ).toHaveLength(1);
   });
 
   it.each(REPOSITORY_WRITE_ERROR_CODES)(
