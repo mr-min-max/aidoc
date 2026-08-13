@@ -73,7 +73,7 @@ describe("createProvider", () => {
   });
 
   it("should create Ollama provider without API key", () => {
-    const provider = createProvider({ provider: "ollama" });
+    const provider = createProvider({ provider: "ollama", model: "llama3" });
     expect(provider.name).toBe("ollama");
   });
 

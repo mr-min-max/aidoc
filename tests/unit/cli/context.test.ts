@@ -129,7 +129,11 @@ describe("loadCommandContext", () => {
     });
 
     expect(resolveSelection).toHaveBeenCalledWith(
-      expect.objectContaining({ interactive: true, prompter }),
+      expect.objectContaining({
+        interactive: true,
+        prompter,
+        listOllamaModels: expect.any(Function),
+      }),
     );
   });
 
@@ -253,6 +257,40 @@ describe("loadCommandContext", () => {
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("forwards the accepted Qwen region snapshot to bind factory origin", async () => {
+    const selection: ResolvedProviderSelection = {
+      provider: "qwen",
+      model: "qwen3.6-flash",
+      source: "command",
+      boundary: "remote",
+      credentialEnv: "DASHSCOPE_API_KEY",
+      qwen: { region: "china-beijing" },
+      endpoint: {
+        url: new URL("https://dashscope.aliyuncs.com/compatible-mode/v1"),
+        origin: "https://dashscope.aliyuncs.com",
+        local: false,
+        addresses: [],
+      },
+    };
+    jest
+      .spyOn(providerSelection, "resolveProviderSelection")
+      .mockResolvedValue(selection);
+    const createProvider = jest
+      .spyOn(providerRegistry, "createProvider")
+      .mockReturnValue({ name: "qwen", generate: jest.fn() });
+
+    await loadCommandContext({ provider: "qwen" }, process.cwd());
+
+    expect(createProvider).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: "qwen",
+        model: "qwen3.6-flash",
+        qwen: { region: "china-beijing" },
+        endpoint: selection.endpoint,
+      }),
+    );
   });
 
   it("passes a same-recorded legacy key only to provider construction", async () => {

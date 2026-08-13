@@ -1,82 +1,207 @@
 import OpenAI from "openai";
-import { LLMProvider, GenerateOptions } from "./types";
+import type { OpenAI as OpenAITypes } from "openai";
 import { withRetry } from "../core/retry";
+import { GenerateOptions, LLMProvider } from "./types";
 
-/** OpenAI chat-completions provider with retry and streaming support. */
+const DEFAULT_MODEL = "gpt-5.6-luna";
+
+function safeStatus(error: unknown): number | undefined {
+  try {
+    if (typeof error !== "object" || error === null) return undefined;
+    const status = Reflect.get(error, "status");
+    return typeof status === "number" && Number.isInteger(status)
+      ? status
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function safeCode(error: unknown): string | undefined {
+  try {
+    if (typeof error !== "object" || error === null) return undefined;
+    const code = Reflect.get(error, "code");
+    return typeof code === "string" ? code.toLowerCase() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function providerError(phase: "request" | "stream", error: unknown): Error {
+  const status = safeStatus(error);
+  if (status !== undefined && status >= 100 && status <= 599) {
+    return new Error(`OpenAI provider ${phase} failed (HTTP ${status})`);
+  }
+
+  const code = safeCode(error);
+  if (
+    code === "etimedout" ||
+    code === "econnreset" ||
+    code === "econnrefused" ||
+    code === "timeout" ||
+    code === "aborted" ||
+    code === "abort_err"
+  ) {
+    return new Error(`OpenAI provider ${phase} failed (network timeout)`);
+  }
+  return new Error(`OpenAI provider ${phase} failed`);
+}
+
+function requestParams(
+  model: string,
+  prompt: string,
+  options: GenerateOptions,
+  stream: false,
+): OpenAITypes.Responses.ResponseCreateParamsNonStreaming;
+function requestParams(
+  model: string,
+  prompt: string,
+  options: GenerateOptions,
+  stream: true,
+): OpenAITypes.Responses.ResponseCreateParamsStreaming;
+function requestParams(
+  model: string,
+  prompt: string,
+  options: GenerateOptions,
+  stream: boolean,
+): OpenAITypes.Responses.ResponseCreateParams {
+  const params: OpenAITypes.Responses.ResponseCreateParams = {
+    model,
+    input: prompt,
+    ...(stream ? { stream: true } : {}),
+    ...(options.systemPrompt === undefined
+      ? {}
+      : { instructions: options.systemPrompt }),
+    ...(options.maxTokens === undefined
+      ? {}
+      : { max_output_tokens: options.maxTokens }),
+    ...(options.temperature === undefined
+      ? {}
+      : { temperature: options.temperature }),
+    ...(options.responseFormat === "json"
+      ? { text: { format: { type: "json_object" } } }
+      : {}),
+  };
+  return params;
+}
+
+function outputText(response: OpenAITypes.Responses.Response): string {
+  if (
+    typeof response.output_text !== "string" ||
+    response.output_text.trim() === ""
+  ) {
+    throw new Error("OpenAI provider returned no text");
+  }
+  return response.output_text;
+}
+
+/** OpenAI Responses provider with retry and truthful streaming support. */
 export class OpenAIProvider implements LLMProvider {
   readonly name = "openai";
-  private client: OpenAI;
+  private readonly client: OpenAI;
+  private readonly model: string;
 
-  constructor(
-    apiKey: string,
-    private model: string = "gpt-4o-mini",
-  ) {
+  constructor(apiKey: string, model: string = DEFAULT_MODEL) {
+    this.model = model;
     this.client = new OpenAI({ apiKey });
   }
 
-  /** Generates a non-streaming completion from the configured OpenAI model. */
+  /** Generates a non-streaming completion through the Responses API. */
   async generate(
     prompt: string,
     options: GenerateOptions = {},
   ): Promise<string> {
-    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-    if (options.systemPrompt) {
-      messages.push({ role: "system", content: options.systemPrompt });
-    }
-    messages.push({ role: "user", content: prompt });
-
     const run = async (): Promise<string> => {
       try {
-        const response = await this.client.chat.completions.create({
-          model: this.model,
-          messages,
-          max_tokens: options.maxTokens,
-          temperature: options.temperature ?? 0.3,
-          ...(options.responseFormat === "json" && {
-            response_format: { type: "json_object" as const },
-          }),
-        });
-        return response.choices[0]?.message?.content || "";
-      } catch (error: any) {
-        if (error.status === 429) {
-          // Message contains "429" so isRetryableError() will match and retry.
-          throw new Error("429 rate limited: OpenAI", { cause: error });
+        const response = await this.client.responses.create(
+          requestParams(this.model, prompt, options, false),
+        );
+        return outputText(response);
+      } catch (error: unknown) {
+        if (
+          error instanceof Error &&
+          error.message === "OpenAI provider returned no text"
+        ) {
+          throw error;
         }
-        throw new Error(`OpenAI API error: ${error.message}`, { cause: error });
+        throw providerError("request", error);
       }
     };
 
     return withRetry(run, { maxRetries: 3 });
   }
 
-  /** Streams completion tokens from the configured OpenAI model. */
+  /** Streams only response.output_text.delta events in provider order. */
   async generateStream(
     prompt: string,
     options: GenerateOptions,
     onToken: (token: string) => void,
   ): Promise<string> {
-    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
-    if (options.systemPrompt)
-      messages.push({ role: "system", content: options.systemPrompt });
-    messages.push({ role: "user", content: prompt });
-
+    let emitted = false;
+    const emit = (token: string): void => {
+      emitted = true;
+      onToken(token);
+    };
     const run = async (): Promise<string> => {
-      const stream = await this.client.chat.completions.create({
-        model: this.model,
-        messages,
-        stream: true,
-        max_tokens: options.maxTokens,
-        temperature: options.temperature ?? 0.3,
-      });
-      let full = "";
-      for await (const chunk of stream) {
-        const token = chunk.choices[0]?.delta?.content || "";
-        if (token) {
-          full += token;
-          onToken(token);
+      let sawTerminalEvent = false;
+      try {
+        const stream = await this.client.responses.create(
+          requestParams(this.model, prompt, options, true),
+        );
+        let full = "";
+        for await (const event of stream) {
+          if (event.type === "response.output_text.delta") {
+            if (typeof event.delta !== "string") {
+              throw new Error("OpenAI provider stream returned invalid text");
+            }
+            if (event.delta.length > 0) {
+              full += event.delta;
+              emit(event.delta);
+            }
+            continue;
+          }
+
+          if (event.type === "response.completed") {
+            sawTerminalEvent = true;
+            continue;
+          }
+
+          if (
+            event.type === "response.failed" ||
+            event.type === "response.incomplete"
+          ) {
+            throw new Error("OpenAI provider stream failed");
+          }
+
+          if ((event.type as string) === "error") {
+            throw new Error("OpenAI provider stream failed");
+          }
         }
+
+        if (!sawTerminalEvent) {
+          throw new Error("OpenAI provider stream ended prematurely");
+        }
+        if (full.trim() === "") {
+          throw new Error("OpenAI provider returned no text");
+        }
+        return full;
+      } catch (error: unknown) {
+        if (emitted) {
+          return Promise.reject(
+            new Error("OpenAI provider stream failed after output"),
+          );
+        }
+        if (
+          error instanceof Error &&
+          (error.message === "OpenAI provider returned no text" ||
+            error.message === "OpenAI provider stream returned invalid text" ||
+            error.message === "OpenAI provider stream failed" ||
+            error.message === "OpenAI provider stream ended prematurely")
+        ) {
+          throw error;
+        }
+        throw providerError("stream", error);
       }
-      return full;
     };
 
     return withRetry(run, { maxRetries: 3 });

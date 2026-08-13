@@ -334,11 +334,11 @@ async function resolveExplicit(input: {
     if (!endpoint.local || endpoint.url.protocol !== "http:") {
       throw new ProviderConfigurationError("PROVIDER_ENDPOINT_NOT_PUBLIC");
     }
-    const models =
-      input.listOllamaModels === undefined
-        ? []
-        : await input.listOllamaModels();
     if (model === undefined) {
+      const models =
+        input.listOllamaModels === undefined
+          ? []
+          : await input.listOllamaModels();
       if (!input.interactive || models.length === 0) {
         throw selectionRequired({ reason: "ollama-model" });
       }

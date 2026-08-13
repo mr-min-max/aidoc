@@ -331,6 +331,7 @@ describe("resolveProviderSelection", () => {
   });
 
   it("attaches truthful loopback endpoint metadata to Ollama selections", async () => {
+    const listOllamaModels = jest.fn().mockResolvedValue(["llama3"]);
     const result = await resolveProviderSelection({
       config: config({
         provider: "ollama",
@@ -339,7 +340,7 @@ describe("resolveProviderSelection", () => {
       }),
       env: {},
       interactive: false,
-      listOllamaModels: jest.fn().mockResolvedValue(["llama3"]),
+      listOllamaModels,
     });
 
     expect(result).toMatchObject({
@@ -350,6 +351,7 @@ describe("resolveProviderSelection", () => {
         local: true,
       },
     });
+    expect(listOllamaModels).not.toHaveBeenCalled();
   });
 
   it("rejects an Ollama host that is not an approved loopback HTTP endpoint", async () => {

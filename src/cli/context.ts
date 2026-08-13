@@ -10,6 +10,7 @@ import {
   type ResolvedProviderSelection,
 } from "../providers/selection";
 import { getProviderProfile } from "../providers/profiles";
+import { listOllamaModels as discoverOllamaModels } from "../providers/ollama";
 import { Generator } from "../core/generator";
 import { resolveTemplatesDir } from "../core/templates";
 import { MockGenerator } from "./mock-generator";
@@ -176,6 +177,10 @@ export async function loadCommandContext(
     return { config, cwd, generator: new MockGenerator(), isMock };
   }
 
+  const ollamaDiscovery =
+    runtime?.listOllamaModels ??
+    (() => discoverOllamaModels(config.ollamaHost));
+
   const selection = await resolveProviderSelection({
     config,
     overrides: {
@@ -188,9 +193,7 @@ export async function loadCommandContext(
       runtime?.interactive ??
       (process.stdin.isTTY === true && process.stdout.isTTY === true),
     ...(runtime?.prompter === undefined ? {} : { prompter: runtime.prompter }),
-    ...(runtime?.listOllamaModels === undefined
-      ? {}
-      : { listOllamaModels: runtime.listOllamaModels }),
+    listOllamaModels: ollamaDiscovery,
   });
   if (selection === null) {
     throw new ProviderConfigurationError("PROVIDER_SELECTION_CANCELLED");
@@ -235,6 +238,9 @@ export async function loadCommandContext(
       providerBaseUrl: acceptedProviderBaseUrl,
       allowLocalHttp: acceptedAllowLocalHttp,
       endpoint: factorySelection.endpoint,
+      ...(factorySelection.qwen === undefined
+        ? {}
+        : { qwen: { ...factorySelection.qwen } }),
       ...(legacyApiKey === undefined ? {} : { apiKey: legacyApiKey }),
     }),
     resolveTemplatesDir(),
