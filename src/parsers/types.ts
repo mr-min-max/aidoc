@@ -70,5 +70,6 @@ export interface LanguageParser {
   readonly name: string;
   readonly supportedExtensions: string[];
   parse(filePath: string): Promise<ParsedModule>;
+  parseSource?(filePath: string, source: string): Promise<ParsedModule>;
   snapshot(filePath: string, source: string): Promise<ParserModuleSnapshot>;
 }

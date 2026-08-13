@@ -13,6 +13,40 @@ describe("PythonParser", () => {
     expect(result.language).toBe("python");
   });
 
+  it("parses captured Python source without reopening its backing path", async () => {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-python-captured-"),
+    );
+    const backingPath = path.join(root, "captured.py");
+    const source = `
+from collections import Counter
+
+def request(value: str, count: int = 1) -> str:
+    """Captured request docs"""
+    return value * count
+
+class Service:
+    def run(self, value: str) -> str:
+        return value
+`;
+    fs.writeFileSync(backingPath, source);
+
+    try {
+      const expected = await parser.parse(backingPath);
+      fs.writeFileSync(
+        backingPath,
+        `def unrelated() -> str:\n    return "backing-path"\n`,
+      );
+      fs.rmSync(backingPath);
+
+      await expect(parser.parseSource!(backingPath, source)).resolves.toEqual(
+        expected,
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("should extract exported functions", async () => {
     const result = await parser.parse(fixturePath);
     const funcNames = result.functions.map((f) => f.name);
@@ -151,6 +185,24 @@ describe("PythonParser", () => {
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("rejects captured syntax diagnostics with a fixed value-free message", async () => {
+    const sourceSentinel = ["captured", "python", "Y".repeat(32)].join("-");
+
+    let thrown: unknown;
+    try {
+      await parser.parseSource!(
+        "src/captured.py",
+        `def broken(${sourceSentinel}:\n`,
+      );
+    } catch (error: unknown) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toBe("Failed to parse Python source.");
+    expect((thrown as Error).message).not.toContain(sourceSentinel);
   });
 
   // Break caught: raw defaults or docstrings cross the snapshot boundary.

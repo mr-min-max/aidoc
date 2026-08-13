@@ -755,7 +755,9 @@ def snapshot_source(filepath, source):
 def analyze_file(filepath):
     with open(filepath, 'r', encoding='utf-8') as source_file:
         source = source_file.read()
+    return analyze_source(filepath, source)
 
+def analyze_source(filepath, source):
     tree = ast.parse(source, filename=filepath)
     result = {
         'functions': [],
@@ -878,6 +880,8 @@ if __name__ == '__main__':
     operation = sys.argv[1]
     if operation == 'module':
         emit(analyze_file(sys.argv[2]))
+    elif operation == 'module-source':
+        emit(analyze_source(sys.argv[2], sys.stdin.read()))
     elif operation == 'snapshot':
         emit(snapshot_source(sys.argv[2], sys.stdin.read()))
     else:
@@ -900,26 +904,33 @@ export class PythonParser implements LanguageParser {
       throw new Error(`File not found: ${filePath}`);
     }
 
+    return this.parseModule(filePath, "module");
+  }
+
+  /** Parses supplied source text through the bounded Python AST worker. */
+  async parseSource(filePath: string, source: string): Promise<ParsedModule> {
+    return this.parseModule(filePath, "module-source", source);
+  }
+
+  private async parseModule(
+    filePath: string,
+    operation: "module" | "module-source",
+    source?: string,
+  ): Promise<ParsedModule> {
     try {
       const { stdout } = await this.executePython(
         "python3",
-        ["-c", PYTHON_AST_SCRIPT, "module", filePath],
+        ["-c", PYTHON_AST_SCRIPT, operation, filePath],
         {
           timeout: 15000,
           maxBuffer: 10 * 1024 * 1024,
+          input: source,
         },
       );
 
       const data = JSON.parse(stdout.trim());
 
-      return {
-        filePath,
-        language: "python",
-        functions: (data.functions || []).map(this.mapFunction),
-        classes: (data.classes || []).map(this.mapClass),
-        types: [], // Python doesn't have separate type declarations like TS
-        imports: (data.imports || []).map(this.mapImport),
-      };
+      return this.mapModule(filePath, data);
     } catch (error: unknown) {
       if (
         getSafeAllowlistedErrorCode(error, PYTHON_UNAVAILABLE_CODES) ===
@@ -937,6 +948,30 @@ export class PythonParser implements LanguageParser {
         "Python parser failed.",
       );
     }
+  }
+
+  private mapModule(
+    filePath: string,
+    data: Record<string, unknown>,
+  ): ParsedModule {
+    const functions = Array.isArray(data.functions)
+      ? data.functions.filter(isRecord)
+      : [];
+    const classes = Array.isArray(data.classes)
+      ? data.classes.filter(isRecord)
+      : [];
+    const imports = Array.isArray(data.imports)
+      ? data.imports.filter(isRecord)
+      : [];
+
+    return {
+      filePath,
+      language: "python",
+      functions: functions.map(this.mapFunction),
+      classes: classes.map(this.mapClass),
+      types: [], // Python doesn't have separate type declarations like TS
+      imports: imports.map(this.mapImport),
+    };
   }
 
   /** Creates a value-free public API snapshot from in-memory Python source. */

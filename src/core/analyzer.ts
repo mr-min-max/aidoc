@@ -43,3 +43,34 @@ export async function analyzeCodebase(
 
   return modules;
 }
+
+/** Parses authorized in-memory source snapshots without reopening their paths. */
+export async function analyzeCapturedSources(
+  files: readonly { displayPath: string; content: string }[],
+): Promise<ParsedModule[]> {
+  const modules: ParsedModule[] = [];
+  const sortedFiles = files
+    .map(({ displayPath, content }) => ({ displayPath, content }))
+    .sort((left, right) =>
+      left.displayPath < right.displayPath
+        ? -1
+        : left.displayPath > right.displayPath
+          ? 1
+          : 0,
+    );
+
+  for (const file of sortedFiles) {
+    const parser = getParserForFile(file.displayPath);
+    if (!parser || typeof parser.parseSource !== "function") continue;
+
+    try {
+      modules.push(await parser.parseSource(file.displayPath, file.content));
+    } catch (error: unknown) {
+      logger.warn(
+        `Failed to parse source file: ${getSafeErrorDiagnostic(error).message}`,
+      );
+    }
+  }
+
+  return modules;
+}

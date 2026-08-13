@@ -13,6 +13,40 @@ describe("TypeScriptParser", () => {
     expect(result.language).toBe("typescript");
   });
 
+  it("parses captured TypeScript source without reopening its backing path", async () => {
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-typescript-captured-"),
+    );
+    const backingPath = path.join(root, "captured.ts");
+    const source = `
+      import { EventEmitter } from "events";
+      export interface Api { id: string; }
+      export type Result = string;
+      export enum Mode { Ready = "ready" }
+      /** Captured request docs */
+      export function request(value: string): number { return value.length; }
+      export class Service {
+        run(value: string): number { return value.length; }
+      }
+    `;
+    fs.writeFileSync(backingPath, source);
+
+    try {
+      const expected = await parser.parse(backingPath);
+      fs.writeFileSync(
+        backingPath,
+        `export function unrelated(): string { return "backing-path"; }`,
+      );
+      fs.rmSync(backingPath);
+
+      await expect(parser.parseSource!(backingPath, source)).resolves.toEqual(
+        expected,
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("should extract exported functions", async () => {
     const result = await parser.parse(fixturePath);
     const funcNames = result.functions.map((f) => f.name);
@@ -100,6 +134,24 @@ describe("TypeScriptParser", () => {
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("rejects captured syntax diagnostics with a fixed value-free message", async () => {
+    const sourceSentinel = ["captured", "typescript", "X".repeat(32)].join("-");
+
+    let thrown: unknown;
+    try {
+      await parser.parseSource!(
+        "src/captured.ts",
+        `export function broken(${sourceSentinel}: string { return "secret"; }`,
+      );
+    } catch (error: unknown) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toBe("TypeScript syntax error.");
+    expect((thrown as Error).message).not.toContain(sourceSentinel);
   });
 
   it("refreshes a cached source before checking syntax diagnostics", async () => {

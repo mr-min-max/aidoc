@@ -72,24 +72,28 @@ export class TypeScriptParser implements LanguageParser {
     } else {
       sourceFile = project.addSourceFileAtPath(filePath);
     }
-    const diagnostics = project
-      .getProgram()
-      .getSyntacticDiagnostics(sourceFile);
-    if (diagnostics.length > 0) {
+
+    try {
+      this.assertNoSyntacticDiagnostics(project, sourceFile);
+    } catch (error: unknown) {
       project.removeSourceFile(sourceFile);
-      // Compiler diagnostics can quote source fragments. Keep the parser boundary
-      // value-free so analyzer, freshness, CLI, and MCP consumers stay safe.
-      throw new Error("TypeScript syntax error.");
+      throw error;
     }
 
-    return {
-      filePath,
-      language: "typescript",
-      functions: this.extractFunctions(sourceFile),
-      classes: this.extractClasses(sourceFile),
-      types: this.extractTypes(sourceFile),
-      imports: this.extractImports(sourceFile),
-    };
+    return this.extractParsedModule(filePath, sourceFile);
+  }
+
+  /** Parses supplied source text in an isolated in-memory project. */
+  async parseSource(filePath: string, source: string): Promise<ParsedModule> {
+    const project = new Project({
+      useInMemoryFileSystem: true,
+      skipAddingFilesFromTsConfig: true,
+      compilerOptions: { allowJs: true },
+    });
+    const sourceFile = project.createSourceFile(filePath, source);
+    this.assertNoSyntacticDiagnostics(project, sourceFile);
+
+    return this.extractParsedModule(filePath, sourceFile);
   }
 
   /** Creates a value-free public API snapshot from in-memory source text. */
@@ -127,6 +131,34 @@ export class TypeScriptParser implements LanguageParser {
         ]),
       ),
       symbols: extractSnapshotSymbols(sourceFile),
+    };
+  }
+
+  private assertNoSyntacticDiagnostics(
+    project: Project,
+    sourceFile: SourceFile,
+  ): void {
+    const diagnostics = project
+      .getProgram()
+      .getSyntacticDiagnostics(sourceFile);
+    if (diagnostics.length > 0) {
+      // Compiler diagnostics can quote source fragments. Keep the parser boundary
+      // value-free so analyzer, freshness, CLI, and MCP consumers stay safe.
+      throw new Error("TypeScript syntax error.");
+    }
+  }
+
+  private extractParsedModule(
+    filePath: string,
+    sourceFile: SourceFile,
+  ): ParsedModule {
+    return {
+      filePath,
+      language: "typescript",
+      functions: this.extractFunctions(sourceFile),
+      classes: this.extractClasses(sourceFile),
+      types: this.extractTypes(sourceFile),
+      imports: this.extractImports(sourceFile),
     };
   }
 
