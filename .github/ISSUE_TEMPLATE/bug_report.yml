@@ -12,7 +12,7 @@ body:
     attributes:
       label: aidoc version
       description: "Run `aidoc --version`, or provide the Git commit for a source checkout"
-      placeholder: "0.2.0-beta.2 or commit SHA"
+      placeholder: "0.2.0-beta.3 or commit SHA"
     validations:
       required: true
   - type: dropdown
@@ -22,6 +22,9 @@ body:
       options:
         - OpenAI
         - Anthropic
+        - DeepSeek
+        - Qwen
+        - OpenAI-compatible
         - Ollama
         - N/A
     validations:

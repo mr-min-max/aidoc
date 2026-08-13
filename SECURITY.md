@@ -13,8 +13,9 @@ Instead, use
 This keeps the report private while maintainers investigate it.
 
 Provider-backed generation sends selected context to the configured provider.
-Ollama is the local-provider option; OpenAI and Anthropic are remote-provider
-options.
+Ollama is the local-provider option. OpenAI, Anthropic, DeepSeek, Qwen, and an
+explicitly approved OpenAI-compatible endpoint are remote-provider options.
+Direct provider selection never silently falls back to a different provider.
 
 `aidoc plan` is provider-free. Provider impact context used by `aidoc update`
 is deterministic and byte-bounded and excludes raw source, raw diffs, and

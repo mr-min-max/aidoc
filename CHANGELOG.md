@@ -27,9 +27,16 @@ All notable changes to this project are documented in this file.
 - TypeScript, JavaScript, and Python public-symbol snapshots with deterministic
   change classification and documentation mapping.
 - Shared CLI/MCP planning core and a no-key impact demo.
+- Smart one-or-many documentation target selection before provider creation.
+- Explicit provider profiles and a confirmation boundary for direct updates.
+- Provider-free MCP preparation and draft validation for subscription hosts.
+- A repository-owned Codex plugin and bounded documentation workflow skill.
+- Offline hybrid-beta evidence and plugin/source-artifact preflight checks.
+- Current OpenAI Responses, Anthropic Messages, hardened compatible-provider,
+  and pinned loopback Ollama transports with interactive model discovery.
 
 ### Changed
 
 - Require Node.js 22.12 or newer and test supported LTS lines in CI.
 - Replace raw-diff updates with deterministic byte-bounded semantic plans.
-- Align the source candidate at `0.2.0-beta.2`; no package or tag is published.
+- Align the source candidate at `0.2.0-beta.3`; no package or tag is published.

@@ -28,7 +28,7 @@ It is specifically designed for **Open Source maintainers** who want to spend le
 - 🔄 **Impact-Aware Updates** — `aidoc update` builds a deterministic,
   byte-bounded semantic impact plan before provider construction; raw source
   and raw Git diffs are excluded from provider impact context.
-- 🏠 **Local Provider Option** — Use **Ollama** when the model and code context should stay on your machine; OpenAI and Anthropic are remote provider options.
+- 🏠 **Local Provider Option** — Use **Ollama** when the model and code context should stay on your machine; OpenAI, Anthropic, DeepSeek, Qwen, and explicitly approved OpenAI-compatible endpoints are remote options.
 - 🎨 **Packaged Prompts** — Built-in Handlebars prompt templates ship with the npm package.
 - 🚀 **GitHub Action** — Automate documentation generation and AST-backed source/document co-change checks with `mr-min-max/aidoc`.
 - 🔌 **MCP Server** — Let a local Codex, Claude Desktop, or Claude Code host
@@ -161,9 +161,11 @@ and other consumer subscriptions. It supports exactly these profiles:
 
 Direct provider mode never silently falls back. For non-interactive runs set
 `AIDOC_PROVIDER` and `AIDOC_MODEL` explicitly. Ollama is local but still
-requires an explicit model. Qwen custom AiDoc calls use a pay-as-you-go Model
-Studio API key; a Qwen consumer or coding-plan subscription is not an AiDoc
-API bridge.
+requires an explicit model. In an interactive terminal, when no Ollama model is
+configured, AiDoc queries the approved loopback `/api/tags` endpoint, discovers
+the installed models, and asks you to select one; it does not download a model.
+Qwen custom AiDoc calls use a pay-as-you-go Model Studio API key; a Qwen
+consumer or coding-plan subscription is not an AiDoc API bridge.
 
 Documentation-impact planning and the host-managed local MCP preparation/
 validation workflow require no AiDoc provider key.
@@ -179,7 +181,7 @@ Or create a `.aidocrc.json` in your project root:
 ```json
 {
   "provider": "openai",
-  "model": "gpt-4o-mini",
+  "model": "gpt-5.6-luna",
   "trustPolicy": "redact",
   "include": ["src/**/*.ts", "src/**/*.py"],
   "exclude": ["**/node_modules/**", "**/*.test.ts"],
@@ -299,8 +301,10 @@ aidoc watch --auto --target docs/README.md   # no prompts (great for demos)
 
 ## 🎬 GitHub Action
 
-The `v0.2.0-beta.2` examples below identify the unreleased release candidate.
+The `v0.2.0-beta.3` examples below identify the unreleased release candidate.
 Do not use that ref until the corresponding tag is published.
+The current composite Action accepts `openai`, `anthropic`, and `ollama`; use
+the CLI directly for the additional beta provider profiles.
 
 Generate documentation and push the resulting commit:
 
@@ -319,7 +323,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mr-min-max/aidoc@v0.2.0-beta.2
+      - uses: mr-min-max/aidoc@v0.2.0-beta.3
         with:
           provider: openai
           api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -337,7 +341,7 @@ steps:
   - uses: actions/checkout@v4
     with:
       fetch-depth: 0
-  - uses: mr-min-max/aidoc@v0.2.0-beta.2
+  - uses: mr-min-max/aidoc@v0.2.0-beta.3
     with:
       mode: check
       since: ${{ github.event.pull_request.base.sha }}
@@ -463,9 +467,11 @@ src/
 │   ├── python     # Python ast module based parser
 │   └── registry   # Parser discovery & registration
 ├── providers/     # LLM Adapters
-│   ├── openai     # OpenAI (GPT-4o, GPT-4o-mini)
-│   ├── anthropic  # Anthropic (Claude)
-│   └── ollama     # Local LLM via Ollama
+│   ├── openai     # OpenAI Responses API
+│   ├── anthropic  # Anthropic Messages API
+│   ├── compatible # DeepSeek, Qwen, and explicit compatible endpoints
+│   ├── ollama     # Pinned loopback transport and model discovery
+│   └── selection  # Provider onboarding and confirmation boundary
 ├── mcp/           # Model Context Protocol server
 ├── templates/     # Handlebars prompt templates
 └── output/        # Markdown output & diff display

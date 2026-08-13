@@ -131,12 +131,18 @@ try {
       encoding: "utf8",
       env: {
         ...process.env,
+        AIDOC_PROVIDER: "openai",
+        AIDOC_MODEL: "gpt-5.6-luna",
         AIDOC_TRUST_POLICY: "strict",
         OPENAI_API_KEY: ["runtime", "provider", "credential"].join("-"),
       },
     },
   );
-  assert.equal(strictResult.status, 2);
+  assert.equal(
+    strictResult.status,
+    2,
+    `strict output status mismatch\nstdout: ${strictResult.stdout.replaceAll(fakePolicySecret, "<redacted>")}\nstderr: ${strictResult.stderr.replaceAll(fakePolicySecret, "<redacted>")}`,
+  );
   assert.equal(
     `${strictResult.stdout}${strictResult.stderr}`.includes(fakePolicySecret),
     false,

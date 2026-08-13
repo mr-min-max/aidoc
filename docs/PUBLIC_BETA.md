@@ -1,9 +1,9 @@
 # AiDoc Public Beta
 
-This page describes the forthcoming/source-checkout `0.2.0-beta.3`
-integration. The repository package metadata remains curator-owned in this
-slice: beta.3 is not claimed to be published to npm, installed from a
-marketplace, or available through ChatGPT web local STDIO.
+This page describes the source-checkout `0.2.0-beta.3` candidate. Its package
+metadata is aligned in the repository, but beta.3 is not claimed to be
+published to npm, installed from a marketplace, or available through ChatGPT
+web local STDIO.
 
 AiDoc requires Node.js `>=22.12.0`.
 
@@ -81,9 +81,13 @@ falls back to another provider. The exact built-in profiles are:
 | `openai-compatible` | `AIDOC_COMPAT_API_KEY` plus an explicitly approved endpoint | Remote API billing                 |
 | `ollama`            | Local Ollama and an explicit installed model                | Local                              |
 
-Ollama is local but requires an explicit model. Qwen custom AiDoc calls are
-pay-as-you-go API use; a Qwen consumer or coding-plan subscription is not a
-subscription bridge for AiDoc.
+Ollama is local but requires an explicit model. In an interactive terminal,
+when no Ollama model is configured, AiDoc uses the approved loopback
+`/api/tags` endpoint to discover installed models and asks you to select one.
+It never downloads a model. Non-interactive runs must set `AIDOC_PROVIDER` and
+`AIDOC_MODEL` explicitly. Qwen custom AiDoc calls are pay-as-you-go API use; a
+Qwen consumer or coding-plan subscription is not a subscription bridge for
+AiDoc.
 
 ## Source-checkout setup
 

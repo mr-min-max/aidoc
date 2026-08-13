@@ -20,6 +20,9 @@ We use Jest for testing.
 npm run test              # Run all tests
 npm run test:watch        # Run in watch mode
 npm run test:coverage     # Run with coverage report
+npm run test:provider-contracts
+npm run test:codex-plugin
+npm run test:hybrid-beta
 ```
 
 Before opening a pull request, run the same release-integrity gate used by CI:
@@ -54,7 +57,9 @@ contact details in issues, fixtures, logs, or pull requests.
 - `src/cli/` — Commander.js CLI interface
 - `src/core/` — Business logic (Analyzer, Generator, Cache, Retry, Logger)
 - `src/parsers/` — Language-specific AST parsers
-- `src/providers/` — LLM Adapters (OpenAI, Anthropic, Ollama)
+- `src/providers/` — provider profiles, selection, endpoint policy, and adapters
+  for OpenAI, Anthropic, DeepSeek, Qwen, explicit OpenAI-compatible endpoints,
+  and local Ollama
 - `src/mcp/` — Model Context Protocol server
 - `src/templates/` — Handlebars prompt templates
 - `src/output/` — Markdown output and diff display

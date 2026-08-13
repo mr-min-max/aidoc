@@ -5,7 +5,7 @@ work. We welcome community feedback and contributions.
 
 ## Current source-beta candidate
 
-### v0.2.0-beta.2 — Trust and Semantic Documentation Impact
+### v0.2.0-beta.3 — Hybrid provider and host integration
 
 - Provider Trust Gate for rendered input and completed output
 - Provider-free `aidoc plan` with human and versioned JSON output
@@ -13,6 +13,11 @@ work. We welcome community feedback and contributions.
 - Deterministic change classification and documentation mapping
 - Exact byte-bounded provider context without raw source or raw Git diffs
 - Shared planning core for CLI, MCP, and `aidoc update`
+- Safe target selection and provider confirmation before model construction
+- Provider-free MCP prepare/validate for Codex and Claude hosts
+- Explicit OpenAI, Anthropic, DeepSeek, Qwen, compatible, and Ollama profiles
+- Current provider transports plus loopback-only Ollama model discovery
+- Repository-owned Codex plugin and documentation-maintenance skill
 - Packaged CLI, GitHub Action, and MCP release-integrity smoke coverage
 
 This candidate remains source-only until its public-beta checks, tag, npm
@@ -59,7 +64,7 @@ publication, and GitHub prerelease are separately approved and completed.
 
 These bullets describe source-level foundations, not release-integrity-verified
 distribution paths. The v0.1.0 distributed template, Action, and MCP paths were
-not release-integrity verified. The current `v0.2.0-beta.2` source candidate
+not release-integrity verified. The current `v0.2.0-beta.3` source candidate
 repairs those packaging, automation, and transport paths and adds verification
 evidence before release.
 

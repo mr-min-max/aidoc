@@ -94,6 +94,46 @@ describe("public beta repository configuration", () => {
     );
   });
 
+  it("aligns the beta.3 package identity and focused hybrid verification surface", () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.resolve("package.json"), "utf8"),
+    ) as { version: string; scripts: Record<string, string> };
+    const packageLock = JSON.parse(
+      fs.readFileSync(path.resolve("package-lock.json"), "utf8"),
+    ) as {
+      version: string;
+      packages: Record<string, { version?: string }>;
+    };
+
+    expect(packageJson.version).toBe("0.2.0-beta.3");
+    expect(packageLock.version).toBe(packageJson.version);
+    expect(packageLock.packages[""]?.version).toBe(packageJson.version);
+    expect(packageJson.scripts).toMatchObject({
+      "test:provider-contracts": "jest tests/unit/providers --runInBand",
+      "test:codex-plugin": "node tests/e2e/codex-plugin-smoke.mjs",
+      "test:hybrid-beta": "node --test tests/e2e/hybrid-beta-demo.test.mjs",
+    });
+    for (const command of [
+      "npm run test:provider-contracts",
+      "npm run test:codex-plugin",
+      "npm run test:hybrid-beta",
+    ]) {
+      expect(packageJson.scripts["verify:release"]).toContain(command);
+    }
+
+    for (const currentSurface of [
+      "README.md",
+      "ROADMAP.md",
+      "CHANGELOG.md",
+      ".github/ISSUE_TEMPLATE/bug_report.yml",
+      ".github/ISSUE_TEMPLATE/feature_request.yml",
+    ]) {
+      const source = fs.readFileSync(path.resolve(currentSurface), "utf8");
+      expect(source).toContain("0.2.0-beta.3");
+      expect(source).not.toContain("0.2.0-beta.2");
+    }
+  });
+
   it("documents the beta.3 hybrid access boundaries and source-checkout workflow", () => {
     const documentationPaths = [
       "README.md",
@@ -170,6 +210,9 @@ describe("public beta repository configuration", () => {
     }
     expect(corpus).toMatch(
       /Ollama[\s\S]{0,180}(?:local|explicit)[\s\S]{0,120}model/i,
+    );
+    expect(corpus).toMatch(
+      /Ollama[\s\S]{0,260}(?:discover|detect)[\s\S]{0,160}(?:installed|choose|select)[\s\S]{0,120}model/i,
     );
     expect(corpus).toMatch(
       /direct provider mode[\s\S]{0,180}(?:never|no)[\s\S]{0,80}(?:fallback|falls? back)/i,
