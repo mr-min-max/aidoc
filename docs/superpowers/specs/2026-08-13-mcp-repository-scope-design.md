@@ -2,7 +2,7 @@
 
 - **Date:** 2026-08-13
 - **Target:** `v0.2.0-beta.3` pre-OSS hardening
-- **Status:** Proposed for implementation
+- **Status:** Approved for implementation
 
 ## 1. Objective
 
@@ -40,7 +40,10 @@ Gate's provider-boundary behavior.
 
 At startup, AiDoc discovers and canonicalizes the Git worktree containing the
 server working directory. That worktree is pinned for the lifetime of the MCP
-server and shared by all eight MCP tools.
+server and shared as the authorization boundary by all eight MCP tools. The
+five legacy tools use the new read-scope APIs directly; the three provider-free
+tools retain their existing startup-root source/target guards and use the new
+scope for safe configuration.
 
 This is deliberately simpler than an environment-configured multi-root
 allowlist:
@@ -95,7 +98,9 @@ Authorization verifies:
    identities before a sensitive read phase.
 
 Getters, inherited properties, hostile proxies, and implicit string coercion
-do not become an input channel. Tool schemas reject additional properties.
+do not become an input channel. Tool schemas advertise
+`additionalProperties:false`, and the runtime independently copies only the
+exact own data-property keys allowed by each route before authorization.
 
 Authorized file reads use no-follow descriptor opens where the platform
 supports them, verify file identity before and after reading, and pass the
@@ -153,7 +158,9 @@ The three provider-free workflow tools receive an immutable planning config
 from this same loader instead of allowing the shared impact planner to run its
 ordinary CLI config search. Normal CLI planning keeps its existing loader and
 behavior. Prepare and validate load the safe config afresh, so a configuration
-change participates in their existing stale-plan rejection.
+change that alters the effective plan participates in their existing
+stale-plan rejection; an unsafe replacement configuration is rejected before
+planning.
 
 Provider credentials already present in the MCP process environment remain
 supported. For source-checkout convenience, only the exact pinned-root `.env`
@@ -162,7 +169,9 @@ verified regular non-symlink file, parses it as data, imports only the
 existing exact `AIDOC_*` provider mappings and five documented provider-key
 variables into an immutable per-request environment snapshot, and never
 mutates `process.env`. The host process environment wins. No implicit dotenv
-search is used.
+search is used. The legacy secret-bearing `apiKey` project-config field is
+rejected by MCP; provider credentials stay in the host environment or the
+bounded root `.env` data path.
 
 ### 3.5 Ordering invariant
 
@@ -211,8 +220,11 @@ Stable protocol codes are:
 
 Errors are value-free. They never include the rejected path, glob, repository
 root, username, home directory, source content, config content, provider
-credential, raw filesystem error, or stack trace. Existing MCP error
-allowlisting continues to emit exactly one stable prefix.
+credential, raw filesystem/provider error, or stack trace. Existing MCP error
+allowlisting continues to emit exactly one stable prefix. Legacy generation
+maps an otherwise unknown provider/factory/transport/generator failure to one
+fixed MCP failure instead of returning even a redacted derivative of its
+message.
 
 The formatter recognizes authentic fixed-message error types rather than
 trusting a caller-controlled object that merely claims an allowlisted code.
@@ -299,8 +311,9 @@ Implementation follows red-green-refactor. Required evidence includes:
 
 The hardening is complete when:
 
-- all eight MCP routes use the same pinned read scope for project-controlled
-  reads and configuration;
+- all eight MCP routes share one pinned startup-worktree authorization
+  boundary; the five legacy routes use the MCP read scope for their project
+  reads, while all eight use it for project configuration;
 - no caller-supplied unapproved path can reach a content read, parser, Git
   command, provider, or response;
 - allowed root/subdirectory workflows retain their documented behavior;
