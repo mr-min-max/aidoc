@@ -15,6 +15,8 @@ import type {
   ImpactProviderContext,
 } from "../../../src/impact/types";
 import * as providerRegistry from "../../../src/providers/registry";
+import * as providerSelection from "../../../src/providers/selection";
+import type { ProviderPrompter } from "../../../src/providers/selection";
 import {
   selectUpdateTargets,
   type UpdateSelectionRuntime,
@@ -116,6 +118,19 @@ function planningResult(hasImpact: boolean): ImpactPlanningResult {
     digest: providerContext.impactDigest,
   };
   return { plan, providerContext };
+}
+
+function providerPrompter(
+  overrides: Partial<ProviderPrompter> = {},
+): ProviderPrompter {
+  return {
+    chooseProvider: jest.fn().mockResolvedValue(null),
+    chooseOllamaModel: jest.fn().mockResolvedValue(null),
+    configureQwen: jest.fn().mockResolvedValue(null),
+    confirmBoundary: jest.fn().mockResolvedValue(false),
+    rememberSelection: jest.fn().mockResolvedValue(false),
+    ...overrides,
+  };
 }
 
 describe("update impact flow", () => {
@@ -328,20 +343,224 @@ describe("update impact flow", () => {
     expect(resolveTargets).toHaveBeenCalledWith(
       expect.objectContaining({ scope }),
     );
-    expect(loadContext).toHaveBeenCalledWith({}, root);
+    expect(loadContext).toHaveBeenCalledWith(
+      {},
+      root,
+      expect.objectContaining({
+        interactive: false,
+        beforeProviderCreate: expect.any(Function),
+      }),
+    );
     expect(generateUpdate).toHaveBeenCalledTimes(1);
   });
 
-  it("registers base and since as explicit compatibility aliases", () => {
+  it("registers impact, target, provider, and write options explicitly", () => {
     expect(updateCommand.options.map((option) => option.flags)).toEqual([
       "--base <ref>",
       "--since <ref>",
       "--target <file>",
       "--all",
+      "--provider <name>",
+      "--model <model>",
+      "--provider-base-url <url>",
+      "--allow-local-http",
       "--yes",
       "--dry-run",
       "--mock",
     ]);
+  });
+
+  it("confirms the selected boundary before construction, generation, preview, and write", async () => {
+    const events: string[] = [];
+    const result = planningResult(true);
+    jest
+      .spyOn(impactPlanner, "createImpactPlan")
+      .mockImplementation(async () => {
+        events.push("plan");
+        return result;
+      });
+    jest
+      .spyOn(RepositoryWriteScope, "open")
+      .mockResolvedValue({} as RepositoryWriteScope);
+    jest
+      .spyOn(targetResolver, "resolveDocumentationTargets")
+      .mockImplementation(async () => {
+        events.push("prepare:README.md");
+        return [
+          {
+            ...candidate("README.md"),
+            prepared: {
+              displayPath: "README.md",
+              existingText: "# README.md\n",
+              replaceText: jest.fn(async () => {
+                events.push("write:README.md");
+              }),
+            },
+          },
+        ];
+      });
+    const selection = {
+      provider: "openai",
+      model: "gpt-5.6-luna",
+      source: "command" as const,
+      boundary: "remote" as const,
+      credentialEnv: "OPENAI_API_KEY",
+    };
+    jest
+      .spyOn(providerSelection, "confirmProviderBoundary")
+      .mockImplementation(async (input) => {
+        events.push("confirm-boundary");
+        expect(input).toMatchObject({
+          selection,
+          targetPaths: ["README.md"],
+          contextBytes: 512,
+          trustPolicy: "redact",
+          interactive: true,
+          yes: false,
+        });
+        return true;
+      });
+    const generateUpdate = jest.fn().mockImplementation(async () => {
+      events.push("generate:README.md");
+      return "# Updated\n";
+    });
+    jest
+      .spyOn(commandContext, "loadCommandContext")
+      .mockImplementation(async (_options, _cwd, runtime) => {
+        events.push("select-provider");
+        await runtime?.beforeProviderCreate?.(selection, defaultConfig);
+        events.push("construct-provider");
+        return {
+          config: defaultConfig,
+          cwd: root,
+          generator: { generateUpdate } as never,
+          isMock: false,
+          selection,
+        };
+      });
+    jest
+      .spyOn(commandContext, "writeDoc")
+      .mockImplementation(async (target, content) => {
+        events.push(`preview:${target.displayPath}`);
+        await target.prepared!.replaceText(content);
+      });
+
+    await expect(
+      executeUpdateCommand({ provider: "openai" }, root, {
+        interactive: true,
+        choose: jest.fn(),
+        providerPrompter: providerPrompter(),
+      }),
+    ).resolves.toBe(0);
+
+    expect(events).toEqual([
+      "plan",
+      "prepare:README.md",
+      "select-provider",
+      "confirm-boundary",
+      "construct-provider",
+      "generate:README.md",
+      "preview:README.md",
+      "write:README.md",
+    ]);
+  });
+
+  it("treats a declined provider boundary as cancellation before construction", async () => {
+    jest
+      .spyOn(impactPlanner, "createImpactPlan")
+      .mockResolvedValue(planningResult(true));
+    jest
+      .spyOn(RepositoryWriteScope, "open")
+      .mockResolvedValue({} as RepositoryWriteScope);
+    jest
+      .spyOn(targetResolver, "resolveDocumentationTargets")
+      .mockResolvedValue([candidate("README.md")]);
+    const selection = {
+      provider: "openai",
+      model: "gpt-5.6-luna",
+      source: "command" as const,
+      boundary: "remote" as const,
+      credentialEnv: "OPENAI_API_KEY",
+    };
+    jest
+      .spyOn(providerSelection, "confirmProviderBoundary")
+      .mockResolvedValue(false);
+    const construct = jest.fn();
+    jest
+      .spyOn(commandContext, "loadCommandContext")
+      .mockImplementation(async (_options, _cwd, runtime) => {
+        await runtime?.beforeProviderCreate?.(selection, defaultConfig);
+        construct();
+        throw new Error("unreachable");
+      });
+    const writeDoc = jest.spyOn(commandContext, "writeDoc");
+
+    await expect(
+      executeUpdateCommand({ provider: "openai" }, root, {
+        interactive: true,
+        choose: jest.fn(),
+        providerPrompter: providerPrompter(),
+      }),
+    ).resolves.toBe(0);
+
+    expect(construct).not.toHaveBeenCalled();
+    expect(writeDoc).not.toHaveBeenCalled();
+    expect(consoleLog.mock.calls.flat().join(" ")).toContain(
+      "No model request was sent",
+    );
+  });
+
+  it("persists only an explicitly remembered interactive selection", async () => {
+    jest
+      .spyOn(impactPlanner, "createImpactPlan")
+      .mockResolvedValue(planningResult(true));
+    jest
+      .spyOn(RepositoryWriteScope, "open")
+      .mockResolvedValue({} as RepositoryWriteScope);
+    jest
+      .spyOn(targetResolver, "resolveDocumentationTargets")
+      .mockResolvedValue([candidate("README.md")]);
+    const selection = {
+      provider: "openai",
+      model: "gpt-5.6-luna",
+      source: "interactive" as const,
+      boundary: "remote" as const,
+      credentialEnv: "OPENAI_API_KEY",
+    };
+    jest
+      .spyOn(providerSelection, "confirmProviderBoundary")
+      .mockResolvedValue(true);
+    jest
+      .spyOn(commandContext, "loadCommandContext")
+      .mockImplementation(async (_options, _cwd, runtime) => {
+        await runtime?.beforeProviderCreate?.(selection, defaultConfig);
+        return {
+          config: defaultConfig,
+          cwd: root,
+          generator: {
+            generateUpdate: jest.fn().mockResolvedValue("# Updated\n"),
+          } as never,
+          isMock: false,
+          selection,
+        };
+      });
+    jest.spyOn(commandContext, "writeDoc").mockResolvedValue(undefined);
+    const remember = jest.fn().mockResolvedValue(undefined);
+    const prompt = providerPrompter({
+      rememberSelection: jest.fn().mockResolvedValue(true),
+    });
+
+    await expect(
+      executeUpdateCommand({}, root, {
+        interactive: true,
+        choose: jest.fn(),
+        providerPrompter: prompt,
+        rememberProviderSelection: remember,
+      }),
+    ).resolves.toBe(0);
+
+    expect(prompt.rememberSelection).toHaveBeenCalledTimes(1);
+    expect(remember).toHaveBeenCalledWith(root, selection, undefined);
   });
 });
 

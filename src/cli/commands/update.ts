@@ -26,6 +26,13 @@ import {
   selectUpdateTargets,
   type UpdateSelectionRuntime,
 } from "../update-target-selection";
+import { rememberProviderSelection } from "../../config/persistence";
+import { createInteractivePrompter } from "../../providers/onboarding";
+import {
+  confirmProviderBoundary,
+  ProviderConfigurationError,
+  type ProviderPrompter,
+} from "../../providers/selection";
 
 export interface UpdateCommandOptions extends CommandOptions {
   base?: string;
@@ -34,11 +41,16 @@ export interface UpdateCommandOptions extends CommandOptions {
   all?: boolean;
 }
 
+export interface UpdateCommandRuntime extends UpdateSelectionRuntime {
+  readonly providerPrompter?: ProviderPrompter;
+  readonly rememberProviderSelection?: typeof rememberProviderSelection;
+}
+
 /** Executes the plan-first update workflow and returns its process status. */
 export async function executeUpdateCommand(
   options: UpdateCommandOptions,
   cwd = process.cwd(),
-  selectionRuntime?: UpdateSelectionRuntime,
+  runtime?: UpdateCommandRuntime,
 ): Promise<0 | 1 | 2> {
   const spinner = ora("Planning documentation impact...").start();
   try {
@@ -83,7 +95,7 @@ export async function executeUpdateCommand(
       candidates,
       explicit: explicitTargets.length > 0,
       all: options.all === true,
-      runtime: selectionRuntime,
+      runtime,
     });
     if (selected.length === 0) {
       console.log(
@@ -94,7 +106,52 @@ export async function executeUpdateCommand(
 
     // Every selected target has already been inspected by the one write scope
     // above. Provider construction is deliberately after target selection.
-    const ctx = await loadCommandContext(options, cwd);
+    const interactive =
+      runtime?.interactive ??
+      (process.stdin.isTTY === true && process.stdout.isTTY === true);
+    const providerPrompter =
+      runtime?.providerPrompter ?? createInteractivePrompter();
+    const persistSelection =
+      runtime?.rememberProviderSelection ?? rememberProviderSelection;
+    let ctx;
+    try {
+      ctx = await loadCommandContext(options, cwd, {
+        interactive,
+        prompter: providerPrompter,
+        beforeProviderCreate: async (selection, config) => {
+          const confirmed = await confirmProviderBoundary({
+            selection,
+            targetPaths: selected.map((target) => target.path),
+            contextBytes: result.plan.context.usedBytes,
+            trustPolicy: config.trustPolicy,
+            interactive,
+            yes: options.yes === true,
+            prompter: providerPrompter,
+          });
+          if (!confirmed) {
+            throw new ProviderConfigurationError(
+              "PROVIDER_SELECTION_CANCELLED",
+            );
+          }
+          if (
+            selection.source === "interactive" &&
+            (await providerPrompter.rememberSelection())
+          ) {
+            await persistSelection(cwd, selection, selection.qwen);
+          }
+        },
+      });
+    } catch (error: unknown) {
+      if (isProviderCancellation(error)) {
+        console.log(
+          chalk.yellow(
+            "Provider selection cancelled. No model request was sent.",
+          ),
+        );
+        return 0;
+      }
+      throw error;
+    }
     let processed = 0;
     for (const target of selected) {
       const documentTarget = documentTargetFromResolved(target);
@@ -159,6 +216,13 @@ export const updateCommand = new Command("update")
     [],
   )
   .option("--all", "Update every automatically affected document")
+  .option("--provider <name>", "Direct provider profile")
+  .option("--model <model>", "Provider model override")
+  .option("--provider-base-url <url>", "Advanced compatible provider base URL")
+  .option(
+    "--allow-local-http",
+    "Allow confirmed loopback HTTP for a compatible provider",
+  )
   .option("--yes", "Apply every generated diff without prompting")
   .option("--dry-run", "Preview without writing")
   .option("--mock", "Use mock LLM response for testing")
@@ -212,4 +276,13 @@ function resolveUpdateBase(
     throw new Error("--base and --since must match when both are provided.");
   }
   return base ?? since;
+}
+
+function isProviderCancellation(
+  error: unknown,
+): error is ProviderConfigurationError {
+  return (
+    error instanceof ProviderConfigurationError &&
+    error.code === "PROVIDER_SELECTION_CANCELLED"
+  );
 }

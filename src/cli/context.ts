@@ -6,6 +6,7 @@ import { createProvider } from "../providers/registry";
 import {
   resolveProviderSelection,
   ProviderConfigurationError,
+  type ProviderPrompter,
   type ResolvedProviderSelection,
 } from "../providers/selection";
 import { getProviderProfile } from "../providers/profiles";
@@ -48,6 +49,9 @@ export interface CommandContext {
 }
 
 export interface CommandContextLoadRuntime {
+  readonly interactive?: boolean;
+  readonly prompter?: ProviderPrompter;
+  readonly listOllamaModels?: () => Promise<readonly string[]>;
   beforeProviderCreate?(
     selection: ResolvedProviderSelection,
     config: AidocConfig,
@@ -180,7 +184,13 @@ export async function loadCommandContext(
       providerBaseUrl: options.providerBaseUrl,
       allowLocalHttp: options.allowLocalHttp,
     },
-    interactive: process.stdin.isTTY === true && process.stdout.isTTY === true,
+    interactive:
+      runtime?.interactive ??
+      (process.stdin.isTTY === true && process.stdout.isTTY === true),
+    ...(runtime?.prompter === undefined ? {} : { prompter: runtime.prompter }),
+    ...(runtime?.listOllamaModels === undefined
+      ? {}
+      : { listOllamaModels: runtime.listOllamaModels }),
   });
   if (selection === null) {
     throw new ProviderConfigurationError("PROVIDER_SELECTION_CANCELLED");

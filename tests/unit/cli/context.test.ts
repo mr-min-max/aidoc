@@ -15,6 +15,10 @@ import * as providerRegistry from "../../../src/providers/registry";
 import type { ResolvedProviderSelection } from "../../../src/providers/selection";
 
 describe("loadCommandContext", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it("returns a mock generator when mock is set", async () => {
     const ctx = await loadCommandContext({ mock: true });
     expect(ctx.isMock).toBe(true);
@@ -93,6 +97,40 @@ describe("loadCommandContext", () => {
     expect(createProvider.mock.calls[0][0]).not.toHaveProperty("apiKey");
     expect(ctx.selection).toEqual(selection);
     expect(ctx.isMock).toBe(false);
+  });
+
+  it("forwards one accepted interactivity and prompter snapshot into selection", async () => {
+    const selection: ResolvedProviderSelection = {
+      provider: "openai",
+      model: "gpt-5.6-luna",
+      source: "command",
+      boundary: "remote",
+      credentialEnv: "OPENAI_API_KEY",
+    };
+    const prompter = {
+      chooseProvider: jest.fn(),
+      chooseOllamaModel: jest.fn(),
+      configureQwen: jest.fn(),
+      confirmBoundary: jest.fn(),
+      rememberSelection: jest.fn(),
+    };
+    const resolveSelection = jest
+      .spyOn(providerSelection, "resolveProviderSelection")
+      .mockResolvedValue(selection);
+    resolveSelection.mockClear();
+    jest.spyOn(providerRegistry, "createProvider").mockReturnValue({
+      name: "openai",
+      generate: jest.fn(),
+    });
+
+    await loadCommandContext({ provider: "openai" }, process.cwd(), {
+      interactive: true,
+      prompter,
+    });
+
+    expect(resolveSelection).toHaveBeenCalledWith(
+      expect.objectContaining({ interactive: true, prompter }),
+    );
   });
 
   it("passes an approved command loopback endpoint and effective local permission to the factory", async () => {
