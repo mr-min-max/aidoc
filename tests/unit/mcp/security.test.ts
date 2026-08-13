@@ -33,6 +33,12 @@ import {
   RepositoryWriteError,
   REPOSITORY_WRITE_ERROR_CODES,
 } from "../../../src/security/types";
+import {
+  MCP_DIRECTORY_DENIED,
+  MCP_INVALID_PATH_INPUT,
+  MCPRepositoryScopeError,
+  MCP_SCOPE_ERROR_CODES,
+} from "../../../src/mcp/repository-scope";
 
 const analyzeCodebaseMock = analyzeCodebase as jest.MockedFunction<
   typeof analyzeCodebase
@@ -96,6 +102,72 @@ describe("MCP Trust Gate wiring", () => {
     });
 
     expect(formatMCPError(error)).toBe("Unknown MCP error.");
+  });
+
+  it("formats only authentic fixed MCP repository scope errors", () => {
+    for (const [code, message] of [
+      [MCP_INVALID_PATH_INPUT, "The MCP path input is invalid."],
+      [
+        MCP_DIRECTORY_DENIED,
+        "The requested directory is outside the MCP repository scope.",
+      ],
+    ] as const) {
+      const authentic = new MCPRepositoryScopeError(code);
+      const formatted = formatMCPError(authentic);
+      expect(formatted).toBe(`${code}: ${message}`);
+      expect(formatted.match(new RegExp(code, "gu"))).toHaveLength(1);
+    }
+
+    expect(
+      formatMCPError({
+        code: "MCP_INVALID_PATH_INPUT",
+        message: "/private/hostile/path fake-key",
+      }),
+    ).toBe("Unknown MCP error.");
+
+    const authentic = new MCPRepositoryScopeError(MCP_INVALID_PATH_INPUT);
+    authentic.message = "/private/hostile/path fake-key";
+    expect(formatMCPError(authentic)).toBe("Unknown MCP error.");
+
+    for (const invalidCode of ["UNAPPROVED_CODE", "__proto__"]) {
+      expect(() => new MCPRepositoryScopeError(invalidCode as never)).toThrow(
+        "Invalid MCP repository scope error configuration.",
+      );
+    }
+
+    const getter = jest.fn(() => "/private/hostile/path fake-key");
+    const accessor = new MCPRepositoryScopeError(MCP_DIRECTORY_DENIED);
+    Object.defineProperty(accessor, "message", {
+      configurable: true,
+      get: getter,
+    });
+    expect(formatMCPError(accessor)).toBe("Unknown MCP error.");
+    expect(getter).not.toHaveBeenCalled();
+
+    const proxyGet = jest.fn(() => {
+      throw new Error("hostile getter");
+    });
+    const proxy = new Proxy(
+      { code: MCP_DIRECTORY_DENIED, message: "/private/hostile/path" },
+      { get: proxyGet },
+    );
+    expect(formatMCPError(proxy)).toBe("Unknown MCP error.");
+    expect(proxyGet).not.toHaveBeenCalled();
+
+    const inheritedGetter = jest.fn(() => MCP_INVALID_PATH_INPUT);
+    const inherited = Object.create(null, {
+      code: {
+        configurable: true,
+        get: inheritedGetter,
+      },
+    });
+    expect(formatMCPError(Object.create(inherited))).toBe("Unknown MCP error.");
+    expect(inheritedGetter).not.toHaveBeenCalled();
+
+    expect(MCP_SCOPE_ERROR_CODES).toEqual([
+      MCP_INVALID_PATH_INPUT,
+      MCP_DIRECTORY_DENIED,
+    ]);
   });
 
   it.each(REPOSITORY_WRITE_ERROR_CODES)(

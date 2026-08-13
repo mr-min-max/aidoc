@@ -37,6 +37,10 @@ import {
   inspectSafeAllowlistedErrorCode,
   UNKNOWN_ERROR_DIAGNOSTIC,
 } from "../security/diagnostics";
+import {
+  MCPRepositoryScopeError,
+  readOwnMCPArgument,
+} from "./repository-scope";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -66,8 +70,6 @@ const SAFE_MCP_ERROR_CODES = new Set<string>([
   "TRUST_INVALID_TARGET_TYPE",
   "TRUST_RACE_DETECTED",
   "TRUST_ATOMIC_WRITE_FAILED",
-  "MCP_DIRECTORY_DENIED",
-  "MCP_INVALID_PATH_INPUT",
   MCP_TARGET_REQUIRED,
   MCP_INVALID_PREPARATION,
 ]);
@@ -82,25 +84,6 @@ function invalidMCPContextBudget(): PlanFailure {
     "PLAN_INVALID_CONTEXT_BUDGET",
     "The provider context byte budget is invalid.",
   );
-}
-
-function readOwnMCPArgument(
-  args: unknown,
-  key: string,
-  failure: () => PlanFailure,
-): unknown {
-  if (typeof args !== "object" || args === null || Array.isArray(args)) {
-    throw failure();
-  }
-  let descriptor: PropertyDescriptor | undefined;
-  try {
-    descriptor = Object.getOwnPropertyDescriptor(args, key);
-  } catch {
-    throw failure();
-  }
-  if (descriptor === undefined) return undefined;
-  if (!("value" in descriptor)) throw failure();
-  return descriptor.value;
 }
 
 function readMCPPlanOptions(args: unknown): {
@@ -130,9 +113,16 @@ function readMCPPlanOptions(args: unknown): {
 }
 
 export function formatMCPError(error: unknown): string {
+  const scopeError = MCPRepositoryScopeError.read(error);
+  if (scopeError !== undefined) {
+    return `${scopeError.code}: ${scopeError.message}`;
+  }
   const planError = PlanFailure.read(error);
   if (planError !== undefined) {
     return `${planError.code}: ${planError.message}`;
+  }
+  if (MCPRepositoryScopeError.isCandidate(error)) {
+    return UNKNOWN_MCP_ERROR;
   }
 
   const diagnostic = getSafeErrorDiagnostic(error);
