@@ -1046,7 +1046,7 @@ Run: `npm run lint`
 
 Expected: PASS with zero ESLint errors.
 
-Run: `/Users/davyd/Documents/aidoc/node_modules/.bin/prettier --check "src/**/*.ts" "tests/**/*.ts" README.md ROADMAP.md docs/PUBLIC_BETA.md`
+Run: `./node_modules/.bin/prettier --check "src/**/*.ts" "tests/**/*.ts" README.md ROADMAP.md docs/PUBLIC_BETA.md`
 
 Expected: PASS. If formatting changes are required, run the same executable with `--write`, inspect the diff, and commit only those scoped changes.
 

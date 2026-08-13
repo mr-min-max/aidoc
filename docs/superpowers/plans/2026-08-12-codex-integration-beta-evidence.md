@@ -28,9 +28,9 @@ scripts, existing MCP process, Jest/Node test runner.
 - Read first: `AGENTS.md`, accepted hybrid spec, accepted MCP plan/implementation,
   `README.md`, `docs/PUBLIC_BETA.md`, release gates, and current official plugin
   packaging guidance linked from the spec.
-- Use `/Users/davyd/.codex/skills/.system/plugin-creator/scripts/create_basic_plugin.py`
+- Use `$HOME/.codex/skills/.system/plugin-creator/scripts/create_basic_plugin.py`
   to scaffold, then edit generated metadata. Validate with
-  `/Users/davyd/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py`.
+  `$HOME/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py`.
 - Create no personal/repo marketplace entry, install, cachebuster, public
   listing, npm publish, GitHub release, or tag.
 - The plugin never reads Codex/ChatGPT/Claude auth files and carries no secret.
@@ -87,7 +87,7 @@ Expected: FAIL because the plugin does not exist.
 Run from the plugin-creator skill root:
 
 ```bash
-python3 scripts/create_basic_plugin.py aidoc --path /Users/davyd/Documents/aidoc/integrations/codex --with-skills --with-mcp
+python3 scripts/create_basic_plugin.py aidoc --path integrations/codex --with-skills --with-mcp
 ```
 
 Do not pass `--with-marketplace`.
@@ -130,7 +130,7 @@ Use a direct server map in `.mcp.json` exactly as asserted in Step 1.
 Run:
 
 ```bash
-python3 /Users/davyd/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py integrations/codex/aidoc
+python3 "$HOME/.codex/skills/.system/plugin-creator/scripts/validate_plugin.py" integrations/codex/aidoc
 node tests/e2e/codex-plugin-smoke.mjs
 ```
 

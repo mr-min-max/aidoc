@@ -22,7 +22,7 @@ Handlebars, OpenAI SDK, Anthropic SDK, MCP SDK, Jest.
 
 ## Global Constraints
 
-- Follow `/Users/davyd/Documents/aidoc/AGENTS.md`: AST first, `LLMProvider`
+- Follow `AGENTS.md`: AST first, `LLMProvider`
   boundary, Handlebars templates, and unit tests for providers/parsers.
 - Baseline is commit `8ad1035661ce9fa9d2e937b7eb31f3cdd9b440eb` on
   `codex/hybrid-beta`; it includes repository-contained atomic writes from
