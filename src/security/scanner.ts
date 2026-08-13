@@ -43,13 +43,22 @@ const credentialUrlPattern =
 const namedSecretPattern =
   /(?<![A-Za-z0-9_$])["']?(?:apiKey|api_key|api-key|accessToken|access_token|access-token|authToken|auth_token|auth-token|clientSecret|client_secret|client-secret|password|passphrase|secret|token|privateKey|private_key|private-key)["']?(?![A-Za-z0-9_$])\s*(?:=|:)\s*(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)'|([^\s,;}\]\r\n]+))/gi;
 const canonicalPrefixedSecretPattern =
-  /(?<![A-Za-z0-9_$])["']?(?:JWT_SECRET|GITHUB_TOKEN|OPENAI_API_KEY|ANTHROPIC_API_KEY)["']?(?![A-Za-z0-9_$])\s*(?:=|:)\s*(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)'|([^\s,;}\]\r\n]+))/gi;
+  /(?<![A-Za-z0-9_$])["']?(?:JWT_SECRET|GITHUB_TOKEN|OPENAI_API_KEY|ANTHROPIC_API_KEY|DEEPSEEK_API_KEY|DASHSCOPE_API_KEY|AIDOC_COMPAT_API_KEY)["']?(?![A-Za-z0-9_$])\s*(?:=|:)\s*(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)'|([^\s,;}\]\r\n]+))/gi;
+const unixUserPathPattern =
+  /(?<![A-Za-z0-9/])\/(?:Users|home)\/[^\s/]+(?:\/[^\s]*)?/g;
+const windowsUserPathPattern =
+  /\b[A-Za-z]:[\\/](?:Users|home)[\\/][^\s\\/]+(?:[\\/][^\s]*)*/g;
 const redactionPlaceholderPrefix = "<AIDOC_REDACTED:";
 const redactionPlaceholderPattern = /^<AIDOC_REDACTED:[A-Z_]+:\d+>$/;
 const sensitiveBasenamePattern =
   /(?<![A-Za-z0-9._-])(?:\.env(?:\.(?!example(?=$|[\\/\s,;:)"'\]}`<>]))[A-Za-z0-9_.-]+)?|\.npmrc|\.pypirc|\.netrc|id_(?:rsa|dsa|ecdsa|ed25519))(?=$|[\\/\s,;:)"'\]}`<>])/g;
 const awsCredentialsPattern =
   /(?<![A-Za-z0-9._-])\.aws[\\/]credentials(?=$|[\\/\s,;:)"'\]}`<>])/g;
+
+export interface SecretPolicyOptions {
+  readonly additionalSensitivePaths?: readonly string[];
+  readonly includeUserPaths?: boolean;
+}
 
 /**
  * Maintains stable opaque placeholders for one Trust Gate transaction.
@@ -82,8 +91,9 @@ export function applySecretPolicy(
   text: string,
   policy: TrustPolicy,
   session: RedactionSession,
+  options: SecretPolicyOptions = {},
 ): TrustTextResult {
-  const matches = selectMatches(collectMatches(text));
+  const matches = selectMatches(collectMatches(text, options));
   const findings = summarizeMatches(matches);
 
   if (policy === "strict" && findings.length > 0) {
@@ -114,13 +124,40 @@ export function sanitizeDiagnostic(text: string): string {
   return applySecretPolicy(text, "redact", new RedactionSession()).text;
 }
 
-function collectMatches(text: string): SecretMatch[] {
+function collectMatches(
+  text: string,
+  options: SecretPolicyOptions,
+): SecretMatch[] {
+  const userPathMatches = options.includeUserPaths
+    ? [
+        ...collectPatternMatches(
+          text,
+          "sensitive_path",
+          unixUserPathPattern,
+          20,
+        ),
+        ...collectPatternMatches(
+          text,
+          "sensitive_path",
+          windowsUserPathPattern,
+          20,
+        ),
+      ]
+    : [];
+
   return [
     ...collectPatternMatches(text, "private_key", privateKeyPattern, 40),
     ...collectProviderMatches(text),
     ...collectPatternMatches(text, "credential_url", credentialUrlPattern, 25),
     ...collectAssignmentMatches(text, canonicalPrefixedSecretPattern, 20),
     ...collectNamedSecretMatches(text),
+    ...collectLiteralMatches(
+      text,
+      options.additionalSensitivePaths ?? [],
+      "sensitive_path",
+      20,
+    ),
+    ...userPathMatches,
     ...collectPatternMatches(
       text,
       "sensitive_path",
@@ -129,6 +166,34 @@ function collectMatches(text: string): SecretMatch[] {
     ),
     ...collectPatternMatches(text, "sensitive_path", awsCredentialsPattern, 10),
   ];
+}
+
+function collectLiteralMatches(
+  text: string,
+  values: readonly string[],
+  kind: SecretKind,
+  priority: number,
+): SecretMatch[] {
+  const matches: SecretMatch[] = [];
+
+  for (const value of values) {
+    if (value.length === 0) continue;
+    let start = 0;
+    while (start < text.length) {
+      const index = text.indexOf(value, start);
+      if (index < 0) break;
+      matches.push({
+        kind,
+        start: index,
+        end: index + value.length,
+        value,
+        priority,
+      });
+      start = index + value.length;
+    }
+  }
+
+  return matches;
 }
 
 function collectProviderMatches(text: string): SecretMatch[] {

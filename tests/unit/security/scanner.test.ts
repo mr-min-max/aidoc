@@ -193,6 +193,15 @@ describe("applySecretPolicy", () => {
     expect(result).toEqual({ text: input, findings: [], action: "allowed" });
   });
 
+  it("keeps absolute local paths unchanged for default direct scans", () => {
+    const input = "/Users/alice/private/project/README.md";
+    expect(applySecretPolicy(input, "redact", new RedactionSession())).toEqual({
+      text: input,
+      findings: [],
+      action: "allowed",
+    });
+  });
+
   it("excludes only the exact .env.example documentation basename", () => {
     const input = [".env.example", ".env.example.local"].join("\n");
     const result = applySecretPolicy(input, "redact", new RedactionSession());
@@ -247,6 +256,27 @@ describe("applySecretPolicy", () => {
     expect(result.text).not.toContain(jwtValue);
     expect(result.text).not.toContain(githubValue);
     expect(result.text).not.toContain(openAiValue);
+  });
+
+  it("recognizes every built-in remote provider credential assignment", () => {
+    const values = {
+      OPENAI_API_KEY: "arbitrary-openai-value",
+      ANTHROPIC_API_KEY: "arbitrary-anthropic-value",
+      DEEPSEEK_API_KEY: "arbitrary-deepseek-value",
+      DASHSCOPE_API_KEY: "arbitrary-dashscope-value",
+      AIDOC_COMPAT_API_KEY: "arbitrary-compatible-value",
+    };
+    const input = Object.entries(values)
+      .map(([key, value]) => `${key}=${value}`)
+      .join("\n");
+
+    const result = applySecretPolicy(input, "redact", new RedactionSession());
+
+    expect(result.action).toBe("redacted");
+    expect(result.findings).toEqual([{ kind: "named_secret", count: 5 }]);
+    for (const value of Object.values(values)) {
+      expect(result.text).not.toContain(value);
+    }
   });
 
   it("does not treat canonical field prefixes as a secret field match", () => {

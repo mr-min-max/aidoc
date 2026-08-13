@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
 import {
   chmodSync,
@@ -37,10 +38,136 @@ function createThrowingConfigFixture(name, source) {
 
 function credentialFreeEnv() {
   const env = { ...process.env };
-  delete env.OPENAI_API_KEY;
-  delete env.ANTHROPIC_API_KEY;
-  delete env.AIDOC_OLLAMA_HOST;
+  for (const key of [
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "DASHSCOPE_API_KEY",
+    "AIDOC_COMPAT_API_KEY",
+    "AIDOC_PROVIDER",
+    "AIDOC_MODEL",
+    "AIDOC_PROVIDER_BASE_URL",
+    "AIDOC_ALLOW_LOCAL_HTTP",
+    "AIDOC_QWEN_REGION",
+    "AIDOC_QWEN_WORKSPACE_ID",
+    "AIDOC_OLLAMA_HOST",
+    "AIDOC_TRUST_POLICY",
+  ]) {
+    delete env[key];
+  }
   return env;
+}
+
+function repositoryTreeHash(directory) {
+  const files = execFileSync("git", ["ls-files", "-z"], {
+    cwd: directory,
+    encoding: "buffer",
+  })
+    .toString("utf8")
+    .split("\0")
+    .filter(Boolean);
+  const hash = createHash("sha256");
+  for (const file of files) {
+    hash.update(file, "utf8");
+    hash.update("\0", "utf8");
+    hash.update(readFileSync(join(directory, file)));
+    hash.update("\0", "utf8");
+  }
+  return hash.digest("hex");
+}
+
+async function runProviderFreeRoundTrip(cliPath, fixture, base, head, label) {
+  const localClient = new Client({ name: `aidoc-${label}`, version: "1.0.0" });
+  const localTransport = new StdioClientTransport({
+    command: process.execPath,
+    args: [cliPath, "--mcp"],
+    cwd: fixture,
+    env: credentialFreeEnv(),
+  });
+  try {
+    await withTimeout(
+      localClient.connect(localTransport),
+      `${label} initialization`,
+    );
+    const before = repositoryTreeHash(fixture);
+    const listed = await withTimeout(
+      localClient.listTools(),
+      `${label} tools/list`,
+    );
+    assert.ok(
+      listed.tools.some((tool) => tool.name === "prepare_documentation_update"),
+    );
+    assert.ok(
+      listed.tools.some((tool) => tool.name === "validate_documentation_draft"),
+    );
+
+    const preparationResult = await withTimeout(
+      localClient.callTool({
+        name: "prepare_documentation_update",
+        arguments: { base, head },
+      }),
+      `${label} prepare_documentation_update`,
+    );
+    assert.notEqual(preparationResult.isError, true);
+    const preparationText = preparationResult.content.find(
+      (item) => item.type === "text",
+    );
+    assert.ok(preparationText && "text" in preparationText);
+    const preparation = JSON.parse(preparationText.text);
+    assert.equal(preparation.schema_version, "aidoc.mcp-update-preparation.v1");
+    assert.equal(preparation.target, "README.md");
+    assert.match(preparation.preparation_digest, /^v1\./u);
+    assert.equal(preparation.generation.prompt.includes(rawSentinel), false);
+    assert.equal(repositoryTreeHash(fixture), before);
+
+    const candidate = "# MCP fixture\n\nUpdated by the host.\n";
+    const validationResult = await withTimeout(
+      localClient.callTool({
+        name: "validate_documentation_draft",
+        arguments: {
+          preparation_digest: preparation.preparation_digest,
+          target: preparation.target,
+          candidate_markdown: candidate,
+        },
+      }),
+      `${label} validate_documentation_draft`,
+    );
+    assert.notEqual(validationResult.isError, true);
+    const validationText = validationResult.content.find(
+      (item) => item.type === "text",
+    );
+    assert.ok(validationText && "text" in validationText);
+    const validation = JSON.parse(validationText.text);
+    assert.equal(validation.schema_version, "aidoc.mcp-draft-validation.v1");
+    assert.equal(validation.valid, true);
+    assert.equal(validation.approved_markdown, candidate);
+    assert.equal(repositoryTreeHash(fixture), before);
+
+    const tampered = preparation.preparation_digest.endsWith("A")
+      ? `${preparation.preparation_digest.slice(0, -1)}B`
+      : `${preparation.preparation_digest.slice(0, -1)}A`;
+    const tamperedResult = await withTimeout(
+      localClient.callTool({
+        name: "validate_documentation_draft",
+        arguments: {
+          preparation_digest: tampered,
+          target: preparation.target,
+          candidate_markdown: candidate,
+        },
+      }),
+      `${label} tampered validation`,
+    );
+    assert.equal(tamperedResult.isError, true);
+    const tamperedText = tamperedResult.content.find(
+      (item) => item.type === "text",
+    );
+    assert.ok(tamperedText && "text" in tamperedText);
+    assert.match(tamperedText.text, /^MCP_INVALID_PREPARATION:/u);
+    assert.equal(repositoryTreeHash(fixture), before);
+  } finally {
+    await localClient.close().catch(() => {});
+    await localTransport.close().catch(() => {});
+  }
 }
 
 function terminateProcessTree(child) {
@@ -239,6 +366,13 @@ try {
     "cli",
     "index.js",
   );
+  await runProviderFreeRoundTrip(
+    resolve("dist/cli/index.js"),
+    fixture,
+    base,
+    head,
+    "built-mcp",
+  );
   client = new Client({ name: "aidoc-smoke", version: "1.0.0" });
   transport = new StdioClientTransport({
     command: process.execPath,
@@ -320,6 +454,8 @@ try {
   const mcpPlan = JSON.parse(impactText.text);
   assert.deepEqual(mcpPlan, cliPlanResult.plan);
   assert.equal(impactText.text.includes(rawSentinel), false);
+
+  await runProviderFreeRoundTrip(packedCli, fixture, base, head, "packed-mcp");
 
   const errorResult = await withTimeout(
     client.callTool({

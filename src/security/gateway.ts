@@ -1,5 +1,9 @@
 import { GenerateOptions, LLMProvider } from "../providers/types";
-import { RedactionSession, applySecretPolicy } from "./scanner";
+import {
+  RedactionSession,
+  applySecretPolicy,
+  type SecretPolicyOptions,
+} from "./scanner";
 import { getSafeErrorDiagnostic } from "./diagnostics";
 import {
   FindingSummary,
@@ -45,11 +49,12 @@ export interface GatewayOptions {
   policy: TrustPolicy;
   origin: GenerationOrigin;
   onEvent?: (event: TrustEvent) => void;
+  sensitivePaths?: readonly string[];
 }
 
-interface ApprovedInput {
-  systemPrompt: string;
-  prompt: string;
+export interface ApprovedTrustInput {
+  readonly systemPrompt: string;
+  readonly prompt: string;
 }
 
 /**
@@ -63,14 +68,24 @@ export class TrustGateway {
   private readonly policy: TrustPolicy;
   private readonly origin: GenerationOrigin;
   private readonly eventHook?: (event: TrustEvent) => void;
+  private readonly scanOptions: SecretPolicyOptions;
 
   constructor(
-    private readonly provider: LLMProvider,
+    private readonly provider: LLMProvider | undefined,
     options: GatewayOptions,
   ) {
     this.policy = options.policy;
     this.origin = options.origin;
     this.eventHook = options.onEvent;
+    this.scanOptions = {
+      additionalSensitivePaths: options.sensitivePaths,
+      includeUserPaths: options.sensitivePaths !== undefined,
+    };
+  }
+
+  /** Creates a Trust Gate limited to provider-boundary inspection methods. */
+  static forInspection(options: GatewayOptions): TrustGateway {
+    return new TrustGateway(undefined, options);
   }
 
   /**
@@ -82,9 +97,9 @@ export class TrustGateway {
     envelope: ContextEnvelope,
     options: Omit<GenerateOptions, "systemPrompt"> = {},
   ): Promise<string> {
-    const input = this.approveInput(envelope);
+    const input = this.approveInputEnvelope(envelope);
     const output = await this.generateTransport(envelope, input, options);
-    return this.approveOutput(envelope, output);
+    return this.approveOutputEnvelope(envelope, output);
   }
 
   /**
@@ -97,11 +112,11 @@ export class TrustGateway {
     options: Omit<GenerateOptions, "systemPrompt">,
     onApprovedOutput: (content: string) => void,
   ): Promise<string> {
-    const input = this.approveInput(envelope);
+    const input = this.approveInputEnvelope(envelope);
 
-    if (!this.provider.generateStream) {
+    if (this.provider === undefined || !this.provider.generateStream) {
       const output = await this.generateTransport(envelope, input, options);
-      const approvedOutput = this.approveOutput(envelope, output);
+      const approvedOutput = this.approveOutputEnvelope(envelope, output);
       onApprovedOutput(approvedOutput);
       return approvedOutput;
     }
@@ -117,7 +132,7 @@ export class TrustGateway {
       this.throwSanitizedProviderError(envelope, error);
     }
 
-    const approvedOutput = this.approveOutput(envelope, output);
+    const approvedOutput = this.approveOutputEnvelope(envelope, output);
     onApprovedOutput(approvedOutput);
     return approvedOutput;
   }
@@ -131,7 +146,12 @@ export class TrustGateway {
    */
   approveInputFragment(operation: GenerationOperation, text: string): string {
     try {
-      return applySecretPolicy(text, this.policy, this.session).text;
+      return applySecretPolicy(
+        text,
+        this.policy,
+        this.session,
+        this.scanOptions,
+      ).text;
     } catch (error: unknown) {
       if (error instanceof TrustViolationError) {
         this.emit("input", { operation }, "blocked", error.findings);
@@ -140,7 +160,7 @@ export class TrustGateway {
     }
   }
 
-  private approveInput(envelope: ContextEnvelope): ApprovedInput {
+  approveInputEnvelope(envelope: ContextEnvelope): ApprovedTrustInput {
     if (this.policy === "strict") {
       return this.approveStrictInput(envelope);
     }
@@ -149,11 +169,13 @@ export class TrustGateway {
       envelope.systemPrompt,
       this.policy,
       this.session,
+      this.scanOptions,
     );
     const prompt = applySecretPolicy(
       envelope.prompt,
       this.policy,
       this.session,
+      this.scanOptions,
     );
     this.emit(
       "input",
@@ -165,7 +187,7 @@ export class TrustGateway {
     return { systemPrompt: system.text, prompt: prompt.text };
   }
 
-  private approveStrictInput(envelope: ContextEnvelope): ApprovedInput {
+  private approveStrictInput(envelope: ContextEnvelope): ApprovedTrustInput {
     const system = this.scanStrictInputText(envelope.systemPrompt);
     const prompt = this.scanStrictInputText(envelope.prompt);
     const findings = aggregateFindings(system.findings, prompt.findings);
@@ -184,7 +206,12 @@ export class TrustGateway {
     result?: TrustTextResult;
   } {
     try {
-      const result = applySecretPolicy(text, "strict", this.session);
+      const result = applySecretPolicy(
+        text,
+        "strict",
+        this.session,
+        this.scanOptions,
+      );
       return { findings: result.findings, result };
     } catch (error: unknown) {
       if (error instanceof TrustViolationError) {
@@ -196,9 +223,15 @@ export class TrustGateway {
 
   private async generateTransport(
     envelope: ContextEnvelope,
-    input: ApprovedInput,
+    input: ApprovedTrustInput,
     options: Omit<GenerateOptions, "systemPrompt">,
   ): Promise<unknown> {
+    if (this.provider === undefined) {
+      this.throwSanitizedProviderError(
+        envelope,
+        new Error("Trust inspection has no provider transport."),
+      );
+    }
     try {
       return await this.provider.generate(input.prompt, {
         ...options,
@@ -209,13 +242,18 @@ export class TrustGateway {
     }
   }
 
-  private approveOutput(envelope: ContextEnvelope, output: unknown): string {
+  approveOutputEnvelope(envelope: ContextEnvelope, output: unknown): string {
     if (typeof output !== "string") {
       throw new TrustInvalidProviderOutputError();
     }
 
     try {
-      const result = applySecretPolicy(output, this.policy, this.session);
+      const result = applySecretPolicy(
+        output,
+        this.policy,
+        this.session,
+        this.scanOptions,
+      );
       this.emit("output", envelope, result.action, result.findings);
       return result.text;
     } catch (error: unknown) {

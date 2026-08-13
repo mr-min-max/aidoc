@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import {
   mkdtempSync,
@@ -11,17 +12,53 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import process from "node:process";
-import { getConfiguredSmokeTarball } from "./smoke-tarball.mjs";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import {
+  assertPackedMcpArtifacts,
+  getConfiguredSmokeTarball,
+} from "./smoke-tarball.mjs";
 import { runImpactDemo } from "../../scripts/demo-impact.mjs";
 
 const rawSentinel = "AIDOC_RAW_SOURCE_MUST_NOT_LEAK";
 
 function credentialFreeEnv() {
   const env = { ...process.env };
-  delete env.OPENAI_API_KEY;
-  delete env.ANTHROPIC_API_KEY;
-  delete env.AIDOC_OLLAMA_HOST;
+  for (const key of [
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "DEEPSEEK_API_KEY",
+    "DASHSCOPE_API_KEY",
+    "AIDOC_COMPAT_API_KEY",
+    "AIDOC_PROVIDER",
+    "AIDOC_MODEL",
+    "AIDOC_PROVIDER_BASE_URL",
+    "AIDOC_ALLOW_LOCAL_HTTP",
+    "AIDOC_QWEN_REGION",
+    "AIDOC_QWEN_WORKSPACE_ID",
+    "AIDOC_OLLAMA_HOST",
+    "AIDOC_TRUST_POLICY",
+  ]) {
+    delete env[key];
+  }
   return env;
+}
+
+function repositoryTreeHash(directory) {
+  const files = execFileSync("git", ["ls-files", "-z"], {
+    cwd: directory,
+  })
+    .toString("utf8")
+    .split("\0")
+    .filter(Boolean);
+  const hash = createHash("sha256");
+  for (const file of files) {
+    hash.update(file, "utf8");
+    hash.update("\0", "utf8");
+    hash.update(readFileSync(join(directory, file)));
+    hash.update("\0", "utf8");
+  }
+  return hash.digest("hex");
 }
 
 function commitFixture(repository, hooks, message) {
@@ -71,6 +108,7 @@ try {
   });
 
   const packageRoot = join(consumer, "node_modules", "aidoc-gen");
+  assertPackedMcpArtifacts(packageRoot);
   const require = createRequire(import.meta.url);
   const { resolveTemplatesDir } = require(
     join(packageRoot, "dist", "core", "templates.js"),
@@ -198,6 +236,83 @@ try {
     1,
   );
   assert.equal(JSON.stringify(demo.plan).includes(rawSentinel), false);
+
+  const mcpClient = new Client({
+    name: "aidoc-package-smoke",
+    version: "1.0.0",
+  });
+  const mcpTransport = new StdioClientTransport({
+    command: process.execPath,
+    args: [packedCli, "--mcp"],
+    cwd: fixture,
+    env: credentialFreeEnv(),
+  });
+  try {
+    await mcpClient.connect(mcpTransport);
+    const listed = await mcpClient.listTools();
+    assert.ok(
+      listed.tools.some((tool) => tool.name === "prepare_documentation_update"),
+    );
+    assert.ok(
+      listed.tools.some((tool) => tool.name === "validate_documentation_draft"),
+    );
+    const before = repositoryTreeHash(fixture);
+    const preparationResult = await mcpClient.callTool({
+      name: "prepare_documentation_update",
+      arguments: { base, head },
+    });
+    assert.notEqual(preparationResult.isError, true);
+    const preparationText = preparationResult.content.find(
+      (item) => item.type === "text",
+    );
+    assert.ok(preparationText && "text" in preparationText);
+    const preparation = JSON.parse(preparationText.text);
+    assert.equal(preparation.schema_version, "aidoc.mcp-update-preparation.v1");
+    assert.equal(preparation.target, "README.md");
+    assert.equal(preparation.generation.prompt.includes(rawSentinel), false);
+    const candidate = "# API\n\nUpdated by the package host.\n";
+    const validationResult = await mcpClient.callTool({
+      name: "validate_documentation_draft",
+      arguments: {
+        preparation_digest: preparation.preparation_digest,
+        target: preparation.target,
+        candidate_markdown: candidate,
+      },
+    });
+    assert.notEqual(validationResult.isError, true);
+    const validationText = validationResult.content.find(
+      (item) => item.type === "text",
+    );
+    assert.ok(validationText && "text" in validationText);
+    const validation = JSON.parse(validationText.text);
+    assert.equal(validation.valid, true);
+    assert.equal(validation.approved_markdown, candidate);
+    const tampered = preparation.preparation_digest.endsWith("A")
+      ? `${preparation.preparation_digest.slice(0, -1)}B`
+      : `${preparation.preparation_digest.slice(0, -1)}A`;
+    const tamperedResult = await mcpClient.callTool({
+      name: "validate_documentation_draft",
+      arguments: {
+        preparation_digest: tampered,
+        target: preparation.target,
+        candidate_markdown: candidate,
+      },
+    });
+    assert.equal(tamperedResult.isError, true);
+    const tamperedText = tamperedResult.content.find(
+      (item) => item.type === "text",
+    );
+    assert.ok(tamperedText && "text" in tamperedText);
+    assert.match(tamperedText.text, /^MCP_INVALID_PREPARATION:/u);
+    assert.equal(repositoryTreeHash(fixture), before);
+    assert.equal(
+      readFileSync(join(fixture, "README.md"), "utf8"),
+      "# API\n\nSee [`formatName`](src/index.ts).\n",
+    );
+  } finally {
+    await mcpClient.close().catch(() => {});
+    await mcpTransport.close().catch(() => {});
+  }
 } finally {
   rmSync(root, { recursive: true, force: true });
 }

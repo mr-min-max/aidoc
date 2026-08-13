@@ -22,6 +22,14 @@ import { loadProviderConfig } from "../../../src/config/loader";
 import { formatMCPError, handleToolCall, TOOLS } from "../../../src/mcp/server";
 import { createProvider } from "../../../src/providers/registry";
 import {
+  MCP_INVALID_PREPARATION,
+  MCPPreparationError,
+} from "../../../src/mcp/preparation-token";
+import {
+  MCP_TARGET_REQUIRED,
+  MCPTargetRequiredError,
+} from "../../../src/mcp/update-workflow";
+import {
   RepositoryWriteError,
   REPOSITORY_WRITE_ERROR_CODES,
 } from "../../../src/security/types";
@@ -135,5 +143,33 @@ describe("MCP Trust Gate wiring", () => {
       }),
     ).toBe(false);
     expect(TOOLS.some((tool) => mutatingToolNames.has(tool.name))).toBe(false);
+  });
+
+  it("formats the new workflow errors with stable codes and safe candidates", () => {
+    expect(formatMCPError(new MCPPreparationError())).toBe(
+      `${MCP_INVALID_PREPARATION}: The MCP preparation is invalid.`,
+    );
+    expect(
+      formatMCPError(new MCPTargetRequiredError(["README.md", "/tmp/x.md"])),
+    ).toBe(
+      `${MCP_TARGET_REQUIRED}: Select one existing Markdown target: README.md.`,
+    );
+  });
+
+  it("advertises the two provider-free workflow tools", () => {
+    expect(TOOLS.map((tool) => tool.name)).toEqual(
+      expect.arrayContaining([
+        "prepare_documentation_update",
+        "validate_documentation_draft",
+      ]),
+    );
+    for (const name of [
+      "prepare_documentation_update",
+      "validate_documentation_draft",
+    ]) {
+      const tool = TOOLS.find((candidate) => candidate.name === name);
+      expect(tool?.inputSchema.properties).not.toHaveProperty("directory");
+      expect(tool?.inputSchema.properties).not.toHaveProperty("output");
+    }
   });
 });

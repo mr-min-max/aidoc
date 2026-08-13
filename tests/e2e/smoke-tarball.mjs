@@ -1,5 +1,5 @@
 import { existsSync, statSync } from "node:fs";
-import { isAbsolute } from "node:path";
+import { isAbsolute, join } from "node:path";
 import process from "node:process";
 
 const TARBALL_ENV = "AIDOC_TEST_TARBALL";
@@ -22,4 +22,21 @@ export function getConfiguredSmokeTarball(env = process.env) {
   }
 
   return tarball;
+}
+
+/** Verifies that the packed artifact contains the provider-free MCP runtime. */
+export function assertPackedMcpArtifacts(packageRoot) {
+  const requiredFiles = [
+    "dist/mcp/server.js",
+    "dist/mcp/preparation-token.js",
+    "dist/mcp/update-workflow.js",
+    "dist/core/update-preparation.js",
+    "dist/templates/update.hbs",
+  ];
+  for (const relativePath of requiredFiles) {
+    const absolutePath = join(packageRoot, relativePath);
+    if (!existsSync(absolutePath) || !statSync(absolutePath).isFile()) {
+      throw new Error(`Packed MCP artifact is missing: ${relativePath}`);
+    }
+  }
 }

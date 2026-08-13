@@ -60,6 +60,21 @@ function expectValueFreeEvent(event: TrustEvent): void {
 }
 
 describe("TrustGateway", () => {
+  it("supports inspection without constructing a provider", () => {
+    const gateway = TrustGateway.forInspection({
+      policy: "redact",
+      origin: "mcp",
+    });
+
+    expect(
+      gateway.approveInputEnvelope({
+        operation: "update",
+        systemPrompt: "safe",
+        prompt: "safe",
+      }),
+    ).toEqual({ systemPrompt: "safe", prompt: "safe" });
+  });
+
   it("redacts system and user messages before transport", async () => {
     const provider = new RecordingProvider();
     const gateway = new TrustGateway(provider, {

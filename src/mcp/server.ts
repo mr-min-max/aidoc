@@ -44,6 +44,15 @@ import {
   ListToolsRequestSchema,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
+import {
+  createMCPUpdateWorkflowContext,
+  defaultMCPUpdateWorkflowContext,
+  prepareDocumentationUpdate,
+  validateDocumentationDraft,
+  MCP_TARGET_REQUIRED,
+  type MCPUpdateWorkflowContext,
+} from "./update-workflow";
+import { MCP_INVALID_PREPARATION } from "./preparation-token";
 
 const SAFE_MCP_ERROR_CODES = new Set<string>([
   ...PLAN_ERROR_CODES,
@@ -59,6 +68,8 @@ const SAFE_MCP_ERROR_CODES = new Set<string>([
   "TRUST_ATOMIC_WRITE_FAILED",
   "MCP_DIRECTORY_DENIED",
   "MCP_INVALID_PATH_INPUT",
+  MCP_TARGET_REQUIRED,
+  MCP_INVALID_PREPARATION,
 ]);
 const UNKNOWN_MCP_ERROR = "Unknown MCP error.";
 
@@ -268,14 +279,173 @@ export const TOOLS: Tool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: "prepare_documentation_update",
+    description:
+      "Prepare one repository-scoped Markdown update without writing files or calling a provider.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        base: { type: "string" },
+        head: { type: "string" },
+        max_context_bytes: {
+          type: "integer",
+          minimum: 1024,
+          maximum: 1048576,
+        },
+        target: { type: "string" },
+      },
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: {
+        schema_version: {
+          type: "string",
+          const: "aidoc.mcp-update-preparation.v1",
+        },
+        preparation_digest: { type: "string" },
+        target: { type: "string" },
+        generation: {
+          type: "object",
+          properties: {
+            system_prompt: { type: "string" },
+            prompt: { type: "string" },
+          },
+          required: ["system_prompt", "prompt"],
+          additionalProperties: false,
+        },
+        context: contextBudgetSchema(),
+        trust: trustSummarySchema(),
+        instructions: { type: "array", items: { type: "string" } },
+      },
+      required: [
+        "schema_version",
+        "preparation_digest",
+        "target",
+        "generation",
+        "context",
+        "trust",
+        "instructions",
+      ],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "validate_documentation_draft",
+    description:
+      "Validate a host-generated Markdown draft against a signed repository-scoped preparation without writing files.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        preparation_digest: { type: "string" },
+        target: { type: "string" },
+        candidate_markdown: { type: "string" },
+      },
+      required: ["preparation_digest", "target", "candidate_markdown"],
+      additionalProperties: false,
+    },
+    outputSchema: {
+      type: "object",
+      properties: {
+        schema_version: {
+          type: "string",
+          const: "aidoc.mcp-draft-validation.v1",
+        },
+        valid: { type: "boolean" },
+        target: { type: "string" },
+        approved_markdown: { type: "string" },
+        markdown_warnings: { type: "array", items: { type: "string" } },
+        diff: diffSummarySchema(),
+        trust: trustSummarySchema(),
+      },
+      required: [
+        "schema_version",
+        "valid",
+        "target",
+        "markdown_warnings",
+        "diff",
+        "trust",
+      ],
+      additionalProperties: false,
+    },
+  },
 ];
+
+function contextBudgetSchema(): object {
+  return {
+    type: "object",
+    properties: {
+      maxBytes: { type: "integer" },
+      usedBytes: { type: "integer" },
+      totalRecords: { type: "integer" },
+      includedRecords: { type: "integer" },
+      omittedRecords: { type: "integer" },
+      impactDigest: { type: "string" },
+    },
+    required: [
+      "maxBytes",
+      "usedBytes",
+      "totalRecords",
+      "includedRecords",
+      "omittedRecords",
+      "impactDigest",
+    ],
+    additionalProperties: false,
+  };
+}
+
+function trustSummarySchema(): object {
+  return {
+    type: "object",
+    properties: {
+      policy: { type: "string", enum: ["warn", "redact", "strict"] },
+      action: {
+        type: "string",
+        enum: ["allowed", "warned", "redacted", "blocked"],
+      },
+      findings: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            kind: { type: "string" },
+            count: { type: "integer" },
+          },
+          required: ["kind", "count"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["policy", "action", "findings"],
+    additionalProperties: false,
+  };
+}
+
+function diffSummarySchema(): object {
+  return {
+    type: "object",
+    properties: {
+      changed: { type: "boolean" },
+      addedLines: { type: "integer" },
+      removedLines: { type: "integer" },
+      oldBytes: { type: "integer" },
+      newBytes: { type: "integer" },
+    },
+    required: ["changed", "addedLines", "removedLines", "oldBytes", "newBytes"],
+    additionalProperties: false,
+  };
+}
 
 /** Handle a tool call */
 export async function handleToolCall(
   name: string,
   args: Record<string, unknown>,
   serverCwd = process.cwd(),
+  workflowContext?: MCPUpdateWorkflowContext,
 ): Promise<unknown> {
+  const updateContext =
+    workflowContext ?? defaultMCPUpdateWorkflowContext(serverCwd);
   switch (name) {
     case "analyze_codebase": {
       const dir = args.directory as string;
@@ -416,12 +586,19 @@ export async function handleToolCall(
       return result.plan;
     }
 
+    case "prepare_documentation_update":
+      return prepareDocumentationUpdate(args, updateContext);
+
+    case "validate_documentation_draft":
+      return validateDocumentationDraft(args, updateContext);
+
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
 }
 
 export function createMCPServer(serverCwd = process.cwd()): Server {
+  const workflowContext = createMCPUpdateWorkflowContext(serverCwd);
   const server = new Server(
     { name: "aidoc", version: readPackageVersion() },
     { capabilities: { tools: {} } },
@@ -437,8 +614,9 @@ export function createMCPServer(serverCwd = process.cwd()): Server {
         request.params.name,
         request.params.arguments ?? {},
         serverCwd,
+        workflowContext,
       );
-      return {
+      const response = {
         content: [
           {
             type: "text" as const,
@@ -446,6 +624,13 @@ export function createMCPServer(serverCwd = process.cwd()): Server {
           },
         ],
       };
+      if (
+        request.params.name === "prepare_documentation_update" ||
+        request.params.name === "validate_documentation_draft"
+      ) {
+        return { ...response, structuredContent: result };
+      }
+      return response;
     } catch (error: unknown) {
       return {
         isError: true,
