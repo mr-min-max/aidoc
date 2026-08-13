@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "aidoc": {
+      "command": "aidoc",
+      "args": ["--mcp"]
+    }
+  }
+}

@@ -1,79 +1,143 @@
 # AiDoc Public Beta
 
-AiDoc `0.2.0-beta.2` is a source-beta candidate for maintainers who want to
-plan, generate, and review documentation changes from deterministic AST
-analysis. It requires Node.js `>=22.12.0`.
+This page describes the forthcoming/source-checkout `0.2.0-beta.3`
+integration. The repository package metadata remains curator-owned in this
+slice: beta.3 is not claimed to be published to npm, installed from a
+marketplace, or available through ChatGPT web local STDIO.
 
-## Ready to test
+AiDoc requires Node.js `>=22.12.0`.
 
-- `aidoc plan` and `aidoc plan --json` require no LLM provider or API key.
-- TypeScript, JavaScript, and Python public symbols are compared through AST
-  snapshots and stable fingerprints.
-- Provider impact context is deterministic, versioned, and byte-bounded.
-- `aidoc update` builds the same plan before constructing a provider.
-- CLI, GitHub Action, npm tarball, and MCP paths have automated smoke coverage.
-- OpenAI, Anthropic, and Ollama remain available through one provider-neutral
-  interface for generation workflows.
+## Fast paths
 
-The npm package and GitHub Action tag are not published. Use the source
-checkout in the README until a separately verified prerelease exists.
+The simple CLI entry points are:
 
-### Repository-contained writes
+```bash
+aidoc
+aidoc plan
+aidoc update
+```
 
-Real CLI, GitHub Action, and watch-mode file mutations require a current Git
-worktree. The writer rejects traversal, external, and symlink or junction
-targets, compares the prepared file snapshot before replacement, and commits
-through a same-directory rename. Dry-run, `check`, `plan`, current MCP
-generation, and `score` without `--output` are non-mutating. Current MCP
-generation remains return-only; MCP directory allowlisting, `aidoc doctor
---security`, and persisted receipts are not implemented.
+`aidoc plan` is deterministic, AST-backed, and provider-free. It does not
+require a key, login, or network request. Bare `aidoc` begins with the same
+provider-free plan and offers an update only when a safe target is indicated.
+If you accept an update, generation still needs either explicit direct-provider
+setup or the separate host-managed MCP candidate path. One affected Markdown
+target is selected automatically; multiple targets require an explicit
+`--target` or `--all`. AiDoc never guesses through target ambiguity, and a
+no-impact plan has no misleading update next action.
+
+`aidoc update --dry-run --mock` is a credential-free local demonstration path.
+Real non-empty generation uses the direct provider path described below, unless
+the host-managed MCP workflow supplies the model candidate.
+
+## Subscription-hosted local MCP
+
+ChatGPT subscription use means signing in to the official local Codex host and
+letting it invoke AiDoc through local STDIO MCP. A ChatGPT Plus/Pro
+subscription is host authentication, not an OpenAI API key. AiDoc receives no
+ChatGPT OAuth token. ChatGPT web does not read local Codex configuration or
+local STDIO servers.
+
+Claude subscription use means using Claude Desktop or Claude Code as the local
+MCP host. Claude authenticates itself; AiDoc receives no Claude subscription
+token or OAuth credential. Consumer subscriptions and API billing are
+separate for both ecosystems.
+
+The host-managed update sequence is:
+
+1. Call `prepare_documentation_update`.
+2. If multiple targets are returned, ask the user to choose a safe relative
+   target; never guess.
+3. Generate one complete Markdown candidate from the returned
+   `generation.system_prompt` and `generation.prompt` only.
+4. Call `validate_documentation_draft` with the unchanged preparation digest,
+   target, and exact candidate Markdown.
+5. Stop or reprepare when validation is invalid, stale, blocked, or asks for a
+   fresh preparation.
+6. Show the approved safe diff metadata, obtain the host's normal write
+   permission, apply only `approved_markdown` to the exact approved relative
+   target, and then call `check_docs_freshness`.
+
+AiDoc Trust Gate inspects AiDoc's prepared input and validated output for
+secret findings. Configured `strict` blocks findings; configured `warn` or
+`redact` redacts detected sensitive values before host generation or return.
+An `allowed` result means no findings were detected. Trust Gate does not
+control the host's context window, model, sandbox, isolation, or permission
+system. The host's official permissions remain authoritative.
+
+See [Codex integration](./integrations/codex.md) and [Claude integration](./integrations/claude.md).
+
+## Direct AiDoc provider mode
+
+Direct provider mode is separate from consumer subscriptions and never silently
+falls back to another provider. The exact built-in profiles are:
+
+| Profile             | Credential or requirement                                   | Billing/boundary                   |
+| ------------------- | ----------------------------------------------------------- | ---------------------------------- |
+| `openai`            | `OPENAI_API_KEY`                                            | OpenAI API billing, remote         |
+| `anthropic`         | `ANTHROPIC_API_KEY`                                         | Anthropic API billing, remote      |
+| `deepseek`          | `DEEPSEEK_API_KEY`                                          | DeepSeek API billing, remote       |
+| `qwen`              | `DASHSCOPE_API_KEY`                                         | Qwen Model Studio PAYG API, remote |
+| `openai-compatible` | `AIDOC_COMPAT_API_KEY` plus an explicitly approved endpoint | Remote API billing                 |
+| `ollama`            | Local Ollama and an explicit installed model                | Local                              |
+
+Ollama is local but requires an explicit model. Qwen custom AiDoc calls are
+pay-as-you-go API use; a Qwen consumer or coding-plan subscription is not a
+subscription bridge for AiDoc.
+
+## Source-checkout setup
+
+From a checkout, use the following development setup:
+
+```bash
+npm install
+npm run build
+npm link
+aidoc --version
+```
+
+Reverse the global development link with:
+
+```bash
+npm unlink -g aidoc-gen
+```
+
+The repository-owned Codex plugin lives at
+`integrations/codex/aidoc`. After `npm link`, the copyable local Codex MCP
+setup is:
+
+```bash
+codex mcp add aidoc -- aidoc --mcp
+codex mcp list
+```
+
+Verify with `/mcp` in Codex if preferred, and reverse with
+`codex mcp remove aidoc`. No marketplace entry or public plugin installation
+is created by this source-checkout slice; marketplace distribution is a later
+step.
+
+## Repository-contained safety
+
+Planning is AST-first: supported source files are parsed before any provider
+could be constructed, and raw source, raw diffs, prompts, and credentials are
+not part of the bounded impact context. The repository writer rejects unsafe
+paths, symlinks, and stale snapshots and uses same-directory atomic
+replacement. These controls are repository-contained checks, not an operating
+system sandbox or a guarantee about what a host model can see.
+
+Trust Gate redaction is not a prompt-injection defense. Review the approved
+diff and host permission request before applying documentation.
 
 ## Beta boundaries
 
-- Planning identifies structured public-code changes and documentation
-  references; it does not prove that prose is semantically correct.
-- Git revision validation rejects NUL, LF, and CR but not every other control
-  character yet.
-- Working-tree plans use the correct internal discriminator but currently show
-  the display label `HEAD` instead of `working-tree`.
-- Markdown inline-code masking can misalign after astral Unicode because one
-  path mixes code-point and UTF-16 offsets.
-- First-commit comparison uses Git's SHA-1 empty-tree object; SHA-256
-  repositories need derived empty-tree support.
-- Provider-backed generation can produce incorrect content. Review diffs before
-  writing or committing documentation.
-- Only relevant ordinary file mode bits are preserved on supported POSIX flows;
-  ownership, timestamps, ACLs/xattrs, and other metadata are not guaranteed.
-- Network or distributed filesystems may not provide the assumed inode identity
-  or same-directory rename semantics.
-- File content is synced, but the parent directory is not fsynced, so power-loss
-  durability of the rename is not guaranteed.
-- Windows does not provide the `O_NOFOLLOW` guarantee used where supported.
-- The lock is in-process only. Hostile or privileged concurrent processes
-  remain outside the guarantee, and identity checks fail closed rather than
-  forming an OS sandbox.
-- Trust Gate redaction is not a prompt-injection defense or operating-system
-  sandbox.
+- Planning does not prove that generated prose is semantically correct.
+- Provider-backed direct generation can be incorrect; review every diff.
+- Local MCP preparation/validation does not write the repository.
+- A host subscription does not provide a general AiDoc or vendor API key.
+- ChatGPT web local STDIO support is not part of this beta.
+- npm publication, a GitHub release/tag, and marketplace distribution are not
+  part of this source-checkout slice.
+- Beta behavior and versioned JSON envelopes may evolve before v1.
 
-Beta behavior can evolve before v1. Versioned JSON envelopes will change only
-through an explicit schema version.
-
-## Feedback and contributions
-
-- Reproduce planning issues without a provider when possible.
-- File bugs with a minimal fixture and exact version/commit.
-- Use feature requests for observable problems and acceptance criteria.
-- Use private vulnerability reporting for security issues.
-- Run `npm run verify:release` before submitting a pull request.
-
-Dependency update pull requests are held to the same CI and review gates as
-human contributions. See [CONTRIBUTING.md](../CONTRIBUTING.md),
-[SUPPORT.md](../SUPPORT.md), and [SECURITY.md](../SECURITY.md).
-
-## Not part of this source beta
-
-- npm publication
-- a GitHub tag or Release
-- a stable-v1 compatibility promise
-- hosted documentation or a managed service
-- automatic acceptance of generated content
+Report reproducible issues with the command, fixture, and observed output.
+Security issues should use the private reporting path in `SECURITY.md`.

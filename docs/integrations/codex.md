@@ -1,0 +1,92 @@
+# AiDoc with local Codex
+
+This is the source-checkout guide for the forthcoming beta.3 Codex
+integration. It uses the official local Codex host and AiDoc's provider-free
+MCP tools. It is not a ChatGPT web integration, npm publication, or marketplace
+installation guide.
+
+## What is authenticated
+
+Sign in to the official local Codex client using its supported ChatGPT
+authentication flow. A ChatGPT Plus/Pro subscription authorizes the host's
+model access; it is not an OpenAI API key and it is not a general AiDoc API
+credential. AiDoc receives no ChatGPT OAuth token. ChatGPT web does not read
+local Codex configuration or local STDIO MCP servers.
+
+Consumer subscription access and OpenAI API billing are separate products. If
+you choose direct AiDoc provider mode instead, configure `openai` with
+`OPENAI_API_KEY` and pay the OpenAI API account separately.
+
+Official references: [Codex authentication](https://developers.openai.com/codex/auth)
+and [Codex MCP](https://developers.openai.com/codex/mcp).
+
+## Source-checkout setup
+
+From the AiDoc checkout:
+
+```bash
+npm install
+npm run build
+npm link
+aidoc --version
+```
+
+The repository-owned plugin root is `integrations/codex/aidoc`. Its local MCP
+configuration invokes exactly `aidoc --mcp`. This task does not create a
+marketplace entry, install a plugin into a personal marketplace, or claim that
+beta.3 is already publicly released. Use the host's local plugin-development
+workflow to load the repository-owned source integration when testing it.
+
+For a copyable source-checkout MCP setup after `npm link`:
+
+```bash
+codex mcp add aidoc -- aidoc --mcp
+codex mcp list
+```
+
+You can verify the connection with `/mcp` in Codex. Remove it with
+`codex mcp remove aidoc`. Marketplace installation/distribution is a later
+step; no marketplace entry is created here.
+
+To reverse the global source-checkout link:
+
+```bash
+npm unlink -g aidoc-gen
+```
+
+## Safe documentation workflow
+
+When the user asks to update documentation, the bundled skill requires this
+sequence:
+
+1. Call `prepare_documentation_update`.
+2. Ask the user to choose when multiple safe relative targets are returned;
+   never guess.
+3. Generate one complete Markdown candidate using only
+   `generation.system_prompt` and `generation.prompt`.
+4. Call `validate_documentation_draft` with the unchanged
+   `preparation_digest`, selected relative `target`, and exact
+   `candidate_markdown`.
+5. Stop or reprepare if validation is invalid, stale, blocked, or asks for a
+   fresh preparation.
+6. Show the approved diff metadata, request Codex's normal write permission,
+   apply only `approved_markdown` to the exact approved target, and call
+   `check_docs_freshness` afterward.
+
+The preparation/validation path is provider-free and does not write the
+repository. It uses the host's model for the bounded candidate, not a legacy
+provider-backed MCP generation call and not a subscription-to-API bridge.
+
+## Trust boundary
+
+AiDoc Trust Gate inspects AiDoc's prepared input and validated output for
+secret findings. Configured `strict` blocks findings; configured `warn` or
+`redact` redacts detected sensitive values before host generation or return.
+An `allowed` result means no findings were detected. Trust Gate does not
+control Codex's context window, model, sandbox, isolation, or permission
+system. Keep Codex's official permissions in force; do not read, create,
+paste, or forward an API key or OAuth token for this host-managed path.
+
+For direct provider mode, the supported profiles are `openai`, `anthropic`,
+`deepseek`, `qwen`, `openai-compatible`, and `ollama`; see [Public Beta](../PUBLIC_BETA.md)
+for exact credentials and billing boundaries.

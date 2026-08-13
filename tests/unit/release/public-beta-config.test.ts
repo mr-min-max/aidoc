@@ -93,4 +93,147 @@ describe("public beta repository configuration", () => {
       "npm run verify:release && npm run test:public-beta && node scripts/public-beta-preflight.mjs --json --candidate-ref HEAD",
     );
   });
+
+  it("documents the beta.3 hybrid access boundaries and source-checkout workflow", () => {
+    const documentationPaths = [
+      "README.md",
+      "docs/PUBLIC_BETA.md",
+      "docs/integrations/codex.md",
+      "docs/integrations/claude.md",
+      "docs/releases/v0.2.0-beta.3.md",
+    ];
+    const documentation = Object.fromEntries(
+      documentationPaths.map((file) => [
+        file,
+        fs.readFileSync(path.resolve(file), "utf8"),
+      ]),
+    );
+    const corpus = Object.values(documentation).join("\n");
+    const readme = documentation["README.md"];
+    const codexGuide = documentation["docs/integrations/codex.md"];
+    const quickStartStart = readme.indexOf("## 🚀 Quick Start");
+    const quickStartEnd = readme.indexOf("### Three honest beta paths");
+    const mcpToolsStart = readme.indexOf("### Available MCP Tools");
+    const mcpToolsEnd = readme.indexOf("## 🔐 Planning security and limits");
+    const trustGateStart = readme.indexOf("## 🛡️ Trust Gate beta");
+    const trustGateEnd = readme.indexOf("## 🛠️ Commands", trustGateStart);
+    expect(quickStartStart).toBeGreaterThanOrEqual(0);
+    expect(quickStartEnd).toBeGreaterThan(quickStartStart);
+    expect(mcpToolsStart).toBeGreaterThanOrEqual(0);
+    expect(mcpToolsEnd).toBeGreaterThan(mcpToolsStart);
+    expect(trustGateStart).toBeGreaterThanOrEqual(0);
+    expect(trustGateEnd).toBeGreaterThan(trustGateStart);
+    const quickStart = readme.slice(quickStartStart, quickStartEnd);
+    const mcpTools = readme.slice(mcpToolsStart, mcpToolsEnd);
+    const trustGate = readme.slice(trustGateStart, trustGateEnd);
+    const trustGateNormalized = trustGate.replace(/\s+/gu, " ").trim();
+    const directTrustGate = trustGateNormalized.split(
+      "The host-managed MCP prepare/validate workflow",
+    )[0];
+
+    for (const command of ["aidoc", "aidoc plan", "aidoc update"]) {
+      expect(corpus).toContain(command);
+    }
+    expect(corpus).toMatch(
+      /automatic(?:ally)?[\s\S]{0,180}(?:safe|explicit|ambiguous|guess)/i,
+    );
+    expect(corpus).toMatch(/ChatGPT[\s\S]{0,180}(?:official Codex|local MCP)/i);
+    expect(corpus).toMatch(
+      /ChatGPT web[\s\S]{0,180}(?:does not|not|cannot|unsupported)/i,
+    );
+    expect(corpus).toMatch(/Claude (?:Desktop|Code)[\s\S]{0,180}local MCP/i);
+    expect(corpus).toMatch(
+      /AiDoc[\s\S]{0,80}receives no Claude[\s\S]{0,80}(?:token|OAuth)/i,
+    );
+    expect(corpus).toMatch(
+      /consumer subscriptions?[\s\S]{0,160}(?:separate|distinct)[\s\S]{0,160}(?:API|billing)/i,
+    );
+
+    for (const provider of [
+      "openai",
+      "anthropic",
+      "deepseek",
+      "qwen",
+      "openai-compatible",
+      "ollama",
+    ]) {
+      expect(corpus).toContain(provider);
+    }
+    for (const variable of [
+      "OPENAI_API_KEY",
+      "ANTHROPIC_API_KEY",
+      "DEEPSEEK_API_KEY",
+      "DASHSCOPE_API_KEY",
+      "AIDOC_COMPAT_API_KEY",
+    ]) {
+      expect(corpus).toContain(variable);
+    }
+    expect(corpus).toMatch(
+      /Ollama[\s\S]{0,180}(?:local|explicit)[\s\S]{0,120}model/i,
+    );
+    expect(corpus).toMatch(
+      /direct provider mode[\s\S]{0,180}(?:never|no)[\s\S]{0,80}(?:fallback|falls? back)/i,
+    );
+    expect(corpus).toMatch(
+      /Qwen[\s\S]{0,180}(?:PAYG|pay-as-you-go)[\s\S]{0,180}(?:API|custom)/i,
+    );
+    expect(corpus).toMatch(
+      /Trust Gate[\s\S]{0,260}(?:input|output|redact|block)/i,
+    );
+    expect(corpus).toMatch(
+      /does not control[\s\S]{0,160}(?:context window|model|sandbox|permission)/i,
+    );
+    expect(trustGateNormalized).toContain(
+      "For direct/general provider flows, configured `strict` blocks findings, configured `redact` replaces detected values with typed placeholders, and configured `warn` preserves the detected text while reporting findings.",
+    );
+    expect(trustGateNormalized).toContain(
+      "The host-managed MCP prepare/validate workflow has a stricter privacy floor: configured `warn` and `redact` both use effective redaction before host generation or return, while the result still reports the configured policy.",
+    );
+    expect(directTrustGate).not.toMatch(
+      /configured `warn`[^.]{0,120}(?:redact|redacts)/i,
+    );
+
+    expect(mcpTools).toMatch(
+      /provider-free[\s\S]{0,220}(?:plan_documentation_impact|prepare_documentation_update)[\s\S]{0,320}validate_documentation_draft[\s\S]{0,180}check_docs_freshness/i,
+    );
+    expect(mcpTools).toMatch(
+      /legacy\/direct[\s\S]{0,160}provider-backed[\s\S]{0,160}generation tools below are separate:[\s\S]{0,160}generate_readme[\s\S]{0,120}generate_api_docs[\s\S]{0,120}generate_diagram[\s\S]{0,220}(?:provider credential|API billing)/i,
+    );
+    expect(quickStart).toMatch(
+      /bare `aidoc`[\s\S]{0,220}provider-free plan[\s\S]{0,300}(?:direct-provider|host-managed MCP)/i,
+    );
+    expect(quickStart).not.toMatch(
+      /bare `aidoc`[\s\S]{0,260}(?:credential-free|without a model credential)[\s\S]{0,180}update/i,
+    );
+
+    expect(corpus).not.toMatch(
+      /(?:prepare_documentation_update|host-managed|prepare\/validate)[\s\S]{0,240}(?:warn|redact)[\s\S]{0,180}(?:original detected|raw secret|raw value|cross the provider)/i,
+    );
+    expect(codexGuide).toContain("codex mcp add aidoc -- aidoc --mcp");
+    expect(codexGuide).toContain("codex mcp list");
+    expect(codexGuide).toContain("codex mcp remove aidoc");
+
+    for (const setupLine of [
+      "npm install",
+      "npm run build",
+      "npm link",
+      "aidoc --version",
+      "npm unlink -g aidoc-gen",
+      "codex mcp add aidoc -- aidoc --mcp",
+      "codex mcp list",
+      "codex mcp remove aidoc",
+    ]) {
+      expect(corpus).toContain(setupLine);
+    }
+    expect(corpus).toMatch(/forthcoming|source-checkout/i);
+    expect(corpus).not.toMatch(
+      /(?:already|has been|is)\s+(?:published|released)\s+(?:to npm|on npm|publicly)/i,
+    );
+    expect(corpus).not.toMatch(
+      /(?:already|is|was|has been)\s+installed\s+(?:from|through)\s+(?:the\s+)?marketplace/i,
+    );
+    expect(corpus).not.toMatch(
+      /ChatGPT web[\s\S]{0,160}(?:supports|can use|is available|use local)/i,
+    );
+  });
 });

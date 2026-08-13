@@ -17,6 +17,33 @@ const PRIVATE_EMAIL = "private-person@example.invalid";
 const GITHUB_AUTOMATION_EMAIL = "noreply@github.com";
 const DEPENDABOT_AUTOMATION_EMAIL =
   "49699333+dependabot[bot]@users.noreply.github.com";
+const SOURCE_ARTIFACTS = {
+  plugin: [
+    "integrations/codex/aidoc/.codex-plugin/plugin.json",
+    "integrations/codex/aidoc/.mcp.json",
+    "integrations/codex/aidoc/skills/maintain-documentation/SKILL.md",
+    "tests/e2e/codex-plugin-smoke.mjs",
+  ],
+  docs: [
+    "README.md",
+    "docs/PUBLIC_BETA.md",
+    "docs/integrations/codex.md",
+    "docs/integrations/claude.md",
+    "docs/releases/v0.2.0-beta.3.md",
+  ],
+  demo: [
+    "scripts/demo-hybrid-beta.mjs",
+    "scripts/hybrid-beta-snapshot.mjs",
+    "tests/e2e/hybrid-beta-demo.test.mjs",
+  ],
+  compiledMcp: [
+    "dist/mcp/server.js",
+    "dist/mcp/update-workflow.js",
+    "dist/mcp/preparation-token.js",
+    "dist/core/update-preparation.js",
+    "dist/templates/update.hbs",
+  ],
+};
 
 async function git(repositoryRoot, args) {
   return execFileAsync("git", args, {
@@ -116,6 +143,24 @@ async function createNeedlesFile(repositoryRoot, needles) {
   await mkdir(path.dirname(privateNeedlesPath), { recursive: true });
   await writeFile(privateNeedlesPath, `${needles.join("\n")}\n`, "utf8");
   return privateNeedlesPath;
+}
+
+async function createSourceArtifacts(repositoryRoot) {
+  const files = [
+    ...SOURCE_ARTIFACTS.plugin,
+    ...SOURCE_ARTIFACTS.docs,
+    ...SOURCE_ARTIFACTS.demo,
+    ...SOURCE_ARTIFACTS.compiledMcp,
+  ];
+  for (const relativePath of files) {
+    const absolutePath = path.join(repositoryRoot, relativePath);
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(
+      absolutePath,
+      await readFile(path.resolve(relativePath), "utf8"),
+      "utf8",
+    );
+  }
 }
 
 function findCheck(report, id) {
@@ -339,6 +384,7 @@ test("loads an ignored private needles file from the CLI flag or environment", a
   const commonArguments = [
     PREFLIGHT_SCRIPT,
     "--json",
+    "--skip-source-artifacts",
     "--repository-root",
     fixture.repositoryRoot,
     "--policy",
@@ -695,4 +741,36 @@ test("fails an unsafe worktree-local identity override", async (t) => {
   assert.equal(report.status, "fail");
   assert.equal(findCheck(report, "local-identity").status, "fail");
   assertValueSafe(report, fixture, [PRIVATE_EMAIL]);
+});
+
+test("detects missing and present beta source artifacts when requested", async (t) => {
+  const fixture = await createFixture(t);
+
+  const missingReport = await runPreflight({
+    ...fixture,
+    includeSourceArtifacts: true,
+  });
+  assert.equal(missingReport.status, "fail");
+  assert.equal(findCheck(missingReport, "codex-plugin-source").status, "fail");
+  assert.equal(
+    findCheck(missingReport, "integration-documentation").status,
+    "fail",
+  );
+  assert.equal(findCheck(missingReport, "hybrid-demo-source").status, "fail");
+  assert.equal(findCheck(missingReport, "compiled-mcp").status, "fail");
+  assertValueSafe(missingReport, fixture);
+
+  await createSourceArtifacts(fixture.repositoryRoot);
+  const presentReport = await runPreflight({
+    ...fixture,
+    includeSourceArtifacts: true,
+  });
+  assert.equal(findCheck(presentReport, "codex-plugin-source").status, "pass");
+  assert.equal(
+    findCheck(presentReport, "integration-documentation").status,
+    "pass",
+  );
+  assert.equal(findCheck(presentReport, "hybrid-demo-source").status, "pass");
+  assert.equal(findCheck(presentReport, "compiled-mcp").status, "pass");
+  assertValueSafe(presentReport, fixture);
 });

@@ -1,0 +1,26 @@
+{
+  "name": "aidoc",
+  "version": "0.2.0-beta.3",
+  "description": "Plan, prepare, and validate AST-backed documentation updates.",
+  "author": {
+    "name": "aidoc contributors"
+  },
+  "repository": "https://github.com/mr-min-max/aidoc",
+  "license": "MIT",
+  "keywords": ["documentation", "ast", "mcp", "codex"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "AiDoc",
+    "shortDescription": "Safe AST-backed documentation maintenance.",
+    "longDescription": "Plan affected documentation, prepare bounded update context, and validate a draft before applying it.",
+    "developerName": "aidoc contributors",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": [
+      "Update the documentation affected by my code changes.",
+      "Plan documentation impact without an API key.",
+      "Validate this documentation draft before I apply it."
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

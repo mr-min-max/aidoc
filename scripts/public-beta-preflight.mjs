@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFile, spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, lstatSync } from "node:fs";
 import { readFile, realpath } from "node:fs/promises";
 import { devNull } from "node:os";
 import path from "node:path";
@@ -13,6 +13,33 @@ const execFileAsync = promisify(execFile);
 const POLICY_SCHEMA = "aidoc.public-beta-policy.v1";
 const REPORT_SCHEMA = "aidoc.public-beta-preflight.v1";
 const MAX_GIT_OUTPUT_BYTES = 128 * 1024 * 1024;
+const BETA_SOURCE_ARTIFACTS = Object.freeze({
+  codexPlugin: Object.freeze([
+    "integrations/codex/aidoc/.codex-plugin/plugin.json",
+    "integrations/codex/aidoc/.mcp.json",
+    "integrations/codex/aidoc/skills/maintain-documentation/SKILL.md",
+    "tests/e2e/codex-plugin-smoke.mjs",
+  ]),
+  integrationDocumentation: Object.freeze([
+    "README.md",
+    "docs/PUBLIC_BETA.md",
+    "docs/integrations/codex.md",
+    "docs/integrations/claude.md",
+    "docs/releases/v0.2.0-beta.3.md",
+  ]),
+  hybridDemo: Object.freeze([
+    "scripts/demo-hybrid-beta.mjs",
+    "scripts/hybrid-beta-snapshot.mjs",
+    "tests/e2e/hybrid-beta-demo.test.mjs",
+  ]),
+  compiledMcp: Object.freeze([
+    "dist/mcp/server.js",
+    "dist/mcp/update-workflow.js",
+    "dist/mcp/preparation-token.js",
+    "dist/core/update-preparation.js",
+    "dist/templates/update.hbs",
+  ]),
+});
 const ROOT_POLICY_KEYS = [
   "allowedAutomationEmails",
   "candidateBranch",
@@ -512,12 +539,149 @@ function makeCheck(id, status, summary) {
   return { id, status, summary };
 }
 
+function sourceArtifactFilesPresent(repositoryRoot, relativePaths) {
+  return relativePaths.every((relativePath) => {
+    try {
+      const candidate = path.resolve(repositoryRoot, relativePath);
+      const relative = path.relative(repositoryRoot, candidate);
+      return (
+        relative.length > 0 &&
+        !relative.startsWith(`..${path.sep}`) &&
+        relative !== ".." &&
+        lstatSync(candidate).isFile()
+      );
+    } catch {
+      return false;
+    }
+  });
+}
+
+async function sourceArtifactChecks(repositoryRoot) {
+  const codexFilesPresent = sourceArtifactFilesPresent(
+    repositoryRoot,
+    BETA_SOURCE_ARTIFACTS.codexPlugin,
+  );
+  let codexShapeValid = false;
+  if (codexFilesPresent) {
+    try {
+      const manifest = JSON.parse(
+        await readFile(
+          path.resolve(
+            repositoryRoot,
+            "integrations/codex/aidoc/.codex-plugin/plugin.json",
+          ),
+          "utf8",
+        ),
+      );
+      const mcp = JSON.parse(
+        await readFile(
+          path.resolve(repositoryRoot, "integrations/codex/aidoc/.mcp.json"),
+          "utf8",
+        ),
+      );
+      const skill = await readFile(
+        path.resolve(
+          repositoryRoot,
+          "integrations/codex/aidoc/skills/maintain-documentation/SKILL.md",
+        ),
+        "utf8",
+      );
+      const mcpServer = mcp?.mcpServers?.aidoc;
+      const skillOrder = [
+        "prepare_documentation_update",
+        "generation.system_prompt",
+        "generation.prompt",
+        "validate_documentation_draft",
+        "approved_markdown",
+        "check_docs_freshness",
+      ];
+      codexShapeValid =
+        manifest?.name === "aidoc" &&
+        manifest?.version === "0.2.0-beta.3" &&
+        manifest?.skills === "./skills/" &&
+        manifest?.mcpServers === "./.mcp.json" &&
+        JSON.stringify(Object.keys(mcp)) === JSON.stringify(["mcpServers"]) &&
+        JSON.stringify(Object.keys(mcp.mcpServers ?? {})) ===
+          JSON.stringify(["aidoc"]) &&
+        JSON.stringify(mcpServer) ===
+          JSON.stringify({ command: "aidoc", args: ["--mcp"] }) &&
+        skillOrder.every((term, index, terms) => {
+          const current = skill.indexOf(term);
+          const previous = index === 0 ? -1 : skill.indexOf(terms[index - 1]);
+          return current > previous;
+        });
+    } catch {
+      codexShapeValid = false;
+    }
+  }
+
+  const docsPresent = sourceArtifactFilesPresent(
+    repositoryRoot,
+    BETA_SOURCE_ARTIFACTS.integrationDocumentation,
+  );
+  const demoFilesPresent = sourceArtifactFilesPresent(
+    repositoryRoot,
+    BETA_SOURCE_ARTIFACTS.hybridDemo,
+  );
+  let demoShapeValid = false;
+  if (demoFilesPresent) {
+    try {
+      const demoSource = await readFile(
+        path.resolve(repositoryRoot, "scripts/demo-hybrid-beta.mjs"),
+        "utf8",
+      );
+      demoShapeValid =
+        demoSource.includes("aidoc.hybrid-beta-demo.v1") &&
+        demoSource.includes("prepare_documentation_update") &&
+        demoSource.includes("validate_documentation_draft");
+    } catch {
+      demoShapeValid = false;
+    }
+  }
+  const compiledMcpPresent = sourceArtifactFilesPresent(
+    repositoryRoot,
+    BETA_SOURCE_ARTIFACTS.compiledMcp,
+  );
+
+  return [
+    makeCheck(
+      "codex-plugin-source",
+      codexFilesPresent && codexShapeValid ? "pass" : "fail",
+      codexFilesPresent && codexShapeValid
+        ? "Codex plugin source artifacts are present and shaped."
+        : "Codex plugin source artifacts are missing or invalid.",
+    ),
+    makeCheck(
+      "integration-documentation",
+      docsPresent ? "pass" : "fail",
+      docsPresent
+        ? "Beta integration documentation artifacts are present."
+        : "Beta integration documentation artifacts are missing.",
+    ),
+    makeCheck(
+      "hybrid-demo-source",
+      demoFilesPresent && demoShapeValid ? "pass" : "fail",
+      demoFilesPresent && demoShapeValid
+        ? "Hybrid beta demo source artifacts are present and shaped."
+        : "Hybrid beta demo source artifacts are missing or invalid.",
+    ),
+    makeCheck(
+      "compiled-mcp",
+      compiledMcpPresent ? "pass" : "fail",
+      compiledMcpPresent
+        ? "Compiled provider-free MCP artifacts are present."
+        : "Compiled provider-free MCP artifacts are missing.",
+    ),
+  ];
+}
+
 export async function runPreflight({
   repositoryRoot,
   policyPath,
   privateNeedlesPath,
   mainRef,
   candidateRef,
+  includeSourceArtifacts = false,
 }) {
   if (!path.isAbsolute(repositoryRoot) || !path.isAbsolute(policyPath)) {
     throw new InvocationError("Invalid invocation.");
@@ -842,6 +1006,10 @@ export async function runPreflight({
     );
   }
 
+  if (includeSourceArtifacts) {
+    checks.push(...(await sourceArtifactChecks(repositoryRoot)));
+  }
+
   checks.sort((left, right) => left.id.localeCompare(right.id));
   return {
     schemaVersion: REPORT_SCHEMA,
@@ -852,12 +1020,20 @@ export async function runPreflight({
       commits: commits.length,
       protectedIdentityCommits,
       privateNeedles: matchedPrivateNeedles,
+      ...(includeSourceArtifacts
+        ? {
+            sourceArtifacts: Object.values(BETA_SOURCE_ARTIFACTS).reduce(
+              (count, paths) => count + paths.length,
+              0,
+            ),
+          }
+        : {}),
     },
   };
 }
 
 function parseArguments(argv) {
-  const options = { json: false };
+  const options = { json: false, includeSourceArtifacts: true };
   const valueFlags = new Map([
     ["--repository-root", "repositoryRoot"],
     ["--policy", "policyPath"],
@@ -871,6 +1047,10 @@ function parseArguments(argv) {
     const argument = argv[index];
     if (argument === "--json") {
       options.json = true;
+      continue;
+    }
+    if (argument === "--skip-source-artifacts") {
+      options.includeSourceArtifacts = false;
       continue;
     }
     const key = valueFlags.get(argument);
@@ -922,6 +1102,7 @@ async function main() {
       privateNeedlesPath,
       mainRef: options.mainRef,
       candidateRef: options.candidateRef,
+      includeSourceArtifacts: options.includeSourceArtifacts,
     });
     if (options.json) {
       process.stdout.write(`${JSON.stringify(report)}\n`);

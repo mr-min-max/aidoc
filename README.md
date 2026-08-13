@@ -3,11 +3,12 @@
 > **AI-powered documentation generator for codebases.**
 
 > [!IMPORTANT]
-> **Public Beta candidate (`0.2.0-beta.2`).** The source tree is ready for
-> early testing on Node.js `>=22.12.0`, but the npm package and GitHub Action
-> tag are not published yet. `aidoc plan` is deterministic and provider-free;
-> generation and non-empty updates require a configured LLM provider. Feedback
-> and focused contributions are welcome before v1.
+> **Public Beta source-checkout integration (`0.2.0-beta.3` forthcoming).**
+> The repository is ready for early testing on Node.js `>=22.12.0`. The beta.3
+> plugin/integration is source-checkout work in this task; it is not an npm
+> artifact, marketplace installation, or ChatGPT-web local-STDIO integration.
+> `aidoc plan` is deterministic and provider-free. Feedback and focused
+> contributions are welcome before v1.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
@@ -30,7 +31,9 @@ It is specifically designed for **Open Source maintainers** who want to spend le
 - 🏠 **Local Provider Option** — Use **Ollama** when the model and code context should stay on your machine; OpenAI and Anthropic are remote provider options.
 - 🎨 **Packaged Prompts** — Built-in Handlebars prompt templates ship with the npm package.
 - 🚀 **GitHub Action** — Automate documentation generation and AST-backed source/document co-change checks with `mr-min-max/aidoc`.
-- 🔌 **MCP Server** — Integrate with AI assistants (ChatGPT, Claude, Cursor) via the Model Context Protocol.
+- 🔌 **MCP Server** — Let a local Codex, Claude Desktop, or Claude Code host
+  run the provider-free preparation/validation workflow via Model Context
+  Protocol (MCP).
 - ⚡ **In-Process Caching** — Repeated analysis in one process, such as watch mode, can reuse AST parsing results.
 - 🔁 **Resilient** — Built-in retry with exponential backoff for API rate limits and transient errors (wired into every provider).
 - 📊 **Doc Health Scoring** — `aidoc score` grades documentation coverage 0–100 from the AST. No LLM, no API key, instant — with a CI gate (`--min`).
@@ -48,24 +51,49 @@ It is specifically designed for **Open Source maintainers** who want to spend le
 - Run local-provider workflows with Ollama when the model and code context
   should stay on the machine.
 
-See [Codex maintainer workflows](./docs/codex-maintainer-workflows.md) for the API-credit plan we use for OpenAI Codex for OSS readiness.
+See [Codex maintainer workflows](./docs/codex-maintainer-workflows.md) for the
+OSS workflow background, [Codex integration](./docs/integrations/codex.md) for
+the source-checkout host path, and [Claude integration](./docs/integrations/claude.md)
+for the equivalent local MCP setup.
 
 ## 🚀 Quick Start
 
 ```bash
 git clone https://github.com/mr-min-max/aidoc.git
 cd aidoc
-npm ci
+npm install
 npm run build
-node dist/cli/index.js plan
-node dist/cli/index.js plan --json
+npm link
+aidoc --version
 ```
 
-`plan` is deterministic, AST-backed, and requires no provider or API key. It
-reports structured public-code changes, documentation references, and the
-bounded context available to a later update. `update --dry-run` previews an
-LLM-backed documentation update and therefore still needs a configured
-provider when the plan indicates documentation impact.
+The simple paths are `aidoc`, `aidoc plan`, and `aidoc update`. Bare `aidoc`
+begins with a provider-free plan and offers an update only when a safe
+documentation target is indicated. `aidoc plan` is deterministic and requires
+no provider, API key, login, or network request. If you accept an update,
+generation still needs either explicit direct-provider setup or a separate
+host-managed MCP candidate. `aidoc update` resolves one safe target
+automatically; several targets require explicit selection or `--all`, and it
+never guesses an ambiguous target. A dry run previews the bounded update
+without writing.
+
+`npm link` is only a source-checkout development convenience. To reverse it,
+run `npm unlink -g aidoc-gen`. The beta.3 integration and plugin are not
+published to npm or installed from a marketplace by this repository slice.
+
+### Three honest beta paths
+
+1. **Provider-free CLI:** use `aidoc`, `aidoc plan`, `aidoc check`, or
+   `aidoc score` for deterministic AST-backed work without a model credential.
+2. **Subscription-hosted local MCP:** authenticate the official local Codex
+   host with an eligible ChatGPT subscription, or use Claude Desktop/Claude
+   Code with its own account, and let the host call AiDoc's local MCP tools.
+   This is host authentication, not an OpenAI/Claude API key; AiDoc receives no
+   ChatGPT or Claude OAuth token. ChatGPT web does not read local Codex
+   configuration or local STDIO servers.
+3. **Direct AiDoc provider mode:** choose an explicit API provider or local
+   Ollama. Consumer subscriptions and API billing are separate, and direct
+   provider mode never silently falls back to another provider.
 
 ### Plan documentation impact without a key
 
@@ -97,22 +125,53 @@ npm run demo:impact
 
 ## 📦 Source Beta Installation
 
-`aidoc-gen` is not published to npm yet. For this source beta, use the checkout
-steps above. You can optionally run `npm link` after building to make the
-`aidoc` command available globally in your local development environment.
-
-Do not depend on the `0.2.0-beta.2` package or Action ref until a matching tag,
-npm package, and GitHub prerelease are deliberately published.
-
-## ⚙️ Configuration
-
-Generation and non-empty updates require an API key for OpenAI or Anthropic
-(unless using Ollama). Documentation-impact planning requires no key.
+The beta.3 integration is a forthcoming/source-checkout release note, not a
+published npm package or marketplace listing. From the checkout, run:
 
 ```bash
+npm install
+npm run build
+npm link
+aidoc --version
+```
+
+Reverse the global development link with:
+
+```bash
+npm unlink -g aidoc-gen
+```
+
+See [the beta.3 release note](./docs/releases/v0.2.0-beta.3.md) for the
+integration scope and [the public-beta guide](./docs/PUBLIC_BETA.md) for the
+supported access boundaries.
+
+## ⚙️ Direct provider configuration
+
+Direct AiDoc provider mode is separate from ChatGPT Plus/Pro, Claude Pro/Max,
+and other consumer subscriptions. It supports exactly these profiles:
+
+| Profile             | Credential / requirement                                   | Boundary                   |
+| ------------------- | ---------------------------------------------------------- | -------------------------- |
+| `openai`            | `OPENAI_API_KEY`                                           | Remote API billing         |
+| `anthropic`         | `ANTHROPIC_API_KEY`                                        | Remote API billing         |
+| `deepseek`          | `DEEPSEEK_API_KEY`                                         | Remote API billing         |
+| `qwen`              | `DASHSCOPE_API_KEY`                                        | Qwen Model Studio PAYG API |
+| `openai-compatible` | `AIDOC_COMPAT_API_KEY` and an explicitly approved endpoint | Remote API billing         |
+| `ollama`            | Local Ollama plus an explicit installed model              | Local                      |
+
+Direct provider mode never silently falls back. For non-interactive runs set
+`AIDOC_PROVIDER` and `AIDOC_MODEL` explicitly. Ollama is local but still
+requires an explicit model. Qwen custom AiDoc calls use a pay-as-you-go Model
+Studio API key; a Qwen consumer or coding-plan subscription is not an AiDoc
+API bridge.
+
+Documentation-impact planning and the host-managed local MCP preparation/
+validation workflow require no AiDoc provider key.
+
+```bash
+export AIDOC_PROVIDER=openai
+export AIDOC_MODEL=gpt-5.6-luna
 export OPENAI_API_KEY="sk-..."
-# or
-export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
 Or create a `.aidocrc.json` in your project root:
@@ -131,11 +190,13 @@ Or create a `.aidocrc.json` in your project root:
 ## 🛡️ Trust Gate beta
 
 The in-progress Trust Gate scans rendered provider input and completed provider
-output for high-confidence secrets. CLI and MCP configuration defaults to
-`redact`, which replaces detected values with typed placeholders before
-transport or return. Set `.aidocrc.json` `trustPolicy` to `strict` to block
-detected input or output. `warn` is explicitly permissive: it allows the
-original detected material to cross the provider boundary and reach consumers.
+output for high-confidence secrets. For direct/general provider flows,
+configured `strict` blocks findings, configured `redact` replaces detected
+values with typed placeholders, and configured `warn` preserves the detected
+text while reporting findings. The host-managed MCP prepare/validate workflow
+has a stricter privacy floor: configured `warn` and `redact` both use effective
+redaction before host generation or return, while the result still reports the
+configured policy. An `allowed` result means no findings were detected.
 
 The GitHub Action defaults to `strict` and exports its selected policy over
 project configuration. Override it explicitly when needed:
@@ -159,8 +220,11 @@ compare the prepared file snapshot before replacement, and commit through a
 same-directory rename. Dry-run, `check`, `plan`, current MCP generation tools,
 and `score` without `--output` are non-mutating. MCP directory allowlisting,
 `aidoc doctor --security`, and persisted receipts remain unimplemented. These
-repository-contained write controls are not an operating-system sandbox; Trust
-Gate redaction is not a prompt-injection defense.
+repository-contained write controls are not an operating-system sandbox;
+Trust Gate redaction is not a prompt-injection defense. In the host-managed
+MCP workflow, Trust Gate inspects AiDoc's prepared input and validated output;
+it does not control the host's context window, model, sandbox, isolation, or
+permission system.
 
 ## 🛠️ Commands
 
@@ -207,6 +271,9 @@ aidoc update --target README.md --since HEAD~5  # compatibility alias for --base
 
 `update` always constructs the deterministic plan first. `--since` remains a
 compatibility alias for `--base`; when both are supplied they must match.
+With no explicit target, one safe affected Markdown target is selected
+automatically. Multiple targets require `--target` or `--all`; automatic
+selection never guesses.
 
 ### Debug Mode
 
@@ -288,23 +355,31 @@ Pull-request workflows should use
 `${{ github.event.pull_request.base.sha }}`. Push workflows can use
 `${{ github.event.before }}`.
 
-## 🔌 MCP Server
+## 🔌 Local MCP integrations
 
-Use aidoc as a tool in AI assistants like ChatGPT, Claude, or Cursor:
+The repository-owned beta.3 integration is designed for an official local
+Codex host authenticated with ChatGPT, or for Claude Desktop/Claude Code. It
+uses local STDIO MCP and the command `aidoc --mcp`; it does not turn a consumer
+subscription into an AiDoc API credential. ChatGPT web does not read local
+Codex configuration or local STDIO servers.
+
+Read [Codex integration](./docs/integrations/codex.md) or [Claude integration](./docs/integrations/claude.md)
+for host-specific setup. The local server can also be started directly after
+the source-checkout build:
 
 ```bash
-# Start the source-beta MCP server
-node /absolute/path/to/aidoc/dist/cli/index.js --mcp
+# Start the local MCP server from a built source checkout
+aidoc --mcp
 ```
 
-### Claude Desktop / Cursor config
+### Claude Desktop / Claude Code config
 
 ```json
 {
   "mcpServers": {
     "aidoc": {
-      "command": "node",
-      "args": ["/absolute/path/to/aidoc/dist/cli/index.js", "--mcp"]
+      "command": "aidoc",
+      "args": ["--mcp"]
     }
   }
 }
@@ -312,19 +387,49 @@ node /absolute/path/to/aidoc/dist/cli/index.js --mcp
 
 ### Available MCP Tools
 
-| Tool                        | Description                                                   |
-| :-------------------------- | :------------------------------------------------------------ |
-| `analyze_codebase`          | Parse code and return structure (functions, classes, types)   |
-| `generate_readme`           | Generate README from code analysis                            |
-| `generate_api_docs`         | Generate API reference documentation                          |
-| `generate_diagram`          | Generate Mermaid architecture diagram                         |
-| `check_docs_freshness`      | Run an AST-backed source/document co-change guard             |
-| `plan_documentation_impact` | Plan deterministic impact for the server's startup repository |
+The subscription-friendly, provider-free path is
+`plan_documentation_impact` → `prepare_documentation_update` →
+`validate_documentation_draft` → `check_docs_freshness`. The legacy/direct
+provider-backed generation tools below are separate: `generate_readme`,
+`generate_api_docs`, and `generate_diagram` require an explicit AiDoc provider
+credential and the provider's API billing. The bundled documentation skill
+never calls those provider-backed generation tools.
+
+| Tool                           | Description                                                               |
+| :----------------------------- | :------------------------------------------------------------------------ |
+| `analyze_codebase`             | Parse code and return structure (functions, classes, types)               |
+| `generate_readme`              | Generate README from code analysis                                        |
+| `generate_api_docs`            | Generate API reference documentation                                      |
+| `generate_diagram`             | Generate Mermaid architecture diagram                                     |
+| `check_docs_freshness`         | Run an AST-backed source/document co-change guard                         |
+| `plan_documentation_impact`    | Plan deterministic impact for the server's startup repository             |
+| `prepare_documentation_update` | Prepare one bounded Markdown target without writing or calling a provider |
+| `validate_documentation_draft` | Validate host-generated Markdown without writing files                    |
 
 `plan_documentation_impact` accepts `base`, `head`, and
 `max_context_bytes`. Its scope is the repository where the MCP server process
 started; it does not accept an arbitrary directory. For the same immutable
 base and head, MCP returns the same plan object as `aidoc plan --json`.
+
+For the safe host-managed update, call `prepare_documentation_update`, generate
+one candidate only from its `generation.system_prompt` and `generation.prompt`,
+then call `validate_documentation_draft` with the unchanged preparation digest,
+target, and exact candidate before asking the host for write permission. The
+MCP prepare/validate path never writes the repository and never receives the
+host's subscription token.
+
+For a source-checkout Codex host, after `npm link` add the local MCP server
+directly:
+
+```bash
+codex mcp add aidoc -- aidoc --mcp
+codex mcp list
+```
+
+You can also verify the server with `/mcp` in Codex. Reverse this host
+configuration with `codex mcp remove aidoc`. The repository-owned plugin is
+not installed from a marketplace here; marketplace distribution is a later
+step, and no marketplace entry is created by this slice.
 
 ## 🔐 Planning security and limits
 
