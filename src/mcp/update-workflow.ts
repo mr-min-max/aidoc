@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { posix as pathPosix } from "node:path";
+import { type PlanningConfig } from "../config/planning";
 import { createImpactPlan } from "../impact/planner";
 import {
   projectProviderContextForTarget,
@@ -33,6 +34,11 @@ import {
 } from "../security/types";
 import { RepositoryWriteScope } from "../security/repository-writer";
 import {
+  MCPRepositoryReadScope,
+  type AuthorizedMCPDirectory,
+} from "./repository-scope";
+import { MCPScopedConfigLoader } from "./scoped-config";
+import {
   MCP_PREPARATION_SCHEMA,
   MCPPreparationError,
   PreparationTokenCodec,
@@ -48,6 +54,7 @@ export interface MCPUpdateWorkflowContext {
   readonly serverCwd: string;
   readonly tokenCodec: PreparationTokenCodec;
   readonly trustPolicy: TrustPolicy;
+  readonly loadPlanningConfig: () => Promise<Readonly<PlanningConfig>>;
 }
 
 export interface PrepareDocumentationUpdateArguments {
@@ -85,8 +92,10 @@ export function createMCPUpdateWorkflowContext(
   serverCwd: string,
   tokenCodec = new PreparationTokenCodec(randomBytes(32)),
   trustPolicy = environmentTrustPolicy(),
+  loadPlanningConfig: () => Promise<Readonly<PlanningConfig>> = () =>
+    loadPlanningConfigForFreshScope(serverCwd),
 ): MCPUpdateWorkflowContext {
-  return { serverCwd, tokenCodec, trustPolicy };
+  return { serverCwd, tokenCodec, trustPolicy, loadPlanningConfig };
 }
 
 export function defaultMCPUpdateWorkflowContext(
@@ -96,7 +105,17 @@ export function defaultMCPUpdateWorkflowContext(
     serverCwd,
     tokenCodec: FALLBACK_CODEC,
     trustPolicy: environmentTrustPolicy(),
+    loadPlanningConfig: () => loadPlanningConfigForFreshScope(serverCwd),
   };
+}
+
+async function loadPlanningConfigForFreshScope(
+  serverCwd: string,
+): Promise<Readonly<PlanningConfig>> {
+  const scope = await MCPRepositoryReadScope.open(serverCwd);
+  const loader = new MCPScopedConfigLoader(scope);
+  const directory: AuthorizedMCPDirectory = scope.rootDirectory();
+  return loader.loadPlanning(directory);
 }
 
 export async function prepareDocumentationUpdate(
@@ -112,11 +131,13 @@ export async function prepareDocumentationUpdate(
   instructions: readonly string[];
 }> {
   const options = readPrepareArguments(args);
+  const planningConfig = await context.loadPlanningConfig();
   const planning = await createImpactPlan({
     cwd: context.serverCwd,
     base: options.base,
     head: options.head,
     maxContextBytes: options.max_context_bytes,
+    planningConfig,
   });
   const scope = await RepositoryWriteScope.open(context.serverCwd);
   const targets = await resolveDocumentationTargets({
@@ -193,11 +214,13 @@ export async function validateDocumentationDraft(
   const claims = context.tokenCodec.verify(options.preparationDigest);
   if (options.target !== claims.target) throw invalidPreparation();
 
+  const planningConfig = await context.loadPlanningConfig();
   const planning = await createImpactPlan({
     cwd: context.serverCwd,
     base: claims.base,
     head: claims.head,
     maxContextBytes: claims.maxContextBytes,
+    planningConfig,
   });
   if (planning.plan.digest !== claims.planDigest) throw invalidPreparation();
 

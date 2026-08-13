@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { join, sep } from "node:path";
 import { execFileSync } from "node:child_process";
 import { createImpactPlan } from "../../../src/impact/planner";
+import * as planningConfig from "../../../src/config/planning";
 import {
   GitSnapshotReader,
   type GitSnapshotSet,
@@ -39,6 +40,47 @@ function commit(root: string, message: string): void {
 }
 
 describe("createImpactPlan", () => {
+  test("uses a defensive injected planning copy and applies the request budget", async () => {
+    const root = repository();
+    writeFileSync(
+      join(root, "index.ts"),
+      "export function greet(name: string) { return name; }\n",
+    );
+    commit(root, "initial");
+    writeFileSync(
+      join(root, "index.ts"),
+      "export function greet(name: number) { return name; }\n",
+    );
+
+    const include = ["**/*.py"];
+    const exclude: string[] = [];
+    const injected = {
+      include,
+      exclude,
+      outputDir: "./docs",
+      maxContextBytes: 12000,
+    };
+    const loadPlanningConfig = jest.spyOn(planningConfig, "loadPlanningConfig");
+
+    const result = await createImpactPlan({
+      cwd: root,
+      planningConfig: injected,
+      maxContextBytes: 2048,
+    });
+
+    expect(result.plan.context.maxBytes).toBe(2048);
+    expect(result.plan.changes).toHaveLength(0);
+    expect(loadPlanningConfig).not.toHaveBeenCalled();
+    expect(injected).toEqual({
+      include,
+      exclude,
+      outputDir: "./docs",
+      maxContextBytes: 12000,
+    });
+    expect(include).toEqual(["**/*.py"]);
+    expect(exclude).toEqual([]);
+  });
+
   test("is exposed as the single planning entry point", async () => {
     const root = repository();
     writeFileSync(

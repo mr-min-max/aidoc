@@ -38,10 +38,14 @@ import {
   UNKNOWN_ERROR_DIAGNOSTIC,
 } from "../security/diagnostics";
 import {
+  MCPRepositoryReadScope,
   MCPRepositoryScopeError,
   readOwnMCPArgument,
 } from "./repository-scope";
-import { MCPUnsafeConfigurationError } from "./scoped-config";
+import {
+  MCPScopedConfigLoader,
+  MCPUnsafeConfigurationError,
+} from "./scoped-config";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -75,6 +79,13 @@ const SAFE_MCP_ERROR_CODES = new Set<string>([
   MCP_INVALID_PREPARATION,
 ]);
 const UNKNOWN_MCP_ERROR = "Unknown MCP error.";
+
+export interface MCPServerContext {
+  readonly serverCwd: string;
+  readonly scope: MCPRepositoryReadScope;
+  readonly configLoader: MCPScopedConfigLoader;
+  readonly updateWorkflow: MCPUpdateWorkflowContext;
+}
 
 function invalidMCPRef(): PlanFailure {
   return new PlanFailure("PLAN_INVALID_REF", "The Git reference is invalid.");
@@ -435,24 +446,96 @@ function diffSummarySchema(): object {
   };
 }
 
+export async function createMCPServerContext(
+  serverCwd = process.cwd(),
+  hostEnvironment?: Readonly<NodeJS.ProcessEnv>,
+): Promise<MCPServerContext> {
+  const scope = await MCPRepositoryReadScope.open(serverCwd);
+  const configLoader = new MCPScopedConfigLoader(scope, hostEnvironment);
+  const updateWorkflow = createMCPUpdateWorkflowContext(
+    serverCwd,
+    undefined,
+    trustPolicyFromEnvironment(hostEnvironment),
+    () => configLoader.loadPlanning(scope.rootDirectory()),
+  );
+  return Object.freeze({
+    serverCwd,
+    scope,
+    configLoader,
+    updateWorkflow,
+  });
+}
+
+async function resolveMCPServerContext(
+  contextOrCwd: MCPServerContext | string | undefined,
+  legacyWorkflowContext: MCPUpdateWorkflowContext | undefined,
+): Promise<MCPServerContext> {
+  if (typeof contextOrCwd === "object" && contextOrCwd !== null) {
+    if (legacyWorkflowContext === undefined) return contextOrCwd;
+    return Object.freeze({
+      ...contextOrCwd,
+      updateWorkflow: Object.freeze({
+        ...legacyWorkflowContext,
+        serverCwd: contextOrCwd.serverCwd,
+        loadPlanningConfig: contextOrCwd.updateWorkflow.loadPlanningConfig,
+      }),
+    });
+  }
+
+  const context = await createMCPServerContext(
+    typeof contextOrCwd === "string" ? contextOrCwd : process.cwd(),
+  );
+  const workflowContext =
+    legacyWorkflowContext ?? defaultMCPUpdateWorkflowContext(context.serverCwd);
+
+  return Object.freeze({
+    ...context,
+    updateWorkflow: Object.freeze({
+      ...workflowContext,
+      serverCwd: context.serverCwd,
+      loadPlanningConfig: context.updateWorkflow.loadPlanningConfig,
+    }),
+  });
+}
+
+function trustPolicyFromEnvironment(
+  environment: Readonly<NodeJS.ProcessEnv> | undefined,
+): MCPUpdateWorkflowContext["trustPolicy"] {
+  const source = environment ?? process.env;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      source,
+      "AIDOC_TRUST_POLICY",
+    );
+    const value =
+      descriptor !== undefined && Object.hasOwn(descriptor, "value")
+        ? descriptor.value
+        : undefined;
+    return value === "warn" || value === "strict" || value === "redact"
+      ? value
+      : "redact";
+  } catch {
+    return "redact";
+  }
+}
+
 /** Handle a tool call */
 export async function handleToolCall(
   name: string,
-  args: Record<string, unknown>,
-  serverCwd = process.cwd(),
-  workflowContext?: MCPUpdateWorkflowContext,
+  args: unknown,
+  contextOrCwd?: MCPServerContext | string,
+  legacyWorkflowContext?: MCPUpdateWorkflowContext,
 ): Promise<unknown> {
-  const updateContext =
-    workflowContext ?? defaultMCPUpdateWorkflowContext(serverCwd);
+  const legacyArgs = args as Record<string, unknown>;
   switch (name) {
     case "analyze_codebase": {
-      const dir = args.directory as string;
+      const dir = legacyArgs.directory as string;
       const config = loadPlanningConfig(dir);
-      const include = args.include
-        ? (args.include as string).split(",")
+      const include = legacyArgs.include
+        ? (legacyArgs.include as string).split(",")
         : config.include;
-      const exclude = args.exclude
-        ? (args.exclude as string).split(",")
+      const exclude = legacyArgs.exclude
+        ? (legacyArgs.exclude as string).split(",")
         : config.exclude;
 
       const modules = await analyzeCodebase(dir, include, exclude);
@@ -488,7 +571,7 @@ export async function handleToolCall(
     }
 
     case "generate_readme": {
-      const dir = args.directory as string;
+      const dir = legacyArgs.directory as string;
       const config = loadProviderConfig(dir);
       const modules = await analyzeCodebase(
         dir,
@@ -523,7 +606,7 @@ export async function handleToolCall(
     }
 
     case "generate_api_docs": {
-      const dir = args.directory as string;
+      const dir = legacyArgs.directory as string;
       const config = loadProviderConfig(dir);
       const modules = await analyzeCodebase(
         dir,
@@ -541,7 +624,7 @@ export async function handleToolCall(
     }
 
     case "generate_diagram": {
-      const dir = args.directory as string;
+      const dir = legacyArgs.directory as string;
       const config = loadProviderConfig(dir);
       const modules = await analyzeCodebase(
         dir,
@@ -559,9 +642,9 @@ export async function handleToolCall(
     }
 
     case "check_docs_freshness": {
-      const dir = args.directory as string;
-      const docFile = (args.doc_file as string) || "README.md";
-      const since = (args.since as string) || "HEAD~5";
+      const dir = legacyArgs.directory as string;
+      const docFile = (legacyArgs.doc_file as string) || "README.md";
+      const since = (legacyArgs.since as string) || "HEAD~5";
 
       const report = await checkDocumentationFreshness(dir, docFile, since);
       return {
@@ -575,28 +658,49 @@ export async function handleToolCall(
 
     case "plan_documentation_impact": {
       const options = readMCPPlanOptions(args);
+      const context = await resolveMCPServerContext(
+        contextOrCwd,
+        legacyWorkflowContext,
+      );
+      const planningConfig = await context.configLoader.loadPlanning(
+        context.scope.rootDirectory(),
+      );
       const result = await createImpactPlan({
-        cwd: serverCwd,
+        cwd: context.serverCwd,
         base: options.base,
         head: options.head,
         maxContextBytes: options.maxContextBytes,
+        planningConfig,
       });
       return result.plan;
     }
 
-    case "prepare_documentation_update":
-      return prepareDocumentationUpdate(args, updateContext);
+    case "prepare_documentation_update": {
+      const context = await resolveMCPServerContext(
+        contextOrCwd,
+        legacyWorkflowContext,
+      );
+      return prepareDocumentationUpdate(args, context.updateWorkflow);
+    }
 
-    case "validate_documentation_draft":
-      return validateDocumentationDraft(args, updateContext);
+    case "validate_documentation_draft": {
+      const context = await resolveMCPServerContext(
+        contextOrCwd,
+        legacyWorkflowContext,
+      );
+      return validateDocumentationDraft(args, context.updateWorkflow);
+    }
 
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
 }
 
-export function createMCPServer(serverCwd = process.cwd()): Server {
-  const workflowContext = createMCPUpdateWorkflowContext(serverCwd);
+export async function createMCPServer(
+  serverCwd = process.cwd(),
+  hostEnvironment?: Readonly<NodeJS.ProcessEnv>,
+): Promise<Server> {
+  const context = await createMCPServerContext(serverCwd, hostEnvironment);
   const server = new Server(
     { name: "aidoc", version: readPackageVersion() },
     { capabilities: { tools: {} } },
@@ -611,8 +715,7 @@ export function createMCPServer(serverCwd = process.cwd()): Server {
       const result = await handleToolCall(
         request.params.name,
         request.params.arguments ?? {},
-        serverCwd,
-        workflowContext,
+        context,
       );
       const response = {
         content: [
@@ -647,6 +750,6 @@ export function createMCPServer(serverCwd = process.cwd()): Server {
 
 /** MCP Server over stdio */
 export async function startMCPServer(): Promise<void> {
-  const server = createMCPServer();
+  const server = await createMCPServer();
   await server.connect(new StdioServerTransport());
 }

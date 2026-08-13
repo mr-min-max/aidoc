@@ -2,7 +2,12 @@ import { execFile as execFileCallback } from "node:child_process";
 import { promises as fs, type BigIntStats } from "node:fs";
 import { isAbsolute, posix, resolve, relative, sep } from "node:path";
 import { promisify } from "node:util";
-import { loadPlanningConfig } from "../config/planning";
+import {
+  loadPlanningConfig,
+  parseContextBudget,
+  parsePlanningConfig,
+  type PlanningConfig,
+} from "../config/planning";
 import { GitSnapshotReader, type SnapshotFileChange } from "../git/snapshot";
 import { getSnapshotParserForFile } from "../parsers/registry";
 import { buildImpactContext } from "./context";
@@ -28,6 +33,7 @@ export interface ImpactPlanOptions {
   base?: string;
   head?: string;
   maxContextBytes?: unknown;
+  readonly planningConfig?: Readonly<PlanningConfig>;
 }
 
 interface ValidatedExistingPath {
@@ -122,7 +128,14 @@ export async function createImpactPlan(
   const cwd = options.cwd ?? process.cwd();
   let config;
   try {
-    config = loadPlanningConfig(cwd, options.maxContextBytes);
+    if (options.planningConfig !== undefined) {
+      config = parsePlanningConfig(options.planningConfig);
+      if (options.maxContextBytes !== undefined) {
+        config.maxContextBytes = parseContextBudget(options.maxContextBytes);
+      }
+    } else {
+      config = loadPlanningConfig(cwd, options.maxContextBytes);
+    }
   } catch (error: unknown) {
     if (
       error instanceof Error &&

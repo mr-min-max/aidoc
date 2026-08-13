@@ -12,7 +12,13 @@ import { join } from "node:path";
 import * as providerRegistry from "../../../src/providers/registry";
 import * as configLoader from "../../../src/config/loader";
 import * as impactPlanner from "../../../src/impact/planner";
-import { formatMCPError, handleToolCall, TOOLS } from "../../../src/mcp/server";
+import { GitSnapshotReader } from "../../../src/git/snapshot";
+import {
+  createMCPServerContext,
+  formatMCPError,
+  handleToolCall,
+  TOOLS,
+} from "../../../src/mcp/server";
 import { createMCPUpdateWorkflowContext } from "../../../src/mcp/update-workflow";
 import { PreparationTokenCodec } from "../../../src/mcp/preparation-token";
 
@@ -171,6 +177,100 @@ describe("provider-free MCP update workflow", () => {
     expect(readFileSync(join(fixture.root, "README.md"))).toEqual(before);
     expect(createProvider).not.toHaveBeenCalled();
     expect(loadProviderConfig).not.toHaveBeenCalled();
+  });
+
+  it("refreshes safe planning configuration for validation", async () => {
+    const fixture = fixtureRepository();
+    roots.push(fixture.root);
+    writeFileSync(
+      join(fixture.root, ".aidocrc.json"),
+      JSON.stringify({ include: ["**/*.ts"] }),
+    );
+    const context = await createMCPServerContext(
+      fixture.root,
+      Object.create(null),
+    );
+    const loadPlanning = jest.spyOn(context.configLoader, "loadPlanning");
+
+    const prepared = (await handleToolCall(
+      "prepare_documentation_update",
+      { base: fixture.base, head: fixture.head, target: "README.md" },
+      context,
+    )) as { preparation_digest: string; target: string };
+
+    writeFileSync(
+      join(fixture.root, ".aidocrc.json"),
+      JSON.stringify({ include: ["**/*.tsx"] }),
+    );
+
+    const thrown = await handleToolCall(
+      "validate_documentation_draft",
+      {
+        preparation_digest: prepared.preparation_digest,
+        target: prepared.target,
+        candidate_markdown: "# API\n",
+      },
+      context,
+    ).catch((error: unknown) => error);
+
+    expect(thrown).toMatchObject({ code: "MCP_INVALID_PREPARATION" });
+    expect(loadPlanning).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects unsafe configuration before Git or AST planning", async () => {
+    const fixture = fixtureRepository();
+    roots.push(fixture.root);
+    writeFileSync(
+      join(fixture.root, ".aidocrc.js"),
+      `throw new Error(${JSON.stringify(`${fixture.root}/unsafe-config`)})`,
+    );
+    const context = await createMCPServerContext(
+      fixture.root,
+      Object.create(null),
+    );
+    const gitRead = jest.spyOn(GitSnapshotReader.prototype, "read");
+
+    const thrown = await handleToolCall(
+      "prepare_documentation_update",
+      { base: fixture.base, head: fixture.head, target: "README.md" },
+      context,
+    ).catch((error: unknown) => error);
+
+    expect(formatMCPError(thrown)).toBe(
+      "MCP_UNSAFE_CONFIGURATION: The MCP project configuration cannot be loaded safely.",
+    );
+    expect(formatMCPError(thrown)).not.toContain(fixture.root);
+    expect(gitRead).not.toHaveBeenCalled();
+  });
+
+  it("rejects a symlinked configuration before Git or AST planning", async () => {
+    const fixture = fixtureRepository();
+    const outside = mkdtempSync(join(tmpdir(), "aidoc-mcp-unsafe-config-"));
+    roots.push(fixture.root, outside);
+    writeFileSync(
+      join(outside, "config.json"),
+      JSON.stringify({ include: ["**/*.ts"] }),
+    );
+    symlinkSync(
+      join(outside, "config.json"),
+      join(fixture.root, ".aidocrc.json"),
+    );
+    const context = await createMCPServerContext(
+      fixture.root,
+      Object.create(null),
+    );
+    const gitRead = jest.spyOn(GitSnapshotReader.prototype, "read");
+
+    const thrown = await handleToolCall(
+      "prepare_documentation_update",
+      { base: fixture.base, head: fixture.head, target: "README.md" },
+      context,
+    ).catch((error: unknown) => error);
+
+    expect(formatMCPError(thrown)).toBe(
+      "MCP_UNSAFE_CONFIGURATION: The MCP project configuration cannot be loaded safely.",
+    );
+    expect(gitRead).not.toHaveBeenCalled();
   });
 
   it("rejects a modified preparation with a fixed safe error", async () => {

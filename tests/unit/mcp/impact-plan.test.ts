@@ -5,6 +5,7 @@ import { join } from "node:path";
 import * as commandContext from "../../../src/cli/context";
 import { executePlanCommand } from "../../../src/cli/commands/plan";
 import * as configLoader from "../../../src/config/loader";
+import * as planningConfig from "../../../src/config/planning";
 import * as templates from "../../../src/core/templates";
 import * as impactPlanner from "../../../src/impact/planner";
 import type {
@@ -12,7 +13,13 @@ import type {
   ImpactProviderContext,
 } from "../../../src/impact/types";
 import { PlanFailure } from "../../../src/impact/types";
-import { formatMCPError, handleToolCall, TOOLS } from "../../../src/mcp/server";
+import {
+  createMCPServerContext,
+  formatMCPError,
+  handleToolCall,
+  TOOLS,
+} from "../../../src/mcp/server";
+import { MCPRepositoryReadScope } from "../../../src/mcp/repository-scope";
 import * as providerRegistry from "../../../src/providers/registry";
 
 function git(root: string, ...args: string[]): string {
@@ -105,6 +112,12 @@ describe("MCP impact planning", () => {
   // Break caught: snake-case MCP options are forwarded under the wrong names,
   // provider-only context escapes, or an injected directory expands scope.
   it("maps options to the shared planner and returns exactly its public plan", async () => {
+    const fixture = immutableRepository();
+    roots.push(fixture.root, fixture.outside);
+    const context = await createMCPServerContext(
+      fixture.root,
+      Object.create(null),
+    );
     const plan = Object.freeze({
       schemaVersion: "aidoc.impact-plan.v1",
       digest: "0".repeat(64),
@@ -119,21 +132,108 @@ describe("MCP impact planning", () => {
     const result = await handleToolCall(
       "plan_documentation_impact",
       {
-        base: "refs/heads/main",
-        head: "HEAD",
+        base: fixture.base,
+        head: fixture.head,
         max_context_bytes: 4096,
         directory: "/tmp/not-the-server-repository",
       },
-      "/srv/locked-repository",
+      context,
     );
 
     expect(result).toBe(plan);
     expect(planner).toHaveBeenCalledWith({
-      cwd: "/srv/locked-repository",
-      base: "refs/heads/main",
-      head: "HEAD",
+      cwd: fixture.root,
+      base: fixture.base,
+      head: fixture.head,
       maxContextBytes: 4096,
+      planningConfig: expect.objectContaining({
+        include: expect.any(Array),
+        exclude: expect.any(Array),
+        outputDir: expect.any(String),
+        maxContextBytes: expect.any(Number),
+      }),
     });
+  });
+
+  it("loads planning through one pinned server context before planning", async () => {
+    const fixture = immutableRepository();
+    roots.push(fixture.root, fixture.outside);
+    const context = await createMCPServerContext(
+      fixture.root,
+      Object.create(null),
+    );
+    const ordinaryLoader = jest.spyOn(planningConfig, "loadPlanningConfig");
+    const loadPlanning = jest.spyOn(context.configLoader, "loadPlanning");
+    const plan = Object.freeze({
+      schemaVersion: "aidoc.impact-plan.v1",
+      digest: "1".repeat(64),
+    }) as unknown as ImpactPlan;
+    const planner = jest
+      .spyOn(impactPlanner, "createImpactPlan")
+      .mockResolvedValue({
+        plan,
+        providerContext: {} as ImpactProviderContext,
+      });
+
+    const result = await handleToolCall(
+      "plan_documentation_impact",
+      {
+        base: fixture.base,
+        head: fixture.head,
+        max_context_bytes: 4096,
+      },
+      context,
+    );
+
+    expect(result).toBe(plan);
+    expect(context.serverCwd).toBe(fixture.root);
+    expect(context.updateWorkflow.serverCwd).toBe(fixture.root);
+    expect(context.updateWorkflow.loadPlanningConfig).toEqual(
+      expect.any(Function),
+    );
+    expect(loadPlanning).toHaveBeenCalledTimes(1);
+    expect(ordinaryLoader).not.toHaveBeenCalled();
+    expect(loadPlanning).toHaveBeenCalledWith(context.scope.rootDirectory());
+    expect(planner).toHaveBeenCalledWith({
+      cwd: fixture.root,
+      base: fixture.base,
+      head: fixture.head,
+      maxContextBytes: 4096,
+      planningConfig: expect.objectContaining({
+        include: expect.any(Array),
+        exclude: expect.any(Array),
+        outputDir: expect.any(String),
+        maxContextBytes: expect.any(Number),
+      }),
+    });
+  });
+
+  it("reuses the context-owned scope and loader across provider-free calls", async () => {
+    const fixture = immutableRepository();
+    roots.push(fixture.root, fixture.outside);
+    const context = await createMCPServerContext(
+      fixture.root,
+      Object.create(null),
+    );
+    const openScope = jest.spyOn(MCPRepositoryReadScope, "open");
+    const loadPlanning = jest.spyOn(context.configLoader, "loadPlanning");
+    const codec = context.updateWorkflow.tokenCodec;
+
+    await handleToolCall(
+      "plan_documentation_impact",
+      { base: fixture.base, head: fixture.head },
+      context,
+    );
+    const prepared = (await handleToolCall(
+      "prepare_documentation_update",
+      { base: fixture.base, head: fixture.head, target: "README.md" },
+      context,
+    )) as { preparation_digest: string; target: string };
+
+    expect(openScope).not.toHaveBeenCalled();
+    expect(loadPlanning).toHaveBeenCalledTimes(2);
+    expect(context.updateWorkflow.tokenCodec).toBe(codec);
+    expect(prepared.target).toBe("README.md");
   });
 
   // Break caught: TypeScript assertions let invalid protocol scalars reach the
