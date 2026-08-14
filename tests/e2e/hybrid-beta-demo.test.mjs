@@ -114,6 +114,10 @@ test("demo source keeps the canonical schema and credential-free contract visibl
   assert.match(source, /prepare_documentation_update/u);
   assert.match(source, /validate_documentation_draft/u);
   assert.match(source, /snapshotRepositoryTree/u);
+  assert.match(
+    source,
+    /name:\s*"check_docs_freshness"[\s\S]{0,180}directory:\s*"\."/u,
+  );
   assert.match(source, /OPENAI_API_KEY/u);
   assert.match(source, /network|credential-free|no credentials/u);
   assert.doesNotMatch(source, /fetch\(|https?:\/\//u);

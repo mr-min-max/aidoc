@@ -244,7 +244,7 @@ async function runMcpEvidence(fixture) {
     const freshnessResult = await client.callTool({
       name: "check_docs_freshness",
       arguments: {
-        directory: fixture.cwd,
+        directory: ".",
         doc_file: "README.md",
         since: fixture.base,
       },
