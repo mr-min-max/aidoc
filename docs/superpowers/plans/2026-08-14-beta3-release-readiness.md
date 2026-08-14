@@ -78,8 +78,10 @@ TypeScript, `js-yaml`, GitHub issue forms, Markdown, npm provenance/OIDC.
 
 - Modify: `.github/workflows/ci.yml`
 - Modify: `.github/workflows/release.yml`
+- Create: `scripts/verify-release-candidate.mjs`
 - Modify: `tests/unit/release/ci-workflow.test.ts`
 - Modify: `tests/unit/release/workflow.test.ts`
+- Create: `tests/unit/release/release-candidate.test.ts`
 
 **Interfaces:**
 
@@ -87,7 +89,8 @@ TypeScript, `js-yaml`, GitHub issue forms, Markdown, npm provenance/OIDC.
   `.tgz` and its matching `.sha256` file.
 - Produces: a tag-triggered workflow whose publish job accepts only the
   checksum-verified tarball and whose GitHub prerelease job reuses the same
-  files without rebuilding.
+  files without rebuilding. Before installation, it also proves that the tag
+  target is contained in protected `main` and matches the package version.
 
 - [ ] **Step 1: Replace expected action revisions in the tests**
 
@@ -306,6 +309,24 @@ TypeScript, `js-yaml`, GitHub issue forms, Markdown, npm provenance/OIDC.
 
   Expected: both suites pass, TypeScript exits 0, formatting passes, and no
   whitespace errors remain.
+
+- [ ] **Step 10a: Close independent-review release-boundary gaps**
+
+  Add `scripts/verify-release-candidate.mjs` and execute it before `npm ci`.
+  The verifier resolves refs without a shell, accepts only fixed bounded
+  arguments, compares the tag to `package.json`, and checks:
+
+  ```bash
+  git merge-base --is-ancestor CANDIDATE_COMMIT MAIN_COMMIT
+  ```
+
+  Add a real temporary Git regression proving an unmerged descendant fails.
+  Tighten workflow tests so the complete action multiset equals the reviewed
+  allowlist, there is exactly one normalized `npm publish` command, no
+  `--tag latest`, no job/workflow token exposure, and both artifact downloads
+  have only the current-run `name` and `path` inputs. Update the runbook to
+  capture one readonly `release_sha`, test that exact checkout, revalidate the
+  same remote and local SHA before tagging, and tag only the stored SHA.
 
 - [ ] **Step 11: Review and commit Task 1**
 
@@ -534,7 +555,8 @@ TypeScript, `js-yaml`, GitHub issue forms, Markdown, npm provenance/OIDC.
 **Files:**
 
 - Verify only: all Task 1 and Task 2 paths
-- No new production or documentation path is introduced in this task.
+- The bounded release-candidate guard and its regression may be introduced in
+  response to independent review; no product runtime path is introduced.
 
 **Interfaces:**
 
@@ -546,7 +568,7 @@ TypeScript, `js-yaml`, GitHub issue forms, Markdown, npm provenance/OIDC.
 - [ ] **Step 1: Run all focused release tests**
 
   ```bash
-  npm test -- tests/unit/release/ci-workflow.test.ts tests/unit/release/workflow.test.ts tests/unit/release/public-beta-config.test.ts --runInBand
+  npm test -- tests/unit/release/ci-workflow.test.ts tests/unit/release/workflow.test.ts tests/unit/release/release-candidate.test.ts tests/unit/release/public-beta-config.test.ts --runInBand
   ```
 
   Expected: all suites and tests pass.
@@ -555,8 +577,8 @@ TypeScript, `js-yaml`, GitHub issue forms, Markdown, npm provenance/OIDC.
 
   ```bash
   npx tsc --noEmit
-  npx eslint tests/unit/release/ci-workflow.test.ts tests/unit/release/workflow.test.ts tests/unit/release/public-beta-config.test.ts
-  npx prettier --check .github/workflows/ci.yml .github/workflows/release.yml .github/ISSUE_TEMPLATE/config.yml .github/ISSUE_TEMPLATE/question.yml GOVERNANCE.md SUPPORT.md docs/RELEASING.md docs/superpowers/specs/2026-08-14-beta3-release-readiness-design.md docs/superpowers/plans/2026-08-14-beta3-release-readiness.md tests/unit/release/ci-workflow.test.ts tests/unit/release/workflow.test.ts tests/unit/release/public-beta-config.test.ts
+  npx eslint scripts/verify-release-candidate.mjs tests/unit/release/ci-workflow.test.ts tests/unit/release/workflow.test.ts tests/unit/release/release-candidate.test.ts tests/unit/release/public-beta-config.test.ts
+  npx prettier --check .github/workflows/ci.yml .github/workflows/release.yml .github/ISSUE_TEMPLATE/config.yml .github/ISSUE_TEMPLATE/question.yml GOVERNANCE.md SUPPORT.md docs/RELEASING.md docs/superpowers/specs/2026-08-14-beta3-release-readiness-design.md docs/superpowers/plans/2026-08-14-beta3-release-readiness.md scripts/verify-release-candidate.mjs tests/unit/release/ci-workflow.test.ts tests/unit/release/workflow.test.ts tests/unit/release/release-candidate.test.ts tests/unit/release/public-beta-config.test.ts
   git diff --check origin/main...HEAD
   ```
 
@@ -608,7 +630,7 @@ TypeScript, `js-yaml`, GitHub issue forms, Markdown, npm provenance/OIDC.
 
   ```bash
   git diff --stat origin/main...HEAD
-  git diff origin/main...HEAD -- .github/workflows .github/ISSUE_TEMPLATE GOVERNANCE.md SUPPORT.md docs/RELEASING.md tests/unit/release
+  git diff origin/main...HEAD -- .github/workflows .github/ISSUE_TEMPLATE GOVERNANCE.md SUPPORT.md docs/RELEASING.md scripts/verify-release-candidate.mjs tests/unit/release
   ```
 
   Confirm no package/lock/product-source change, no extra workflow permission,

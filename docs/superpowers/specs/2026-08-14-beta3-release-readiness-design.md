@@ -88,7 +88,11 @@ The tag-triggered workflow keeps three boundaries:
 
 1. **Verify** on Node 22 and 24, validate protected Git identities, run the
    complete release gate, build once on Node 24, checksum the tarball, and
-   smoke the exact tarball.
+   smoke the exact tarball. Before dependency installation, a release-specific
+   guard must prove that the tag target is contained in `origin/main` (candidate
+   is an ancestor of `main`) and that the tag exactly matches the package
+   version. Merely proving that `main` is an ancestor of the candidate is not a
+   release boundary because it accepts unmerged descendants.
 2. **Publish** only the downloaded checksum-verified tarball. The job must use
    GitHub-hosted Node 24, fail if the npm CLI is below the minimum supported by
    Trusted Publishing, grant only `contents: read` and `id-token: write`, and
@@ -170,6 +174,14 @@ The readiness pull request must add or extend deterministic tests that assert:
 - the GitHub Release is a prerelease created only after publish and reuses the
   exact tarball/checksum without checkout, install, build, pack, or publish;
 - every external action is pinned to an explicitly reviewed immutable SHA;
+- the complete `uses:` multiset equals the reviewed action allowlist, the
+  publish command occurs exactly once, and artifact downloads cannot select a
+  different run or repository;
+- a real temporary Git fixture proves that a candidate contained in `main`
+  passes while an unmerged descendant fails before install;
+- the maintainer runbook captures one immutable `origin/main` SHA, verifies and
+  tests that checkout, revalidates the same SHA immediately before tagging, and
+  tags only that stored value;
 - stale private/source-only claims are removed only where they are already
   false, while no document claims that npm publication has happened;
 - no Gmail address, local absolute path, credential, token value, placeholder,

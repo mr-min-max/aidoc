@@ -121,6 +121,29 @@ describe("public beta repository configuration", () => {
     expect(support).not.toContain("/discussions");
   });
 
+  it("locks verification and tagging to one immutable main commit", () => {
+    const runbook = fs.readFileSync(path.resolve("docs/RELEASING.md"), "utf8");
+    const capture = 'readonly release_sha="$(git rev-parse origin/main)"';
+    const verifyHead = 'test "$(git rev-parse HEAD)" = "$release_sha"';
+    const recheckMain = 'test "$(git rev-parse origin/main)" = "$release_sha"';
+    const tag = 'git tag -a v0.2.0-beta.3 "$release_sha" -m "v0.2.0-beta.3"';
+
+    expect(runbook).toContain("same trusted shell session");
+    expect(runbook.split(capture)).toHaveLength(2);
+    expect(runbook.split(verifyHead)).toHaveLength(3);
+    expect(runbook).toContain(recheckMain);
+    expect(runbook).toContain(tag);
+
+    const captureIndex = runbook.indexOf(capture);
+    const gateIndex = runbook.indexOf("npm run verify:release");
+    const recheckIndex = runbook.lastIndexOf(recheckMain);
+    const tagIndex = runbook.indexOf(tag);
+    expect(captureIndex).toBeGreaterThanOrEqual(0);
+    expect(gateIndex).toBeGreaterThan(captureIndex);
+    expect(recheckIndex).toBeGreaterThan(gateIndex);
+    expect(tagIndex).toBeGreaterThan(recheckIndex);
+  });
+
   it("aligns the beta.3 package identity and focused hybrid verification surface", () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.resolve("package.json"), "utf8"),

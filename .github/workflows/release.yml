@@ -31,15 +31,13 @@ jobs:
           git config --local user.name mr-min-max
           git config --local user.email 254284659+mr-min-max@users.noreply.github.com
           node scripts/public-beta-preflight.mjs --json --candidate-ref HEAD --skip-source-artifacts --main-ref origin/main
+      - name: Verify release candidate
+        run: >-
+          node scripts/verify-release-candidate.mjs
+          --main-ref origin/main
+          --candidate-ref HEAD
+          --tag "$GITHUB_REF_NAME"
       - run: npm ci
-      - name: Verify tag matches package version
-        shell: bash
-        run: |
-          package_version="$(node -p "require('./package.json').version")"
-          if [ "$GITHUB_REF_NAME" != "v$package_version" ]; then
-            echo "Tag $GITHUB_REF_NAME does not match v$package_version" >&2
-            exit 1
-          fi
       - run: npm run verify:release
       - name: Pack release artifact
         if: matrix.node-version == 24

@@ -15,11 +15,18 @@ dist-tag, not `latest`.
 
 ## Pre-release Verification
 
-1. Fetch the remote default branch and record its exact commit:
+Run the verification and publication commands in the same trusted shell session
+and keep that session open through tag creation. The `release_sha` variable is
+readonly by design; if the session closes or `origin/main` changes, restart this
+section and repeat every gate.
+
+1. Fetch the remote default branch, capture its exact commit once, and prove the
+   checked-out candidate is that commit:
 
    ```bash
    git fetch origin main
-   git rev-parse origin/main
+   readonly release_sha="$(git rev-parse origin/main)"
+   test "$(git rev-parse HEAD)" = "$release_sha"
    git status --short
    ```
 
@@ -45,7 +52,7 @@ dist-tag, not `latest`.
    npm run build
    node dist/cli/index.js score --min 80
    npm run test:public-beta
-   node scripts/public-beta-preflight.mjs --json --candidate-ref HEAD
+   node scripts/public-beta-preflight.mjs --json --candidate-ref "$release_sha"
    ```
 
 5. Review candidate commit identities, changed paths, and workflow permissions.
@@ -74,13 +81,18 @@ after GitHub accepts it.
 
 ## Publication
 
-Continue only after the maintainer explicitly authorizes publication and the
-pre-release evidence still matches the current `origin/main` commit.
+Continue only in the same trusted shell session, after the maintainer explicitly
+authorizes publication. Re-fetch `main` and prove both the remote tip and local
+checkout still equal the one SHA that passed every gate. If either comparison
+fails, do not tag; restart pre-release verification at the new commit.
 
-1. Create an annotated tag at that exact verified commit:
+1. Revalidate and create an annotated tag at that exact verified commit:
 
    ```bash
-   release_sha="$(git rev-parse origin/main)"
+   git fetch origin main
+   test "$(git rev-parse origin/main)" = "$release_sha"
+   test "$(git rev-parse HEAD)" = "$release_sha"
+   test -z "$(git status --porcelain=v1)"
    git tag -a v0.2.0-beta.3 "$release_sha" -m "v0.2.0-beta.3"
    git show --no-patch --format=fuller v0.2.0-beta.3
    ```

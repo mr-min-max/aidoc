@@ -57,6 +57,12 @@ describe("CI workflow security policy", () => {
       step.uses ? [step.uses] : [],
     );
 
+    expect([...uses].sort()).toEqual(
+      Object.entries(reviewedActions)
+        .map(([action, revision]) => `${action}@${revision}`)
+        .sort(),
+    );
+
     for (const [action, revision] of Object.entries(reviewedActions)) {
       expect(actionStep(workflow.jobs.test, action).uses).toBe(
         `${action}@${revision}`,
