@@ -30,6 +30,24 @@ function isTestPath(file: string): boolean {
   );
 }
 
+/** Returns whether a normalized changed path is an AST-backed source candidate. */
+export function isDocumentationSourcePath(file: string): boolean {
+  if (typeof file !== "string") return false;
+  const normalized = normalize(file);
+  const parser = getParserForFile(normalized);
+  return (
+    !isTestPath(normalized) &&
+    parser !== null &&
+    typeof parser.parseSource === "function"
+  );
+}
+
+function isCliDocumentationSourcePath(file: string): boolean {
+  if (typeof file !== "string") return false;
+  const normalized = normalize(file);
+  return !isTestPath(normalized) && getParserForFile(normalized) !== null;
+}
+
 export async function collectAstSourceFiles(
   cwd: string,
   changedFiles: string[],
@@ -37,7 +55,7 @@ export async function collectAstSourceFiles(
   const sourceFiles: string[] = [];
 
   for (const changedFile of changedFiles.map(normalize)) {
-    if (isTestPath(changedFile)) continue;
+    if (!isCliDocumentationSourcePath(changedFile)) continue;
     const parser = getParserForFile(changedFile);
     if (!parser) continue;
 

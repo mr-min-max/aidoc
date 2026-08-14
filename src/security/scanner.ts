@@ -58,6 +58,10 @@ const awsCredentialsPattern =
 export interface SecretPolicyOptions {
   readonly additionalSensitivePaths?: readonly string[];
   readonly includeUserPaths?: boolean;
+  /** Limits scanning to the exact additional sensitive paths. */
+  readonly onlySensitivePaths?: boolean;
+  /** Redacts exact sensitive paths even when the surrounding policy is warn. */
+  readonly redactSensitivePathsOnWarn?: boolean;
 }
 
 /**
@@ -105,7 +109,14 @@ export function applySecretPolicy(
   }
 
   if (policy === "warn") {
-    return { text, findings, action: "warned" };
+    if (!options.redactSensitivePathsOnWarn) {
+      return { text, findings, action: "warned" };
+    }
+    return {
+      text: redactMatches(text, matches, session),
+      findings,
+      action: "redacted",
+    };
   }
 
   return {
@@ -128,6 +139,15 @@ function collectMatches(
   text: string,
   options: SecretPolicyOptions,
 ): SecretMatch[] {
+  if (options.onlySensitivePaths) {
+    return collectLiteralMatches(
+      text,
+      options.additionalSensitivePaths ?? [],
+      "sensitive_path",
+      20,
+    );
+  }
+
   const userPathMatches = options.includeUserPaths
     ? [
         ...collectPatternMatches(

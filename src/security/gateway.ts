@@ -32,6 +32,15 @@ export interface ContextEnvelope {
   prompt: string;
 }
 
+/** Applies an internal, bounded path policy before ordinary Trust scanning. */
+export interface GatewayPathProtection {
+  protect(
+    text: string,
+    policy: TrustPolicy,
+    session: RedactionSession,
+  ): TrustTextResult;
+}
+
 /**
  * Reports a Trust Gate decision without including prompt, response, or matched secret text.
  */
@@ -50,6 +59,7 @@ export interface GatewayOptions {
   origin: GenerationOrigin;
   onEvent?: (event: TrustEvent) => void;
   sensitivePaths?: readonly string[];
+  pathProtection?: GatewayPathProtection;
 }
 
 export interface ApprovedTrustInput {
@@ -69,6 +79,7 @@ export class TrustGateway {
   private readonly origin: GenerationOrigin;
   private readonly eventHook?: (event: TrustEvent) => void;
   private readonly scanOptions: SecretPolicyOptions;
+  private readonly pathProtection?: GatewayPathProtection;
 
   constructor(
     private readonly provider: LLMProvider | undefined,
@@ -77,6 +88,7 @@ export class TrustGateway {
     this.policy = options.policy;
     this.origin = options.origin;
     this.eventHook = options.onEvent;
+    this.pathProtection = options.pathProtection;
     this.scanOptions = {
       additionalSensitivePaths: options.sensitivePaths,
       includeUserPaths: options.sensitivePaths !== undefined,
@@ -146,12 +158,7 @@ export class TrustGateway {
    */
   approveInputFragment(operation: GenerationOperation, text: string): string {
     try {
-      return applySecretPolicy(
-        text,
-        this.policy,
-        this.session,
-        this.scanOptions,
-      ).text;
+      return this.applyProtectedPolicy(text).text;
     } catch (error: unknown) {
       if (error instanceof TrustViolationError) {
         this.emit("input", { operation }, "blocked", error.findings);
@@ -165,26 +172,16 @@ export class TrustGateway {
       return this.approveStrictInput(envelope);
     }
 
-    const system = applySecretPolicy(
-      envelope.systemPrompt,
-      this.policy,
-      this.session,
-      this.scanOptions,
-    );
-    const prompt = applySecretPolicy(
-      envelope.prompt,
-      this.policy,
-      this.session,
-      this.scanOptions,
-    );
+    const protectedSystem = this.applyProtectedPolicy(envelope.systemPrompt);
+    const prompt = this.applyProtectedPolicy(envelope.prompt);
     this.emit(
       "input",
       envelope,
-      combineActions(system.action, prompt.action),
-      aggregateFindings(system.findings, prompt.findings),
+      combineActions(protectedSystem.action, prompt.action),
+      aggregateFindings(protectedSystem.findings, prompt.findings),
     );
 
-    return { systemPrompt: system.text, prompt: prompt.text };
+    return { systemPrompt: protectedSystem.text, prompt: prompt.text };
   }
 
   private approveStrictInput(envelope: ContextEnvelope): ApprovedTrustInput {
@@ -206,12 +203,7 @@ export class TrustGateway {
     result?: TrustTextResult;
   } {
     try {
-      const result = applySecretPolicy(
-        text,
-        "strict",
-        this.session,
-        this.scanOptions,
-      );
+      const result = this.applyProtectedPolicy(text);
       return { findings: result.findings, result };
     } catch (error: unknown) {
       if (error instanceof TrustViolationError) {
@@ -248,12 +240,7 @@ export class TrustGateway {
     }
 
     try {
-      const result = applySecretPolicy(
-        output,
-        this.policy,
-        this.session,
-        this.scanOptions,
-      );
+      const result = this.applyProtectedPolicy(output);
       this.emit("output", envelope, result.action, result.findings);
       return result.text;
     } catch (error: unknown) {
@@ -262,6 +249,27 @@ export class TrustGateway {
       }
       throw error;
     }
+  }
+
+  private applyProtectedPolicy(text: string): TrustTextResult {
+    const pathResult = this.pathProtection?.protect(
+      text,
+      this.policy,
+      this.session,
+    );
+    const result = applySecretPolicy(
+      pathResult?.text ?? text,
+      this.policy,
+      this.session,
+      this.scanOptions,
+    );
+    if (pathResult === undefined) return result;
+
+    return {
+      text: result.text,
+      findings: aggregateFindings(pathResult.findings, result.findings),
+      action: combineActions(pathResult.action, result.action),
+    };
   }
 
   private throwSanitizedProviderError(

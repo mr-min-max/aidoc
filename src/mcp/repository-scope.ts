@@ -14,6 +14,9 @@ import {
 } from "node:path";
 import { promisify } from "node:util";
 import { PlanFailure } from "../impact/types";
+import type { GatewayPathProtection } from "../security/gateway";
+import { applySecretPolicy, type RedactionSession } from "../security/scanner";
+import type { TrustPolicy } from "../security/types";
 
 const execFileAsync = promisify(execFile);
 const { open: openFile } = fsPromises;
@@ -397,6 +400,23 @@ export class MCPRepositoryReadScope {
 
   rootDirectory(): AuthorizedMCPDirectory {
     return this.#state.rootDirectory;
+  }
+
+  /** Creates a non-serializable provider-boundary protection capability. */
+  createMCPPathProtection(): GatewayPathProtection {
+    const sensitivePaths = Object.freeze([
+      this.#state.startupRootPath,
+      this.#state.rootPath,
+    ]);
+    return Object.freeze({
+      protect(text: string, policy: TrustPolicy, session: RedactionSession) {
+        return applySecretPolicy(text, policy, session, {
+          additionalSensitivePaths: sensitivePaths,
+          onlySensitivePaths: true,
+          redactSensitivePathsOnWarn: true,
+        });
+      },
+    });
   }
 
   configurationDirectories(

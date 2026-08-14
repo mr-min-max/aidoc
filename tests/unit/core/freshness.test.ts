@@ -11,9 +11,16 @@ import { PythonParser } from "../../../src/parsers/python";
 import {
   assessDocumentationFreshness,
   checkDocumentationFreshness,
+  isDocumentationSourcePath,
 } from "../../../src/core/freshness";
 
 describe("assessDocumentationFreshness", () => {
+  it("normalizes and classifies documentation source paths", () => {
+    expect(isDocumentationSourcePath("src/index.ts")).toBe(true);
+    expect(isDocumentationSourcePath("./src/index.ts")).toBe(true);
+    expect(isDocumentationSourcePath("tests/index.test.ts")).toBe(false);
+    expect(isDocumentationSourcePath("package.json")).toBe(false);
+  });
   it("marks a missing target as missing", () => {
     const report = assessDocumentationFreshness(
       ["src/index.ts"],

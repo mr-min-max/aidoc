@@ -6,6 +6,7 @@ import { ParsedModule } from "../parsers/types";
 import {
   GenerationOperation,
   GenerationOrigin,
+  GatewayPathProtection,
   TrustEvent,
   TrustGateway,
 } from "../security/gateway";
@@ -36,6 +37,7 @@ export interface GeneratorSecurityOptions {
   policy?: TrustPolicy;
   origin?: GenerationOrigin;
   onEvent?: (event: TrustEvent) => void;
+  pathProtection?: GatewayPathProtection;
 }
 
 /** Renders prompt templates and delegates generation to the configured LLM provider. */
@@ -52,6 +54,7 @@ export class Generator {
       policy: security.policy ?? "redact",
       origin: security.origin ?? "cli",
       onEvent: security.onEvent,
+      pathProtection: security.pathProtection,
     });
   }
 

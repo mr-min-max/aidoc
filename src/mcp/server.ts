@@ -17,13 +17,10 @@
  *   # or add to Claude/Cursor MCP config
  */
 
-import { analyzeCodebase } from "../core/analyzer";
+import { analyzeCapturedSources } from "../core/analyzer";
 import { Generator } from "../core/generator";
 import { createProvider } from "../providers/registry";
-import { loadProviderConfig } from "../config/loader";
-import { loadPlanningConfig } from "../config/planning";
-import { readProjectInfo } from "../cli/context";
-import { checkDocumentationFreshness } from "../core/freshness";
+import type { ParsedModule } from "../parsers/types";
 import { createImpactPlan } from "../impact/planner";
 import {
   PLAN_ERROR_CODES,
@@ -33,6 +30,19 @@ import {
 import { readPackageVersion } from "../core/package-meta";
 import { resolveTemplatesDir } from "../core/templates";
 import {
+  ProviderConfigurationError,
+  type ProviderConfigurationErrorCode,
+} from "../providers/errors";
+import { getProviderProfile } from "../providers/profiles";
+import {
+  resolveProviderSelection,
+  type ResolvedProviderSelection,
+} from "../providers/selection";
+import {
+  TrustInvalidProviderOutputError,
+  TrustViolationError,
+} from "../security/types";
+import {
   getSafeErrorDiagnostic,
   inspectSafeAllowlistedErrorCode,
   UNKNOWN_ERROR_DIAGNOSTIC,
@@ -40,7 +50,9 @@ import {
 import {
   MCPRepositoryReadScope,
   MCPRepositoryScopeError,
+  readExactMCPRecord,
   readOwnMCPArgument,
+  type AuthorizedMCPDirectory,
 } from "./repository-scope";
 import {
   MCPScopedConfigLoader,
@@ -62,11 +74,10 @@ import {
   type MCPUpdateWorkflowContext,
 } from "./update-workflow";
 import { MCP_INVALID_PREPARATION } from "./preparation-token";
+import { checkMCPDocumentationFreshness } from "./scoped-freshness";
 
 const SAFE_MCP_ERROR_CODES = new Set<string>([
   ...PLAN_ERROR_CODES,
-  "TRUST_SECRET_BLOCKED",
-  "TRUST_INVALID_PROVIDER_OUTPUT",
   "TRUST_REPOSITORY_REQUIRED",
   "TRUST_INVALID_PATH",
   "TRUST_INSPECTION_FAILED",
@@ -79,6 +90,132 @@ const SAFE_MCP_ERROR_CODES = new Set<string>([
   MCP_INVALID_PREPARATION,
 ]);
 const UNKNOWN_MCP_ERROR = "Unknown MCP error.";
+
+const MCP_GENERATION_FAILED = "MCP_GENERATION_FAILED" as const;
+const MCP_GENERATION_FAILED_MESSAGE =
+  "The MCP documentation generation request failed.";
+const MCP_GENERATION_ERROR_CONFIGURATION =
+  "Invalid MCP legacy generation error configuration.";
+const MCP_GENERATION_ERROR_PAYLOADS = new WeakMap<
+  object,
+  { readonly code: typeof MCP_GENERATION_FAILED; readonly message: string }
+>();
+const MCP_GENERATION_CODE_SET = new Set<string>([MCP_GENERATION_FAILED]);
+const MCP_GENERATION_MESSAGE_SET = new Set<string>([
+  MCP_GENERATION_FAILED_MESSAGE,
+]);
+
+/** A fixed, value-free failure for unknown legacy provider-backed generation errors. */
+export class MCPLegacyGenerationError extends Error {
+  declare readonly code: typeof MCP_GENERATION_FAILED;
+
+  constructor() {
+    if (arguments.length !== 0) {
+      throw new TypeError(MCP_GENERATION_ERROR_CONFIGURATION);
+    }
+    super(MCP_GENERATION_FAILED_MESSAGE);
+    Object.defineProperty(this, "name", {
+      configurable: true,
+      value: "MCPLegacyGenerationError",
+      writable: true,
+    });
+    Object.defineProperty(this, "code", {
+      configurable: true,
+      enumerable: true,
+      value: MCP_GENERATION_FAILED,
+      writable: true,
+    });
+    Object.defineProperty(this, "message", {
+      configurable: true,
+      enumerable: true,
+      value: MCP_GENERATION_FAILED_MESSAGE,
+      writable: true,
+    });
+    MCP_GENERATION_ERROR_PAYLOADS.set(
+      this,
+      Object.freeze({
+        code: MCP_GENERATION_FAILED,
+        message: MCP_GENERATION_FAILED_MESSAGE,
+      }),
+    );
+  }
+
+  static read(
+    error: unknown,
+  ): { readonly code: string; readonly message: string } | undefined {
+    if (typeof error !== "object" || error === null) return undefined;
+    const payload = MCP_GENERATION_ERROR_PAYLOADS.get(error);
+    if (payload === undefined) return undefined;
+    try {
+      const codeDescriptor = Object.getOwnPropertyDescriptor(error, "code");
+      const messageDescriptor = Object.getOwnPropertyDescriptor(
+        error,
+        "message",
+      );
+      if (
+        codeDescriptor === undefined ||
+        !Object.hasOwn(codeDescriptor, "value") ||
+        messageDescriptor === undefined ||
+        !Object.hasOwn(messageDescriptor, "value") ||
+        codeDescriptor.value !== payload.code ||
+        messageDescriptor.value !== payload.message
+      ) {
+        return undefined;
+      }
+    } catch {
+      return undefined;
+    }
+    return { ...payload };
+  }
+
+  static isCandidate(error: unknown): boolean {
+    if (typeof error !== "object" || error === null) return false;
+    if (MCP_GENERATION_ERROR_PAYLOADS.has(error)) return true;
+    try {
+      const codeDescriptor = findErrorPropertyDescriptor(error, "code");
+      const messageDescriptor = findErrorPropertyDescriptor(error, "message");
+      if (
+        (codeDescriptor !== undefined &&
+          !Object.hasOwn(codeDescriptor, "value")) ||
+        (messageDescriptor !== undefined &&
+          !Object.hasOwn(messageDescriptor, "value"))
+      ) {
+        return true;
+      }
+      const code =
+        codeDescriptor !== undefined && Object.hasOwn(codeDescriptor, "value")
+          ? codeDescriptor.value
+          : undefined;
+      const message =
+        messageDescriptor !== undefined &&
+        Object.hasOwn(messageDescriptor, "value")
+          ? messageDescriptor.value
+          : undefined;
+      return (
+        (typeof code === "string" && MCP_GENERATION_CODE_SET.has(code)) ||
+        (typeof message === "string" && MCP_GENERATION_MESSAGE_SET.has(message))
+      );
+    } catch {
+      return true;
+    }
+  }
+}
+
+function findErrorPropertyDescriptor(
+  object: object,
+  property: PropertyKey,
+): PropertyDescriptor | undefined {
+  const visited = new Set<object>();
+  let current: object | null = object;
+  while (current !== null) {
+    if (visited.has(current)) throw new Error("Cyclic error prototype.");
+    visited.add(current);
+    const descriptor = Object.getOwnPropertyDescriptor(current, property);
+    if (descriptor !== undefined) return descriptor;
+    current = Object.getPrototypeOf(current);
+  }
+  return undefined;
+}
 
 export interface MCPServerContext {
   readonly serverCwd: string;
@@ -133,7 +270,21 @@ export function formatMCPError(error: unknown): string {
   if (planError !== undefined) {
     return `${planError.code}: ${planError.message}`;
   }
+  const trustViolation = TrustViolationError.read(error);
+  if (trustViolation !== undefined) {
+    return `${trustViolation.code}: ${trustViolation.message}`;
+  }
+  const trustOutputError = TrustInvalidProviderOutputError.read(error);
+  if (trustOutputError !== undefined) {
+    return `${trustOutputError.code}: ${trustOutputError.message}`;
+  }
   if (MCPRepositoryScopeError.isCandidate(error)) {
+    return UNKNOWN_MCP_ERROR;
+  }
+  if (
+    TrustViolationError.isCandidate(error) ||
+    TrustInvalidProviderOutputError.isCandidate(error)
+  ) {
     return UNKNOWN_MCP_ERROR;
   }
   const configurationError = MCPUnsafeConfigurationError.read(error);
@@ -142,6 +293,18 @@ export function formatMCPError(error: unknown): string {
   }
   if (MCPUnsafeConfigurationError.isCandidate(error)) {
     return UNKNOWN_MCP_ERROR;
+  }
+  const generationError = MCPLegacyGenerationError.read(error);
+  if (generationError !== undefined) {
+    return `${generationError.code}: ${generationError.message}`;
+  }
+  if (MCPLegacyGenerationError.isCandidate(error)) {
+    return UNKNOWN_MCP_ERROR;
+  }
+  const providerCode = readKnownProviderConfigurationCode(error);
+  if (providerCode !== undefined) {
+    const providerError = new ProviderConfigurationError(providerCode);
+    return `${providerError.code}: ${providerError.message}`;
   }
 
   const diagnostic = getSafeErrorDiagnostic(error);
@@ -175,7 +338,8 @@ export const TOOLS: Tool[] = [
       properties: {
         directory: {
           type: "string",
-          description: "Absolute path to the directory to analyze",
+          description:
+            "Path within the Git worktree where this MCP server started (absolute or repository-relative).",
         },
         include: {
           type: "string",
@@ -190,6 +354,7 @@ export const TOOLS: Tool[] = [
         },
       },
       required: ["directory"],
+      additionalProperties: false,
     },
   },
   {
@@ -201,10 +366,12 @@ export const TOOLS: Tool[] = [
       properties: {
         directory: {
           type: "string",
-          description: "Absolute path to the project directory",
+          description:
+            "Path within the Git worktree where this MCP server started (absolute or repository-relative).",
         },
       },
       required: ["directory"],
+      additionalProperties: false,
     },
   },
   {
@@ -216,10 +383,12 @@ export const TOOLS: Tool[] = [
       properties: {
         directory: {
           type: "string",
-          description: "Absolute path to the project directory",
+          description:
+            "Path within the Git worktree where this MCP server started (absolute or repository-relative).",
         },
       },
       required: ["directory"],
+      additionalProperties: false,
     },
   },
   {
@@ -231,10 +400,12 @@ export const TOOLS: Tool[] = [
       properties: {
         directory: {
           type: "string",
-          description: "Absolute path to the project directory",
+          description:
+            "Path within the Git worktree where this MCP server started (absolute or repository-relative).",
         },
       },
       required: ["directory"],
+      additionalProperties: false,
     },
   },
   {
@@ -246,7 +417,8 @@ export const TOOLS: Tool[] = [
       properties: {
         directory: {
           type: "string",
-          description: "Absolute path to the project directory",
+          description:
+            "Path within the Git worktree where this MCP server started (absolute or repository-relative).",
         },
         doc_file: {
           type: "string",
@@ -261,6 +433,7 @@ export const TOOLS: Tool[] = [
         },
       },
       required: ["directory"],
+      additionalProperties: false,
     },
   },
   {
@@ -519,6 +692,266 @@ function trustPolicyFromEnvironment(
   }
 }
 
+function invalidMCPPath(): MCPRepositoryScopeError {
+  return new MCPRepositoryScopeError("MCP_INVALID_PATH_INPUT");
+}
+
+function readLegacyRecord(
+  args: unknown,
+  allowedKeys: readonly string[],
+): Readonly<Record<string, unknown>> {
+  return readExactMCPRecord(args, allowedKeys, invalidMCPPath);
+}
+
+function mapAnalysisModules(modules: readonly ParsedModule[]): {
+  totalModules: number;
+  totalFunctions: number;
+  totalClasses: number;
+  totalTypes: number;
+  modules: readonly unknown[];
+} {
+  return {
+    totalModules: modules.length,
+    totalFunctions: modules.reduce(
+      (acc, module) => acc + module.functions.length,
+      0,
+    ),
+    totalClasses: modules.reduce(
+      (acc, module) => acc + module.classes.length,
+      0,
+    ),
+    totalTypes: modules.reduce((acc, module) => acc + module.types.length, 0),
+    modules: modules.map((module) => ({
+      filePath: module.filePath,
+      language: module.language,
+      functions: module.functions.map((functionInfo) => ({
+        name: functionInfo.name,
+        signature: functionInfo.signature,
+        returnType: functionInfo.returnType,
+        isAsync: functionInfo.isAsync,
+        hasDoc: !!functionInfo.existingDoc,
+      })),
+      classes: module.classes.map((classInfo) => ({
+        name: classInfo.name,
+        extends: classInfo.extends,
+        implements: classInfo.implements,
+        methodCount: classInfo.methods.length,
+        hasDoc: !!classInfo.existingDoc,
+      })),
+      types: module.types.map((typeInfo) => ({
+        name: typeInfo.name,
+        kind: typeInfo.kind,
+      })),
+    })),
+  };
+}
+
+async function analyzeAuthorizedSources(
+  context: MCPServerContext,
+  directory: AuthorizedMCPDirectory,
+  include: readonly string[],
+  exclude: readonly string[],
+): Promise<readonly ParsedModule[]> {
+  const files = await context.scope.enumerateSources(
+    directory,
+    context.scope.validateGlobList(include, "include"),
+    context.scope.validateGlobList(exclude, "exclude"),
+  );
+  return analyzeCapturedSources(
+    files.map((file) => ({
+      displayPath: file.displayPath,
+      content: file.content,
+    })),
+  );
+}
+
+function cloneApprovedEndpoint(
+  endpoint: ResolvedProviderSelection["endpoint"],
+): ResolvedProviderSelection["endpoint"] {
+  if (endpoint === undefined) return undefined;
+  return {
+    url: new URL(endpoint.url.href),
+    origin: endpoint.origin,
+    local: endpoint.local,
+    addresses: endpoint.addresses.map(({ address, family }) => ({
+      address,
+      family,
+    })),
+  };
+}
+
+function cloneProviderSelection(
+  selection: ResolvedProviderSelection,
+): ResolvedProviderSelection {
+  const endpoint = cloneApprovedEndpoint(selection.endpoint);
+  return {
+    provider: selection.provider,
+    ...(selection.model === undefined ? {} : { model: selection.model }),
+    ...(endpoint === undefined ? {} : { endpoint }),
+    source: selection.source,
+    boundary: selection.boundary,
+    ...(selection.credentialEnv === undefined
+      ? {}
+      : { credentialEnv: selection.credentialEnv }),
+    ...(selection.qwen === undefined
+      ? {}
+      : {
+          qwen: {
+            region: selection.qwen.region,
+            ...(selection.qwen.workspaceId === undefined
+              ? {}
+              : { workspaceId: selection.qwen.workspaceId }),
+          },
+        }),
+  };
+}
+
+const PROVIDER_CONFIGURATION_ERROR_CODES =
+  new Set<ProviderConfigurationErrorCode>([
+    "PROVIDER_INVALID_ENDPOINT",
+    "PROVIDER_ENDPOINT_NOT_PUBLIC",
+    "PROVIDER_LOCAL_HTTP_NOT_CONFIRMED",
+    "PROVIDER_SELECTION_REQUIRED",
+    "PROVIDER_SELECTION_CANCELLED",
+    "QWEN_PLAN_NOT_PERMITTED_FOR_CUSTOM_APP",
+  ]);
+
+function readKnownProviderConfigurationCode(
+  error: unknown,
+): ProviderConfigurationErrorCode | undefined {
+  if (typeof error !== "object" || error === null) return undefined;
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(error, "code");
+    if (
+      descriptor === undefined ||
+      !Object.hasOwn(descriptor, "value") ||
+      typeof descriptor.value !== "string" ||
+      !PROVIDER_CONFIGURATION_ERROR_CODES.has(
+        descriptor.value as ProviderConfigurationErrorCode,
+      )
+    ) {
+      return undefined;
+    }
+    return descriptor.value as ProviderConfigurationErrorCode;
+  } catch {
+    return undefined;
+  }
+}
+
+function recognizedTrustError(error: unknown): Error | undefined {
+  if (
+    TrustInvalidProviderOutputError.read(error) !== undefined ||
+    TrustViolationError.read(error) !== undefined
+  ) {
+    return error as Error;
+  }
+  return undefined;
+}
+
+function normalizeLegacyGenerationError(error: unknown): never {
+  if (MCPRepositoryScopeError.read(error) !== undefined) throw error;
+  if (MCPUnsafeConfigurationError.read(error) !== undefined) throw error;
+  if (PlanFailure.read(error) !== undefined) throw error;
+
+  const providerCode = readKnownProviderConfigurationCode(error);
+  if (providerCode !== undefined) {
+    throw new ProviderConfigurationError(providerCode);
+  }
+
+  const trustError = recognizedTrustError(error);
+  if (trustError !== undefined) throw trustError;
+  throw new MCPLegacyGenerationError();
+}
+
+type LegacyGenerationKind = "readme" | "api" | "diagram";
+
+async function generateLegacyTool(
+  context: MCPServerContext,
+  directory: AuthorizedMCPDirectory,
+  kind: LegacyGenerationKind,
+): Promise<{ content: string; format: "markdown" | "mermaid" }> {
+  const settings = await context.configLoader.loadProvider(directory);
+  const metadata =
+    kind === "readme"
+      ? await context.configLoader.readProjectMetadata(directory)
+      : undefined;
+  const modules = await analyzeAuthorizedSources(
+    context,
+    directory,
+    settings.config.include,
+    settings.config.exclude,
+  );
+
+  try {
+    const selection = await resolveProviderSelection({
+      config: settings.config,
+      env: settings.effectiveEnvironment as NodeJS.ProcessEnv,
+      interactive: false,
+    });
+    if (selection === null) {
+      throw new ProviderConfigurationError("PROVIDER_SELECTION_CANCELLED");
+    }
+
+    const acceptedSelection = cloneProviderSelection(selection);
+    const acceptedEndpointUrl = acceptedSelection.endpoint?.url.href;
+    const isBuiltInProvider =
+      getProviderProfile(acceptedSelection.provider) !== undefined;
+    const acceptedProviderBaseUrl = acceptedEndpointUrl;
+    const acceptedAllowLocalHttp =
+      acceptedSelection.endpoint !== undefined
+        ? acceptedSelection.endpoint.local &&
+          acceptedSelection.endpoint.url.protocol === "http:"
+        : isBuiltInProvider
+          ? false
+          : settings.config.allowLocalHttp;
+    const acceptedOllamaHost =
+      acceptedSelection.provider === "ollama" ? acceptedEndpointUrl : undefined;
+    const provider = createProvider({
+      provider: acceptedSelection.provider,
+      model: acceptedSelection.model,
+      ollamaHost: acceptedOllamaHost,
+      providerBaseUrl: acceptedProviderBaseUrl,
+      allowLocalHttp: acceptedAllowLocalHttp,
+      endpoint: acceptedSelection.endpoint,
+      ...(acceptedSelection.qwen === undefined
+        ? {}
+        : { qwen: { ...acceptedSelection.qwen } }),
+      credentialEnvironment: settings.credentials,
+    });
+    const generator = new Generator(provider, resolveTemplatesDir(), {
+      policy: settings.config.trustPolicy,
+      origin: "mcp",
+      pathProtection: context.scope.createMCPPathProtection(),
+    });
+
+    if (kind === "readme") {
+      const content = await generator.generateReadme({
+        projectName: metadata!.name,
+        description: metadata!.description,
+        modules: [...modules],
+        dependencies: [...metadata!.dependencies],
+        badges: true,
+        tableOfContents: true,
+        installSection: true,
+        usageExamples: true,
+      });
+      return { content, format: "markdown" };
+    }
+    if (kind === "api") {
+      return {
+        content: await generator.generateApiDocs([...modules]),
+        format: "markdown",
+      };
+    }
+    return {
+      content: await generator.generateDiagram([...modules]),
+      format: "mermaid",
+    };
+  } catch (error: unknown) {
+    normalizeLegacyGenerationError(error);
+  }
+}
+
 /** Handle a tool call */
 export async function handleToolCall(
   name: string,
@@ -526,127 +959,93 @@ export async function handleToolCall(
   contextOrCwd?: MCPServerContext | string,
   legacyWorkflowContext?: MCPUpdateWorkflowContext,
 ): Promise<unknown> {
-  const legacyArgs = args as Record<string, unknown>;
   switch (name) {
     case "analyze_codebase": {
-      const dir = legacyArgs.directory as string;
-      const config = loadPlanningConfig(dir);
-      const include = legacyArgs.include
-        ? (legacyArgs.include as string).split(",")
-        : config.include;
-      const exclude = legacyArgs.exclude
-        ? (legacyArgs.exclude as string).split(",")
-        : config.exclude;
-
-      const modules = await analyzeCodebase(dir, include, exclude);
-
-      return {
-        totalModules: modules.length,
-        totalFunctions: modules.reduce((acc, m) => acc + m.functions.length, 0),
-        totalClasses: modules.reduce((acc, m) => acc + m.classes.length, 0),
-        totalTypes: modules.reduce((acc, m) => acc + m.types.length, 0),
-        modules: modules.map((m) => ({
-          filePath: m.filePath,
-          language: m.language,
-          functions: m.functions.map((f) => ({
-            name: f.name,
-            signature: f.signature,
-            returnType: f.returnType,
-            isAsync: f.isAsync,
-            hasDoc: !!f.existingDoc,
-          })),
-          classes: m.classes.map((c) => ({
-            name: c.name,
-            extends: c.extends,
-            implements: c.implements,
-            methodCount: c.methods.length,
-            hasDoc: !!c.existingDoc,
-          })),
-          types: m.types.map((t) => ({
-            name: t.name,
-            kind: t.kind,
-          })),
-        })),
-      };
+      const legacyArgs = readLegacyRecord(args, [
+        "directory",
+        "include",
+        "exclude",
+      ]);
+      const context = await resolveMCPServerContext(
+        contextOrCwd,
+        legacyWorkflowContext,
+      );
+      const directory = await context.scope.authorizeDirectory(
+        legacyArgs.directory,
+      );
+      const callerInclude = context.scope.parseOptionalGlobList(
+        legacyArgs.include,
+        "include",
+      );
+      const callerExclude = context.scope.parseOptionalGlobList(
+        legacyArgs.exclude,
+        "exclude",
+      );
+      const config = await context.configLoader.loadPlanning(directory);
+      const modules = await analyzeAuthorizedSources(
+        context,
+        directory,
+        callerInclude ?? config.include,
+        callerExclude ?? config.exclude,
+      );
+      return mapAnalysisModules(modules);
     }
 
     case "generate_readme": {
-      const dir = legacyArgs.directory as string;
-      const config = loadProviderConfig(dir);
-      const modules = await analyzeCodebase(
-        dir,
-        config.include,
-        config.exclude,
+      const legacyArgs = readLegacyRecord(args, ["directory"]);
+      const context = await resolveMCPServerContext(
+        contextOrCwd,
+        legacyWorkflowContext,
       );
-      const provider = createProvider(config);
-      const templatesDir = resolveTemplatesDir();
-      const generator = new Generator(provider, templatesDir, {
-        policy: config.trustPolicy,
-        origin: "mcp",
-      });
-
-      const {
-        name: projectName,
-        description,
-        dependencies,
-      } = readProjectInfo(dir);
-
-      const readme = await generator.generateReadme({
-        projectName,
-        description,
-        modules,
-        dependencies,
-        badges: true,
-        tableOfContents: true,
-        installSection: true,
-        usageExamples: true,
-      });
-
-      return { content: readme, format: "markdown" };
+      const directory = await context.scope.authorizeDirectory(
+        legacyArgs.directory,
+      );
+      return generateLegacyTool(context, directory, "readme");
     }
 
     case "generate_api_docs": {
-      const dir = legacyArgs.directory as string;
-      const config = loadProviderConfig(dir);
-      const modules = await analyzeCodebase(
-        dir,
-        config.include,
-        config.exclude,
+      const legacyArgs = readLegacyRecord(args, ["directory"]);
+      const context = await resolveMCPServerContext(
+        contextOrCwd,
+        legacyWorkflowContext,
       );
-      const provider = createProvider(config);
-      const templatesDir = resolveTemplatesDir();
-      const generator = new Generator(provider, templatesDir, {
-        policy: config.trustPolicy,
-        origin: "mcp",
-      });
-      const apiDocs = await generator.generateApiDocs(modules);
-      return { content: apiDocs, format: "markdown" };
+      const directory = await context.scope.authorizeDirectory(
+        legacyArgs.directory,
+      );
+      return generateLegacyTool(context, directory, "api");
     }
 
     case "generate_diagram": {
-      const dir = legacyArgs.directory as string;
-      const config = loadProviderConfig(dir);
-      const modules = await analyzeCodebase(
-        dir,
-        config.include,
-        config.exclude,
+      const legacyArgs = readLegacyRecord(args, ["directory"]);
+      const context = await resolveMCPServerContext(
+        contextOrCwd,
+        legacyWorkflowContext,
       );
-      const provider = createProvider(config);
-      const templatesDir = resolveTemplatesDir();
-      const generator = new Generator(provider, templatesDir, {
-        policy: config.trustPolicy,
-        origin: "mcp",
-      });
-      const diagram = await generator.generateDiagram(modules);
-      return { content: diagram, format: "mermaid" };
+      const directory = await context.scope.authorizeDirectory(
+        legacyArgs.directory,
+      );
+      return generateLegacyTool(context, directory, "diagram");
     }
 
     case "check_docs_freshness": {
-      const dir = legacyArgs.directory as string;
-      const docFile = (legacyArgs.doc_file as string) || "README.md";
-      const since = (legacyArgs.since as string) || "HEAD~5";
-
-      const report = await checkDocumentationFreshness(dir, docFile, since);
+      const legacyArgs = readLegacyRecord(args, [
+        "directory",
+        "doc_file",
+        "since",
+      ]);
+      const context = await resolveMCPServerContext(
+        contextOrCwd,
+        legacyWorkflowContext,
+      );
+      const directory = await context.scope.authorizeDirectory(
+        legacyArgs.directory,
+      );
+      const report = await checkMCPDocumentationFreshness({
+        scope: context.scope,
+        directory,
+        docFile: legacyArgs.doc_file,
+        since: legacyArgs.since,
+      });
       return {
         ...report,
         recommendation:

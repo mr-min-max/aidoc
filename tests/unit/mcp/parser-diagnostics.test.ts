@@ -2,7 +2,10 @@ import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { handleToolCall } from "../../../src/mcp/server";
+import {
+  createMCPServerContext,
+  handleToolCall,
+} from "../../../src/mcp/server";
 
 describe("MCP parser diagnostics", () => {
   it("does not serialize malformed source content in freshness results", async () => {
@@ -44,16 +47,23 @@ describe("MCP parser diagnostics", () => {
       );
       commit("fixture: malformed python");
 
-      const result = (await handleToolCall("check_docs_freshness", {
-        directory: root,
-        doc_file: "README.md",
-        since: base,
-      })) as { status: string; message: string };
+      const context = await createMCPServerContext(root, Object.create(null));
+      const result = (await handleToolCall(
+        "check_docs_freshness",
+        {
+          directory: root,
+          doc_file: "README.md",
+          since: base,
+        },
+        context,
+      )) as { status: string; message: string };
 
       expect(result.status).toBe("unknown");
       expect(result.message).not.toContain(fakeSourceSecret);
       expect(JSON.stringify(result)).not.toContain(fakeSourceSecret);
-      expect(result.message).toContain("Failed to parse Python source.");
+      expect(result.message).toBe(
+        "Could not evaluate documentation freshness: the source parser failed safely.",
+      );
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

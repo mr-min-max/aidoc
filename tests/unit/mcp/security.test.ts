@@ -1,13 +1,24 @@
-jest.mock("../../../src/config/loader", () => ({
-  loadProviderConfig: jest.fn(),
-}));
+import { execFileSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
 
 jest.mock("../../../src/providers/registry", () => ({
   createProvider: jest.fn(),
+  listProviders: jest.fn(() => [
+    {
+      name: "security-test-provider",
+      available: () => true,
+      create: () => ({
+        name: "security-test-provider",
+        generate: async () => "# unused provider output\n",
+      }),
+    },
+  ]),
 }));
 
 jest.mock("../../../src/core/analyzer", () => ({
-  analyzeCodebase: jest.fn(),
+  analyzeCapturedSources: jest.fn(),
 }));
 
 jest.mock("../../../src/core/generator", () => ({
@@ -16,10 +27,14 @@ jest.mock("../../../src/core/generator", () => ({
   })),
 }));
 
-import { analyzeCodebase } from "../../../src/core/analyzer";
+import { analyzeCapturedSources } from "../../../src/core/analyzer";
 import { Generator } from "../../../src/core/generator";
-import { loadProviderConfig } from "../../../src/config/loader";
-import { formatMCPError, handleToolCall, TOOLS } from "../../../src/mcp/server";
+import {
+  formatMCPError,
+  handleToolCall,
+  MCPLegacyGenerationError,
+  TOOLS,
+} from "../../../src/mcp/server";
 import { createProvider } from "../../../src/providers/registry";
 import {
   MCP_INVALID_PREPARATION,
@@ -32,6 +47,8 @@ import {
 import {
   RepositoryWriteError,
   REPOSITORY_WRITE_ERROR_CODES,
+  TrustInvalidProviderOutputError,
+  TrustViolationError,
 } from "../../../src/security/types";
 import {
   MCP_DIRECTORY_DENIED,
@@ -41,59 +58,149 @@ import {
 } from "../../../src/mcp/repository-scope";
 import { MCPUnsafeConfigurationError } from "../../../src/mcp/scoped-config";
 
-const analyzeCodebaseMock = analyzeCodebase as jest.MockedFunction<
-  typeof analyzeCodebase
->;
+const analyzeCapturedSourcesMock =
+  analyzeCapturedSources as jest.MockedFunction<typeof analyzeCapturedSources>;
 const createProviderMock = createProvider as jest.MockedFunction<
   typeof createProvider
->;
-const loadProviderConfigMock = loadProviderConfig as jest.MockedFunction<
-  typeof loadProviderConfig
 >;
 const generatorMock = Generator as unknown as jest.Mock;
 
 describe("MCP Trust Gate wiring", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    loadProviderConfigMock.mockReturnValue({
-      provider: "openai",
-      include: ["**/*.ts"],
-      exclude: ["**/node_modules/**"],
-      trustPolicy: "strict",
-    } as ReturnType<typeof loadProviderConfig>);
     createProviderMock.mockReturnValue({
       name: "provider-free-test-double",
       generate: jest.fn().mockResolvedValue("# unused provider output\n"),
     });
-    analyzeCodebaseMock.mockResolvedValue([]);
+    analyzeCapturedSourcesMock.mockResolvedValue([]);
   });
 
   it("constructs README generation with strict MCP security options", async () => {
-    const fixture = __dirname;
+    const fixture = fs.mkdtempSync(
+      path.join(os.tmpdir(), "aidoc-mcp-security-"),
+    );
+    execFileSync("git", ["init", "--quiet"], { cwd: fixture });
+    execFileSync("git", ["config", "user.name", "aidoc test"], {
+      cwd: fixture,
+    });
+    execFileSync(
+      "git",
+      ["config", "user.email", "aidoc-test@example.invalid"],
+      {
+        cwd: fixture,
+      },
+    );
+    fs.writeFileSync(
+      path.join(fixture, ".aidocrc.json"),
+      JSON.stringify({
+        provider: "security-test-provider",
+        trustPolicy: "strict",
+      }),
+    );
+    fs.writeFileSync(path.join(fixture, "README.md"), "# Fixture\n");
+    execFileSync("git", ["add", "."], { cwd: fixture });
+    execFileSync(
+      "git",
+      ["-c", "commit.gpgSign=false", "commit", "-m", "fixture"],
+      {
+        cwd: fixture,
+      },
+    );
 
-    const result = await handleToolCall("generate_readme", {
-      directory: fixture,
-    });
+    try {
+      const result = await handleToolCall(
+        "generate_readme",
+        { directory: fixture },
+        fixture,
+      );
 
-    expect(result).toEqual({
-      content: "# Safe Markdown\n",
-      format: "markdown",
-    });
-    expect(generatorMock).toHaveBeenCalledTimes(1);
-    expect(generatorMock.mock.calls[0][2]).toEqual({
-      policy: "strict",
-      origin: "mcp",
-    });
+      expect(result).toEqual({
+        content: "# Safe Markdown\n",
+        format: "markdown",
+      });
+      expect(generatorMock).toHaveBeenCalledTimes(1);
+      expect(generatorMock.mock.calls[0][2]).toEqual(
+        expect.objectContaining({
+          policy: "strict",
+          origin: "mcp",
+          pathProtection: expect.any(Object),
+        }),
+      );
+    } finally {
+      fs.rmSync(fixture, { recursive: true, force: true });
+    }
   });
 
   it("does not double-prefix an already-prefixed allowlisted error", () => {
     const error = Object.assign(
-      new Error("TRUST_SECRET_BLOCKED: Trust Gate rejected input."),
-      { code: "TRUST_SECRET_BLOCKED" },
+      new Error("TRUST_REPOSITORY_REQUIRED: repository required."),
+      { code: "TRUST_REPOSITORY_REQUIRED" },
     );
 
     expect(formatMCPError(error)).toBe(
-      "TRUST_SECRET_BLOCKED: Trust Gate rejected input.",
+      "TRUST_REPOSITORY_REQUIRED: repository required.",
+    );
+  });
+
+  it("formats only authentic Trust Gate errors and never evaluates lookalikes", () => {
+    const authenticViolation = new TrustViolationError([
+      { kind: "sensitive_path", count: 1 },
+    ]);
+    expect(formatMCPError(authenticViolation)).toBe(
+      "TRUST_SECRET_BLOCKED: Trust Gate blocked 1 secret finding(s): sensitive_path",
+    );
+    expect(formatMCPError(new TrustInvalidProviderOutputError())).toBe(
+      "TRUST_INVALID_PROVIDER_OUTPUT: Trust Gate rejected a non-string provider output.",
+    );
+
+    const seededMessage = "/private/hostile/path RAW_TRUST_SENTINEL";
+    for (const code of [
+      "TRUST_SECRET_BLOCKED",
+      "TRUST_INVALID_PROVIDER_OUTPUT",
+    ]) {
+      expect(
+        formatMCPError(Object.assign(new Error(seededMessage), { code })),
+      ).toBe("Unknown MCP error.");
+      expect(
+        formatMCPError(
+          Object.create({ code, message: seededMessage }) as object,
+        ),
+      ).toBe("Unknown MCP error.");
+    }
+
+    const getter = jest.fn(() => seededMessage);
+    Object.defineProperty(authenticViolation, "message", {
+      configurable: true,
+      get: getter,
+    });
+    expect(formatMCPError(authenticViolation)).toBe("Unknown MCP error.");
+    expect(getter).not.toHaveBeenCalled();
+
+    const mutatedCode = new TrustInvalidProviderOutputError();
+    Object.defineProperty(mutatedCode, "code", {
+      configurable: true,
+      value: "TRUST_SECRET_BLOCKED",
+    });
+    expect(formatMCPError(mutatedCode)).toBe("Unknown MCP error.");
+
+    const codeGetter = jest.fn(() => "TRUST_SECRET_BLOCKED");
+    const accessorCode = new TrustInvalidProviderOutputError();
+    Object.defineProperty(accessorCode, "code", {
+      configurable: true,
+      get: codeGetter,
+    });
+    expect(formatMCPError(accessorCode)).toBe("Unknown MCP error.");
+    expect(codeGetter).not.toHaveBeenCalled();
+
+    const proxyGet = jest.fn(() => seededMessage);
+    const proxy = new Proxy(
+      { code: "TRUST_SECRET_BLOCKED", message: seededMessage },
+      { get: proxyGet },
+    );
+    expect(formatMCPError(proxy)).toBe("Unknown MCP error.");
+    expect(proxyGet).not.toHaveBeenCalled();
+    expect(formatMCPError({ code: "__proto__", message: seededMessage })).toBe(
+      "Unknown MCP error.",
     );
   });
 
@@ -103,6 +210,15 @@ describe("MCP Trust Gate wiring", () => {
     });
 
     expect(formatMCPError(error)).toBe("Unknown MCP error.");
+  });
+
+  it("reconstructs known provider configuration codes without forwarding text", () => {
+    const fake = Object.assign(new Error("/private/hostile/path fake-key"), {
+      code: "PROVIDER_SELECTION_REQUIRED",
+    });
+    expect(formatMCPError(fake)).toBe(
+      "PROVIDER_SELECTION_REQUIRED: Provider selection is required. Set AIDOC_PROVIDER and AIDOC_MODEL explicitly before running non-interactively.",
+    );
   });
 
   it("formats only authentic fixed MCP repository scope errors", () => {
@@ -222,6 +338,27 @@ describe("MCP Trust Gate wiring", () => {
         /MCP_UNSAFE_CONFIGURATION/gu,
       ),
     ).toHaveLength(1);
+  });
+
+  it("formats only authentic fixed MCP generation failures", () => {
+    const authentic = new MCPLegacyGenerationError();
+    expect(formatMCPError(authentic)).toBe(
+      "MCP_GENERATION_FAILED: The MCP documentation generation request failed.",
+    );
+    expect(
+      formatMCPError({
+        code: "MCP_GENERATION_FAILED",
+        message: "/private/hostile/path fake-key",
+      }),
+    ).toBe("Unknown MCP error.");
+
+    const getter = jest.fn(() => "/private/hostile/path fake-key");
+    Object.defineProperty(authentic, "message", {
+      configurable: true,
+      get: getter,
+    });
+    expect(formatMCPError(authentic)).toBe("Unknown MCP error.");
+    expect(getter).not.toHaveBeenCalled();
   });
 
   it.each(REPOSITORY_WRITE_ERROR_CODES)(
