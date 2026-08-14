@@ -113,6 +113,10 @@ test("demo source keeps the canonical schema and credential-free contract visibl
   assert.match(source, /aidoc\.hybrid-beta-demo\.v1/u);
   assert.match(source, /prepare_documentation_update/u);
   assert.match(source, /validate_documentation_draft/u);
+  assert.match(source, /createUser/u);
+  assert.match(source, /README\.md/u);
+  assert.match(source, /docs\/API\.md/u);
+  assert.doesNotMatch(source, /formatName/u);
   assert.match(source, /snapshotRepositoryTree/u);
   assert.match(
     source,
