@@ -144,14 +144,18 @@ export class GitSnapshotReader {
     include: string[];
     exclude: string[];
   }): Promise<GitSnapshotSet> {
+    const headLabel = options.head ?? "HEAD";
+    this.validateRef(headLabel);
+    let baseLabel = options.base ?? this.env.AIDOC_BASE_REF;
+    if (baseLabel !== undefined && baseLabel.length > 0) {
+      this.validateRef(baseLabel);
+    }
     const root = await this.gitRoot();
     this.repositoryRoot = root;
-    const headLabel = options.head ?? "HEAD";
     const headCommit = await this.resolveCommit(
       headLabel,
       "PLAN_HEAD_NOT_FOUND",
     );
-    let baseLabel = options.base ?? this.env.AIDOC_BASE_REF;
     if (!baseLabel) baseLabel = await this.discoverBase(headCommit);
     const baseCommit = await this.resolveBase(baseLabel);
     const immutable = options.head !== undefined;
@@ -281,7 +285,7 @@ export class GitSnapshotReader {
       ref.startsWith("-") ||
       [...ref].some((char) => {
         const code = char.codePointAt(0) ?? 0;
-        return code === 0 || code === 10 || code === 13;
+        return code <= 0x1f || code === 0x7f;
       })
     )
       throw new PlanFailure(

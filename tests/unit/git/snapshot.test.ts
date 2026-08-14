@@ -13,6 +13,15 @@ import { tmpdir } from "node:os";
 import { join, win32 } from "node:path";
 import { execFileSync } from "node:child_process";
 import { GitSnapshotReader, isPathWithinRoot } from "../../../src/git/snapshot";
+import { PlanFailure } from "../../../src/impact/types";
+
+const INVALID_REF_CODE_POINTS = [
+  0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c,
+  0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19,
+  0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x7f,
+] as const;
+
+const INVALID_REF_SOURCES = ["head", "base", "environment"] as const;
 
 function repo() {
   const root = mkdtempSync(join(tmpdir(), "aidoc-git-"));
@@ -89,7 +98,7 @@ describe("GitSnapshotReader", () => {
     );
   });
 
-  test("rejects unsafe refs and reports fixed failure", async () => {
+  test("rejects a leading option marker as a fixed invalid ref", async () => {
     const root = repo();
     writeFileSync(join(root, "a.ts"), "x\n");
     commit(root, "initial");
@@ -100,6 +109,10 @@ describe("GitSnapshotReader", () => {
         exclude: [],
       }),
     ).rejects.toMatchObject({ code: "PLAN_INVALID_REF" });
+  });
+
+  test("reports a valid default selection outside a repository", async () => {
+    const root = repo();
     await expect(
       new GitSnapshotReader(join(root, "missing")).read({
         include: [],
@@ -107,6 +120,38 @@ describe("GitSnapshotReader", () => {
       }),
     ).rejects.toMatchObject({ code: "PLAN_NOT_GIT_REPOSITORY" });
   });
+
+  test.each(
+    INVALID_REF_SOURCES.flatMap((source) =>
+      INVALID_REF_CODE_POINTS.map((codePoint) => ({ source, codePoint })),
+    ),
+  )(
+    "rejects $source control code point $codePoint before repository discovery",
+    async ({ source, codePoint }) => {
+      const fixture = mkdtempSync(join(tmpdir(), "aidoc-invalid-ref-"));
+      const missingRepository = join(fixture, "missing");
+      const hostileRef = `valid${String.fromCodePoint(codePoint)}tail`;
+      const options = {
+        include: [],
+        exclude: [],
+        ...(source === "head" ? { head: hostileRef } : {}),
+        ...(source === "base" ? { base: hostileRef } : {}),
+      };
+      const environment = { ...process.env };
+      delete environment.AIDOC_BASE_REF;
+      if (source === "environment") environment.AIDOC_BASE_REF = hostileRef;
+
+      const error = await new GitSnapshotReader(missingRepository, environment)
+        .read(options)
+        .catch((value: unknown) => value);
+
+      expect(PlanFailure.read(error)).toEqual({
+        code: "PLAN_INVALID_REF",
+        message: "The Git reference is invalid.",
+      });
+      expect(String(error)).not.toContain(hostileRef);
+    },
+  );
 
   // Break caught: a validated file is swapped for a symlink between lstat and open.
   test("rejects a worktree symlink swap without reading the target", async () => {
