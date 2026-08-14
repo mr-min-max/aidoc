@@ -66,7 +66,9 @@ an existing version. Public documentation must never recommend a bare or
 - The bootstrap granular token is revoked after OIDC succeeds, and package
   publishing access is changed to disallow traditional tokens.
 - Only an annotated `v0.2.0-beta.5` tag at the exact verified `origin/main`
-  commit can trigger publication.
+  commit and created with the protected noreply identity can trigger
+  publication. The workflow verifies the pushed object itself and rejects a
+  lightweight, indirectly targeted, or stale tag before dependency install.
 - npm publication precedes GitHub prerelease creation; failure after npm accepts
   the immutable version is repaired without republishing or moving the tag.
 

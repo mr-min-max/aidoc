@@ -31,6 +31,10 @@ jobs:
           git config --local user.name mr-min-max
           git config --local user.email 254284659+mr-min-max@users.noreply.github.com
           node scripts/public-beta-preflight.mjs --json --candidate-ref HEAD --skip-source-artifacts --main-ref origin/main
+      - name: Verify annotated release tag
+        run: >-
+          node scripts/verify-pushed-release-tag.mjs
+          --ref "$GITHUB_REF"
       - name: Verify release candidate
         run: >-
           node scripts/verify-release-candidate.mjs

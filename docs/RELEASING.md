@@ -203,7 +203,10 @@ Complete the remaining migration in this order:
 
 2. Merge the reviewed beta.5 candidate only after its hosted Node 22 and 24 CI
    checks pass. Re-run the complete immutable-main and unpublished-version
-   gates before creating `v0.2.0-beta.5`.
+   gates before creating `v0.2.0-beta.5`. The release workflow independently
+   rejects lightweight tags, tags not created by the protected noreply
+   identity, and annotated tags that do not point directly to its checked-out
+   commit.
 3. Publish beta.5 through the same release workflow. Because both the GitHub
    secret and workflow wiring are absent, only configured OIDC can
    authenticate; an incorrect trust configuration must fail closed. Do not
