@@ -34,7 +34,7 @@ function runVerifier(
     "--candidate-ref",
     "HEAD",
     "--tag",
-    options.tag ?? "v0.2.0-beta.3",
+    options.tag ?? "v0.2.0-beta.4",
   ];
   if (options.expectedSha) {
     args.push("--expected-sha", options.expectedSha);
@@ -50,7 +50,10 @@ describe("release candidate verifier", () => {
     git(repository, "init", "--initial-branch=main");
     fs.writeFileSync(
       path.join(repository, "package.json"),
-      JSON.stringify({ name: "aidoc-gen", version: "0.2.0-beta.3" }),
+      JSON.stringify({
+        name: "@mr-min-max/aidoc-gen",
+        version: "0.2.0-beta.4",
+      }),
     );
     git(repository, "add", "package.json");
     git(repository, "commit", "-m", "initial release candidate");
@@ -85,12 +88,27 @@ describe("release candidate verifier", () => {
   });
 
   it("rejects a tag that does not exactly match the package version", () => {
-    const result = runVerifier(repository, { tag: "v0.2.0-beta.4" });
+    const result = runVerifier(repository, { tag: "v0.2.0-beta.3" });
 
     expect(result.status).toBe(1);
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe(
       "Release tag does not match the package version.\n",
+    );
+  });
+
+  it("rejects the superseded unscoped package name", () => {
+    fs.writeFileSync(
+      path.join(repository, "package.json"),
+      JSON.stringify({ name: "aidoc-gen", version: "0.2.0-beta.4" }),
+    );
+
+    const result = runVerifier(repository);
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe(
+      "Release package metadata could not be verified.\n",
     );
   });
 
@@ -104,7 +122,7 @@ describe("release candidate verifier", () => {
       "bash",
       [
         "-c",
-        '"$1" "$2" --main-ref refs/heads/main --candidate-ref HEAD --tag v0.2.0-beta.3 --expected-sha "$3" && git tag -a v0.2.0-beta.3 "$3" -m v0.2.0-beta.3',
+        '"$1" "$2" --main-ref refs/heads/main --candidate-ref HEAD --tag v0.2.0-beta.4 --expected-sha "$3" && git tag -a v0.2.0-beta.4 "$3" -m v0.2.0-beta.4',
         "release-chain",
         process.execPath,
         verifier,
@@ -118,6 +136,6 @@ describe("release candidate verifier", () => {
     expect(result.stderr).toBe(
       "Release candidate does not match the previously verified commit.\n",
     );
-    expect(git(repository, "tag", "--list", "v0.2.0-beta.3")).toBe("");
+    expect(git(repository, "tag", "--list", "v0.2.0-beta.4")).toBe("");
   });
 });
