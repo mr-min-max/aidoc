@@ -188,7 +188,7 @@ describe("public beta repository configuration", () => {
     expect(tagIndex).toBeGreaterThan(preTagRegistryIndex);
   });
 
-  it("aligns the scoped beta.4 package identity and focused hybrid verification surface", () => {
+  it("separates the beta.5 candidate identity from the published beta.4 surface", () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.resolve("package.json"), "utf8"),
     ) as { name: string; version: string; scripts: Record<string, string> };
@@ -201,7 +201,7 @@ describe("public beta repository configuration", () => {
     };
 
     expect(packageJson.name).toBe("@mr-min-max/aidoc-gen");
-    expect(packageJson.version).toBe("0.2.0-beta.4");
+    expect(packageJson.version).toBe("0.2.0-beta.5");
     expect(packageLock.name).toBe(packageJson.name);
     expect(packageLock.version).toBe(packageJson.version);
     expect(packageLock.packages[""]?.name).toBe(packageJson.name);
@@ -212,7 +212,7 @@ describe("public beta repository configuration", () => {
       "test:hybrid-beta": "node --test tests/e2e/hybrid-beta-demo.test.mjs",
       "test:npm-unpublished": "node --test tests/e2e/npm-unpublished.test.mjs",
       "test:npm-published":
-        "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs",
+        "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs --version 0.2.0-beta.4",
     });
     expect(packageJson.scripts["test:public-beta"]).toContain(
       "npm run test:npm-published",
@@ -239,6 +239,18 @@ describe("public beta repository configuration", () => {
       expect(source).toContain("0.2.0-beta.4");
       expect(source).not.toContain("0.2.0-beta.2");
     }
+
+    const candidateReleaseNote = fs.readFileSync(
+      path.resolve("docs/releases/v0.2.0-beta.5.md"),
+      "utf8",
+    );
+    expect(candidateReleaseNote).toMatch(
+      /candidate[\s\S]{0,200}(?:not yet published|unpublished)/i,
+    );
+    expect(candidateReleaseNote).toContain("npm Trusted Publishing");
+    expect(candidateReleaseNote).not.toMatch(
+      /(?:is|was|has been) published[\s\S]{0,80}npm/i,
+    );
 
     const mcpServer = fs.readFileSync(
       path.resolve("src/mcp/server.ts"),

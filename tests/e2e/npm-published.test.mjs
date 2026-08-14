@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   NPM_PUBLISHED_STATE_MESSAGES,
+  parsePublishedVersionArguments,
   verifyNpmVersionPublished,
 } from "../../scripts/verify-npm-published.mjs";
 
@@ -39,6 +40,28 @@ function jsonResponse(status, value) {
     text: async () => JSON.stringify(value),
   };
 }
+
+test("selects one explicit published version without accepting extra arguments", () => {
+  assert.equal(parsePublishedVersionArguments([]), undefined);
+  assert.equal(
+    parsePublishedVersionArguments(["--version", "0.2.0-beta.4"]),
+    "0.2.0-beta.4",
+  );
+
+  for (const args of [
+    ["--version"],
+    ["--version", ""],
+    ["--version", "0.2.0-beta.4", "extra"],
+    ["--other", "0.2.0-beta.4"],
+    ["--version", "../0.2.0-beta.4"],
+    ["--version", "0.2.0-beta.4\nseeded-secret"],
+  ]) {
+    assert.throws(
+      () => parsePublishedVersionArguments(args),
+      new Error(NPM_PUBLISHED_STATE_MESSAGES.verificationFailed),
+    );
+  }
+});
 
 test("accepts the immutable beta version, exact beta tag, and required latest tag", async () => {
   const requests = [];

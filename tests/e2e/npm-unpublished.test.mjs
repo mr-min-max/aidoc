@@ -8,7 +8,7 @@ import {
 
 const candidate = Object.freeze({
   name: "@mr-min-max/aidoc-gen",
-  version: "0.2.0-beta.4",
+  version: "0.2.0-beta.5",
 });
 
 test("accepts only exact 404 responses for both release identities", async () => {
@@ -26,7 +26,7 @@ test("accepts only exact 404 responses for both release identities", async () =>
     requests.map(({ url }) => url),
     [
       "https://registry.npmjs.org/aidoc-gen/0.2.0-beta.3",
-      "https://registry.npmjs.org/%40mr-min-max%2Faidoc-gen/0.2.0-beta.4",
+      "https://registry.npmjs.org/%40mr-min-max%2Faidoc-gen/0.2.0-beta.5",
     ],
   );
   for (const { options } of requests) {

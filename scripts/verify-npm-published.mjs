@@ -23,25 +23,45 @@ function fixedError() {
   return new Error(NPM_PUBLISHED_STATE_MESSAGES.verificationFailed);
 }
 
+function validVersion(version) {
+  return (
+    typeof version === "string" &&
+    version.length > 0 &&
+    version.length <= 128 &&
+    /^[0-9A-Za-z][0-9A-Za-z._-]*$/u.test(version)
+  );
+}
+
 function validCandidate(candidate) {
   return (
     candidate !== null &&
     typeof candidate === "object" &&
     candidate.name === "@mr-min-max/aidoc-gen" &&
-    typeof candidate.version === "string" &&
-    candidate.version.length > 0 &&
-    candidate.version.length <= 128 &&
-    /^[0-9A-Za-z][0-9A-Za-z._-]*$/u.test(candidate.version)
+    validVersion(candidate.version)
   );
 }
 
-async function readCandidate() {
+/** Parses the optional published-version override accepted by the CLI. */
+export function parsePublishedVersionArguments(argv) {
+  if (!Array.isArray(argv)) throw fixedError();
+  if (argv.length === 0) return undefined;
+  if (argv.length !== 2 || argv[0] !== "--version" || !validVersion(argv[1])) {
+    throw fixedError();
+  }
+  return argv[1];
+}
+
+async function readCandidate(versionOverride) {
   try {
     const parsed = JSON.parse(
       await readFile(resolve("package.json"), { encoding: "utf8" }),
     );
-    if (!validCandidate(parsed)) throw fixedError();
-    return Object.freeze({ name: parsed.name, version: parsed.version });
+    const candidate = {
+      name: parsed?.name,
+      version: versionOverride ?? parsed?.version,
+    };
+    if (!validCandidate(candidate)) throw fixedError();
+    return Object.freeze(candidate);
   } catch {
     throw fixedError();
   }
@@ -128,7 +148,8 @@ async function request(fetchImpl, url) {
 }
 
 export async function verifyNpmVersionPublished(options = {}) {
-  const candidate = options.candidate ?? (await readCandidate());
+  const candidate =
+    options.candidate ?? (await readCandidate(options.versionOverride));
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   if (!validCandidate(candidate) || typeof fetchImpl !== "function") {
     throw fixedError();
@@ -174,7 +195,10 @@ if (
   resolve(entryPath) === fileURLToPath(import.meta.url)
 ) {
   try {
-    await verifyNpmVersionPublished();
+    const versionOverride = parsePublishedVersionArguments(
+      process.argv.slice(2),
+    );
+    await verifyNpmVersionPublished({ versionOverride });
     process.stdout.write(`${NPM_PUBLISHED_STATE_MESSAGES.success}\n`);
   } catch {
     process.stderr.write(

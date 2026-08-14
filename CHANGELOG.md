@@ -4,6 +4,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0-beta.5] - 2026-08-14
+
+### Changed
+
+- Prepare the next immutable beta candidate to verify npm Trusted Publishing
+  through GitHub Actions OIDC with no `NPM_TOKEN` fallback.
+- Keep beta.4 as the truthfully documented public release until npm accepts
+  beta.5 and the post-publication evidence is complete.
+
 ## [0.2.0-beta.4] - 2026-08-14
 
 ### Fixed
