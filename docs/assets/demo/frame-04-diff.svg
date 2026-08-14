@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc" data-safe-margin="64">
+  <title id="title">AiDoc frame 4: focused documentation diff</title>
+  <desc id="desc">README.md and docs/API.md each receive the same focused role signature alignment.</desc>
+  <rect width="1280" height="720" fill="#0D1117"/>
+  <g data-content-area="safe" transform="translate(64 64)">
+    <rect width="1152" height="592" rx="28" fill="#161B22" stroke="#8B949E" stroke-opacity="0.32" stroke-width="2"/>
+    <g transform="translate(36 24) scale(0.68)">
+      <path d="M14 7h25l11 11v39H14z" fill="#161B22" stroke="#F0F6FC" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M39 7v12h11" fill="none" stroke="#F0F6FC" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M24 29v14m0-7h15m0-7v14" fill="none" stroke="#58A6FF" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="24" cy="29" r="4" fill="#58A6FF"/>
+      <circle cx="24" cy="43" r="4" fill="#3FB950"/>
+      <circle cx="39" cy="29" r="4" fill="#58A6FF"/>
+      <circle cx="39" cy="43" r="4" fill="#3FB950"/>
+    </g>
+    <text x="92" y="56" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="30" font-weight="600">AiDoc</text>
+    <text x="92" y="86" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24" letter-spacing="2">REVIEWABLE CHANGE</text>
+    <text x="1032" y="58" fill="#58A6FF" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24" text-anchor="end">4 / 5</text>
+    <path d="M32 110H1120" stroke="#8B949E" stroke-opacity="0.32" stroke-width="2"/>
+
+    <text x="40" y="172" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="44" font-weight="600">Focused documentation diff</text>
+    <text x="40" y="214" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24">Only the role parameter is aligned in the two files.</text>
+
+    <rect x="40" y="256" width="520" height="256" rx="20" fill="#0D1117" stroke="#8B949E" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="72" y="306" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="28" font-weight="600">README.md</text>
+    <path d="M72 330H528" stroke="#8B949E" stroke-opacity="0.32" stroke-width="2"/>
+    <text x="72" y="384" fill="#D29922" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="28">- createUser(email)</text>
+    <text x="72" y="438" fill="#3FB950" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="28">+ createUser(email, role)</text>
+    <text x="72" y="482" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24">signature alignment only</text>
+
+    <rect x="592" y="256" width="520" height="256" rx="20" fill="#0D1117" stroke="#8B949E" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="624" y="306" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="28" font-weight="600">docs/API.md</text>
+    <path d="M624 330H1080" stroke="#8B949E" stroke-opacity="0.32" stroke-width="2"/>
+    <text x="624" y="384" fill="#D29922" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="28">- createUser(email)</text>
+    <text x="624" y="438" fill="#3FB950" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="28">+ createUser(email, role)</text>
+    <text x="624" y="482" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24">reference alignment only</text>
+
+    <circle cx="48" cy="552" r="8" fill="#58A6FF"/>
+    <text x="72" y="560" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24">two files, one focused change</text>
+  </g>
+</svg>

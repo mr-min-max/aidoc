@@ -58,6 +58,17 @@ const BETA_SOURCE_ARTIFACTS = Object.freeze({
     "docs/assets/demo/aidoc-flow-poster.svg",
     "docs/assets/demo/aidoc-flow-poster.png",
   ]),
+  storefrontMedia: Object.freeze([
+    "docs/assets/demo/frame-01-change.svg",
+    "docs/assets/demo/frame-02-plan.svg",
+    "docs/assets/demo/frame-03-targets.svg",
+    "docs/assets/demo/frame-04-diff.svg",
+    "docs/assets/demo/frame-05-validated.svg",
+    "docs/assets/demo/aidoc-flow.gif",
+    "docs/demo/aidoc-walkthrough-script.md",
+    "docs/demo/aidoc-walkthrough.vtt",
+    "docs/demo/recording-checklist.md",
+  ]),
 });
 const ROOT_POLICY_KEYS = [
   "allowedAutomationEmails",
@@ -669,6 +680,10 @@ async function sourceArtifactChecks(repositoryRoot) {
     repositoryRoot,
     BETA_SOURCE_ARTIFACTS.storefrontStatic,
   );
+  const storefrontMediaPresent = sourceArtifactFilesPresent(
+    repositoryRoot,
+    BETA_SOURCE_ARTIFACTS.storefrontMedia,
+  );
 
   return [
     makeCheck(
@@ -705,6 +720,13 @@ async function sourceArtifactChecks(repositoryRoot) {
       storefrontStaticPresent
         ? "Storefront static assets are present."
         : "Storefront static assets are missing.",
+    ),
+    makeCheck(
+      "storefront-media",
+      storefrontMediaPresent ? "pass" : "fail",
+      storefrontMediaPresent
+        ? "Storefront media assets are present."
+        : "Storefront media assets are missing.",
     ),
   ];
 }
