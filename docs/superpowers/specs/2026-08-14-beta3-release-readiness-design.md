@@ -35,9 +35,10 @@ bootstrap release.
   that version. Never place that token in source, command arguments, logs,
   issue text, or chat; revoke it after the OIDC path is proven.
 - After the first successful publication, configure npm Trusted Publishing for
-  `mr-min-max/aidoc` and `.github/workflows/release.yml`, verify an OIDC
-  release, delete the GitHub `NPM_TOKEN` secret, revoke the bootstrap token,
-  and restrict token-based publishing on npm.
+  `mr-min-max/aidoc` and `.github/workflows/release.yml`, delete the GitHub
+  `NPM_TOKEN` secret so the next prerelease cannot fall back to it, verify an
+  OIDC-only release, then revoke the bootstrap token and restrict token-based
+  publishing on npm.
 - Keep unrelated library upgrades and product features outside this pull
   request. GitHub Action runtime upgrades are in scope because they directly
   remove release/CI deprecation warnings and harden the release path.
@@ -146,9 +147,12 @@ Implementation stops before this sequence. The later release operation is:
 6. Configure npm Trusted Publishing for GitHub Actions using owner
    `mr-min-max`, repository `aidoc`, workflow `release.yml`, and permission to
    run `npm publish`.
-7. Exercise the OIDC path with the next intentionally versioned prerelease;
-   then run `gh secret delete NPM_TOKEN --repo mr-min-max/aidoc`, revoke the npm
-   bootstrap token, and disable traditional token publishing for the package.
+7. Keep the npm token active but remove it from GitHub with
+   `gh secret delete NPM_TOKEN --repo mr-min-max/aidoc`. Exercise the OIDC path
+   with the next intentionally versioned prerelease; the absent secret makes a
+   token fallback impossible. After OIDC succeeds, revoke the npm bootstrap
+   token, disable traditional token publishing for the package, and remove the
+   obsolete token wiring from the workflow in a reviewed follow-up.
 
 No step attempts to configure Trusted Publishing before the package exists.
 If npm authentication, package-name ownership, provenance, checksum, install,

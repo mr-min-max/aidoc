@@ -94,6 +94,33 @@ describe("public beta repository configuration", () => {
     );
   });
 
+  it("routes usage questions to a structured issue form", () => {
+    const questionPath = path.resolve(".github/ISSUE_TEMPLATE/question.yml");
+    expect(fs.existsSync(questionPath)).toBe(true);
+
+    const support = fs.readFileSync(path.resolve("SUPPORT.md"), "utf8");
+    const issueConfig = load(
+      fs.readFileSync(
+        path.resolve(".github/ISSUE_TEMPLATE/config.yml"),
+        "utf8",
+      ),
+    ) as { blank_issues_enabled?: boolean; contact_links?: unknown[] };
+    const question = load(fs.readFileSync(questionPath, "utf8")) as {
+      name?: string;
+      labels?: string[];
+      body?: unknown[];
+    };
+
+    expect(issueConfig).toEqual({ blank_issues_enabled: false });
+    expect(question.name).toMatch(/question|support/i);
+    expect(question.labels).toContain("question");
+    expect(question.body?.length).toBeGreaterThan(0);
+    expect(support).toContain(
+      "https://github.com/mr-min-max/aidoc/issues/new?template=question.yml",
+    );
+    expect(support).not.toContain("/discussions");
+  });
+
   it("aligns the beta.3 package identity and focused hybrid verification surface", () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.resolve("package.json"), "utf8"),
