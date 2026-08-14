@@ -107,7 +107,12 @@ try {
     stdio: "pipe",
   });
 
-  const packageRoot = join(consumer, "node_modules", "aidoc-gen");
+  const packageRoot = join(
+    consumer,
+    "node_modules",
+    "@mr-min-max",
+    "aidoc-gen",
+  );
   assertPackedMcpArtifacts(packageRoot);
   const require = createRequire(import.meta.url);
   const { resolveTemplatesDir } = require(
@@ -140,7 +145,7 @@ try {
   const packedPackage = JSON.parse(
     readFileSync(join(packageRoot, "package.json"), "utf8"),
   );
-  assert.equal(packedPackage.name, "aidoc-gen");
+  assert.equal(packedPackage.name, "@mr-min-max/aidoc-gen");
   assert.equal(packedPackage.engines.node, ">=22.12.0");
   const packedCli = join(packageRoot, "dist", "cli", "index.js");
   const cliVersion = execFileSync(process.execPath, [packedCli, "--version"], {

@@ -70,7 +70,7 @@ runs:
       run: |
         cd "$GITHUB_ACTION_PATH"
         version="$(node -p "require('./package.json').version")"
-        npm install -g "aidoc-gen@$version"
+        npm install -g "@mr-min-max/aidoc-gen@$version"
 
     - name: Run aidoc commands
       id: aidoc
