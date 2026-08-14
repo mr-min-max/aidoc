@@ -1,7 +1,7 @@
 # Beta.3 Release Readiness Design
 
 - **Date:** 2026-08-14
-- **Status:** Approved in conversation; pending written-spec review
+- **Status:** Approved
 - **Repository:** `mr-min-max/aidoc`
 - **Candidate branch:** `codex/beta3-release-readiness`
 
@@ -30,9 +30,10 @@ bootstrap release.
   `latest`.
 - Preserve the existing verify-on-Node-22-and-24, pack-once, checksum, exact
   tarball smoke, and publish-after-verification architecture.
-- Use a temporary granular npm automation token only to bootstrap the first
-  package version. Never place that token in source, command arguments, logs,
-  issue text, or chat.
+- Use a shortest-lived granular npm automation token with only the write scope
+  required for the first package and CI-specific 2FA bypass only to bootstrap
+  that version. Never place that token in source, command arguments, logs,
+  issue text, or chat; revoke it after the OIDC path is proven.
 - After the first successful publication, configure npm Trusted Publishing for
   `mr-min-max/aidoc` and `.github/workflows/release.yml`, verify an OIDC
   release, delete the GitHub `NPM_TOKEN` secret, revoke the bootstrap token,
@@ -127,10 +128,12 @@ pull requests can be closed by Dependabot or handled separately.
 
 Implementation stops before this sequence. The later release operation is:
 
-1. The maintainer signs in to npm, enables strong 2FA, and creates the
+1. The maintainer signs in to npm, enables strong account 2FA, and creates the
    shortest-lived granular automation token that can bootstrap a new public
-   package. Restrict it to `aidoc-gen` if npm permits selecting the unpublished
-   name; otherwise revoke it immediately after the first publication.
+   package. Give only the required read/write package permission and the
+   CI-specific 2FA bypass required for unattended publication. Restrict it to
+   `aidoc-gen` if npm permits selecting the unpublished name; otherwise revoke
+   it immediately after the first publication.
 2. From a trusted terminal, the maintainer runs
    `gh secret set NPM_TOKEN --repo mr-min-max/aidoc` and pastes the token into
    the hidden prompt. The token is never sent through chat.
