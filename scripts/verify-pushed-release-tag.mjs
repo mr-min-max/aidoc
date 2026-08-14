@@ -8,6 +8,7 @@ const FIXED_ERRORS = Object.freeze({
 
 const PROTECTED_TAGGER_EMAIL =
   "<254284659+mr-min-max@users.noreply.github.com>";
+const PROTECTED_TAGGER_NAME = "mr-min-max";
 
 function fail(message) {
   process.stderr.write(`${message}\n`);
@@ -61,7 +62,7 @@ function verifyTag(reference) {
   const result = git([
     "for-each-ref",
     "--count=2",
-    "--format=%(refname)%00%(objecttype)%00%(*objecttype)%00%(*objectname)%00%(tag)%00%(taggeremail)",
+    "--format=%(refname)%00%(objecttype)%00%(*objecttype)%00%(*objectname)%00%(tag)%00%(taggername)%00%(taggeremail)",
     reference,
   ]);
   if (result.status !== 0 || result.stdout.length > 4096) return false;
@@ -69,7 +70,7 @@ function verifyTag(reference) {
   const records = result.stdout.trimEnd().split("\n");
   if (records.length !== 1) return false;
   const fields = records[0].split("\0");
-  if (fields.length !== 6) return false;
+  if (fields.length !== 7) return false;
 
   const [
     actualRef,
@@ -77,6 +78,7 @@ function verifyTag(reference) {
     targetType,
     targetCommit,
     declaredTag,
+    taggerName,
     taggerEmail,
   ] = fields;
   const headCommit = verifiedCommit("HEAD");
@@ -87,6 +89,7 @@ function verifyTag(reference) {
     /^[0-9a-f]{40,64}$/u.test(targetCommit) &&
     targetCommit === headCommit &&
     declaredTag === reference.slice("refs/tags/".length) &&
+    taggerName === PROTECTED_TAGGER_NAME &&
     taggerEmail === PROTECTED_TAGGER_EMAIL
   );
 }

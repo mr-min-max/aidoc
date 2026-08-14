@@ -7,15 +7,20 @@ const verifier = path.resolve("scripts/verify-pushed-release-tag.mjs");
 const tagName = "v0.2.0-beta.5";
 const tagRef = `refs/tags/${tagName}`;
 
-function gitAs(cwd: string, email: string, ...args: string[]): string {
+function gitAs(
+  cwd: string,
+  name: string,
+  email: string,
+  ...args: string[]
+): string {
   const result = spawnSync("git", args, {
     cwd,
     encoding: "utf8",
     env: {
       ...process.env,
-      GIT_AUTHOR_NAME: "mr-min-max",
+      GIT_AUTHOR_NAME: name,
       GIT_AUTHOR_EMAIL: email,
-      GIT_COMMITTER_NAME: "mr-min-max",
+      GIT_COMMITTER_NAME: name,
       GIT_COMMITTER_EMAIL: email,
     },
   });
@@ -26,7 +31,12 @@ function gitAs(cwd: string, email: string, ...args: string[]): string {
 }
 
 function git(cwd: string, ...args: string[]): string {
-  return gitAs(cwd, "254284659+mr-min-max@users.noreply.github.com", ...args);
+  return gitAs(
+    cwd,
+    "mr-min-max",
+    "254284659+mr-min-max@users.noreply.github.com",
+    ...args,
+  );
 }
 
 function runVerifier(cwd: string, reference = tagRef) {
@@ -105,6 +115,7 @@ describe("pushed release tag verifier", () => {
   it("rejects an otherwise valid tag created with an unapproved identity", () => {
     gitAs(
       repository,
+      "mr-min-max",
       "maintainer@example.invalid",
       "tag",
       "-a",
@@ -119,6 +130,26 @@ describe("pushed release tag verifier", () => {
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe("Release tag object could not be verified.\n");
     expect(result.stderr).not.toContain("maintainer@example.invalid");
+  });
+
+  it("rejects an otherwise valid tag with an unapproved tagger name", () => {
+    gitAs(
+      repository,
+      "Another Maintainer",
+      "254284659+mr-min-max@users.noreply.github.com",
+      "tag",
+      "-a",
+      tagName,
+      "-m",
+      tagName,
+    );
+
+    const result = runVerifier(repository);
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe("Release tag object could not be verified.\n");
+    expect(result.stderr).not.toContain("Another Maintainer");
   });
 
   it("rejects malformed or non-tag refs before invoking Git", () => {
