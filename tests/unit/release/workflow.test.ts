@@ -160,7 +160,7 @@ describe("release workflow", () => {
     expect(installIndex).toBeGreaterThan(releaseCandidateIndex);
   });
 
-  it("publishes only the checksum-verified tarball with beta provenance", () => {
+  it("publishes only the checksum-verified tarball through OIDC with beta provenance", () => {
     const publish = workflow.jobs.publish;
     expect(publish).toBeDefined();
     expect(publish.needs).toBe("verify");
@@ -193,9 +193,7 @@ describe("release workflow", () => {
     expect(normalizedCommand(publishStep.run)).toBe(
       'npm publish "${{ steps.artifact.outputs.tarball }}" --ignore-scripts --access public --tag beta --provenance',
     );
-    expect(publishStep.env).toEqual({
-      NODE_AUTH_TOKEN: "${{ secrets.NPM_TOKEN }}",
-    });
+    expect(publishStep.env).toBeUndefined();
 
     const allSteps = Object.values(workflow.jobs).flatMap((job) => job.steps);
     const publishCommands = allSteps
@@ -210,13 +208,11 @@ describe("release workflow", () => {
       ),
     ).toBe(true);
     expect(
-      allSteps
-        .filter((step) => step !== publishStep)
-        .every((step) => step.env?.NODE_AUTH_TOKEN === undefined),
+      allSteps.every((step) => step.env?.NODE_AUTH_TOKEN === undefined),
     ).toBe(true);
-    expect(
-      workflowSource.match(/\$\{\{\s*secrets\.NPM_TOKEN\s*\}\}/gu),
-    ).toHaveLength(1);
+    expect(workflowSource).not.toMatch(
+      /NPM_TOKEN|NODE_AUTH_TOKEN|secrets\.[A-Za-z0-9_]*NPM[A-Za-z0-9_]*/u,
+    );
   });
 
   it("attaches the verified files to a post-publish GitHub prerelease", () => {

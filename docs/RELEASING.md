@@ -175,29 +175,45 @@ without copying the full address into logs, issues, or test fixtures; change the
 "email address added to package metadata" in npm profile settings before the
 next publication if the approved alias changes.
 
-## OIDC Migration and Token Cleanup
+## OIDC-only beta.5 Verification and Token Cleanup
 
-After the first package exists:
+The npm Trusted Publisher was configured on 2026-08-14 with provider GitHub
+Actions, owner `mr-min-max`, repository `aidoc`, workflow filename
+`release.yml`, and allowed action `npm publish`. npm does not validate that
+relationship when it is saved; only a real publish can prove that the OIDC
+claims match.
 
-1. In the npm package settings, configure Trusted Publishing with:
-   - provider: GitHub Actions;
-   - owner: `mr-min-max`;
-   - repository: `aidoc`;
-   - workflow filename: `release.yml`;
-   - allowed action: `npm publish`.
-2. Delete the GitHub bootstrap secret before the OIDC verification run:
+Use `0.2.0-beta.5` as the intentionally versioned verification release. Its
+candidate change removes the last `NODE_AUTH_TOKEN` wiring from the workflow.
+Complete the remaining migration in this order:
+
+1. Delete the GitHub bootstrap secret before the OIDC verification run:
 
    ```bash
    gh secret delete NPM_TOKEN --repo mr-min-max/aidoc
    ```
 
-3. Remove the now-obsolete `NODE_AUTH_TOKEN` wiring in a reviewed change.
-4. Publish the next intentionally versioned prerelease through the same
-   workflow. Because the secret and token wiring are absent, only configured
-   OIDC can authenticate; an incorrect trust configuration must fail closed.
-   Verify that npm accepted the OIDC identity and generated provenance.
-5. Revoke the granular npm bootstrap token and configure npm to disallow
-   traditional token publishing for the package.
+   Confirm `gh secret list --repo mr-min-max/aidoc` no longer contains
+   `NPM_TOKEN`. The command exposes only secret names and timestamps, never the
+   stored value.
+
+2. Merge the reviewed beta.5 candidate only after its hosted Node 22 and 24 CI
+   checks pass. Re-run the complete immutable-main and unpublished-version
+   gates before creating `v0.2.0-beta.5`.
+3. Publish beta.5 through the same release workflow. Because both the GitHub
+   secret and workflow wiring are absent, only configured OIDC can
+   authenticate; an incorrect trust configuration must fail closed. Do not
+   restore the bootstrap secret merely to make a failed verification release
+   pass.
+4. Verify npm accepted beta.5, moved only the supported `beta` channel to it,
+   and attached provenance for `mr-min-max/aidoc`. Verify the GitHub prerelease
+   contains the checksum-matching tarball produced by the same workflow.
+5. Revoke the granular npm bootstrap token. In npm package settings select
+   **Require two-factor authentication and disallow tokens**, then confirm the
+   Trusted Publisher remains configured.
+6. Update current-public documentation from beta.4 to beta.5 in a bounded,
+   reviewed post-publication change. Do not describe the registry-managed
+   `latest` tag as the supported prerelease channel.
 
 If OIDC fails, diagnose the trust configuration first. Restoring the bootstrap
 secret requires a separate deliberate recovery decision; do not silently add
