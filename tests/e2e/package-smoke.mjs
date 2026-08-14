@@ -157,6 +157,8 @@ try {
   const cliVersion = execFileSync(installedCli, ["--version"], {
     cwd: consumer,
     encoding: "utf8",
+    shell: process.platform === "win32",
+    windowsHide: true,
   }).trim();
   assert.equal(cliVersion, packedPackage.version);
   const packedCli = join(packageRoot, "dist", "cli", "index.js");
