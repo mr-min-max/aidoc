@@ -44,6 +44,20 @@ const BETA_SOURCE_ARTIFACTS = Object.freeze({
     "dist/core/update-preparation.js",
     "dist/templates/update.hbs",
   ]),
+  storefrontStatic: Object.freeze([
+    "docs/assets/brand/aidoc-mark.svg",
+    "docs/assets/brand/aidoc-wordmark.svg",
+    "docs/assets/brand/aidoc-mark-on-dark.svg",
+    "docs/assets/brand/aidoc-mark-on-light.svg",
+    "docs/assets/brand/aidoc-mark-dark.png",
+    "docs/assets/brand/aidoc-mark-light.png",
+    "docs/assets/brand/aidoc-avatar.png",
+    "docs/assets/brand/README.md",
+    "docs/assets/social/aidoc-social-preview.svg",
+    "docs/assets/social/aidoc-social-preview.png",
+    "docs/assets/demo/aidoc-flow-poster.svg",
+    "docs/assets/demo/aidoc-flow-poster.png",
+  ]),
 });
 const ROOT_POLICY_KEYS = [
   "allowedAutomationEmails",
@@ -651,6 +665,10 @@ async function sourceArtifactChecks(repositoryRoot) {
     repositoryRoot,
     BETA_SOURCE_ARTIFACTS.compiledMcp,
   );
+  const storefrontStaticPresent = sourceArtifactFilesPresent(
+    repositoryRoot,
+    BETA_SOURCE_ARTIFACTS.storefrontStatic,
+  );
 
   return [
     makeCheck(
@@ -680,6 +698,13 @@ async function sourceArtifactChecks(repositoryRoot) {
       compiledMcpPresent
         ? "Compiled provider-free MCP artifacts are present."
         : "Compiled provider-free MCP artifacts are missing.",
+    ),
+    makeCheck(
+      "storefront-static",
+      storefrontStaticPresent ? "pass" : "fail",
+      storefrontStaticPresent
+        ? "Storefront static assets are present."
+        : "Storefront static assets are missing.",
     ),
   ];
 }

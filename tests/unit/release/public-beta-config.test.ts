@@ -213,7 +213,7 @@ describe("public beta repository configuration", () => {
       "demo:storefront":
         "npm run build && node scripts/demo-hybrid-beta.mjs --presentation",
       "test:storefront":
-        "node --test tests/e2e/storefront-demo.test.mjs && jest tests/unit/release/storefront-copy.test.ts --runInBand",
+        "node --test tests/e2e/storefront-demo.test.mjs tests/e2e/storefront-assets.test.mjs && jest tests/unit/release/storefront-copy.test.ts --runInBand",
       "test:npm-unpublished": "node --test tests/e2e/npm-unpublished.test.mjs",
       "test:npm-published":
         "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs --version 0.2.0-beta.5 --latest 0.2.0-beta.4",
