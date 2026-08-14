@@ -1,8 +1,11 @@
 # AiDoc Public Beta
 
-`0.2.0-beta.4` is published to npm as `@mr-min-max/aidoc-gen` and as a GitHub
-prerelease; the executable remains `aidoc`. The repository-owned Codex plugin
-is not installed from a marketplace, and ChatGPT web does not read local STDIO.
+`0.2.0-beta.5` is published to npm as `@mr-min-max/aidoc-gen` and as a
+[GitHub prerelease](https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.5);
+the executable remains `aidoc`. The release was published by GitHub Actions
+through npm Trusted Publishing (OIDC), without a reusable npm credential in
+the workflow. The repository-owned Codex plugin is not installed from a
+marketplace, and ChatGPT web does not read local STDIO.
 
 AiDoc requires Node.js `>=22.12.0`.
 

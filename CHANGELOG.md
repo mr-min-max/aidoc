@@ -8,10 +8,12 @@ All notable changes to this project are documented in this file.
 
 ### Changed
 
-- Prepare the next immutable beta candidate to verify npm Trusted Publishing
-  through GitHub Actions OIDC with no `NPM_TOKEN` fallback.
-- Keep beta.4 as the truthfully documented public release until npm accepts
-  beta.5 and the post-publication evidence is complete.
+- Publish `@mr-min-max/aidoc-gen@0.2.0-beta.5` through npm Trusted Publishing
+  and GitHub Actions OIDC with no `NPM_TOKEN` fallback.
+- Require a protected annotated release tag that points directly to the
+  reviewed commit and uses the approved GitHub noreply identity.
+- Verify the exact npm and GitHub tarballs, checksum, clean installation, and
+  SLSA provenance before promoting beta.5 as the current public beta.
 
 ## [0.2.0-beta.4] - 2026-08-14
 

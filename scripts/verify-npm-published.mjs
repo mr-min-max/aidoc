@@ -41,14 +41,25 @@ function validCandidate(candidate) {
   );
 }
 
-/** Parses the optional published-version override accepted by the CLI. */
-export function parsePublishedVersionArguments(argv) {
+/** Parses the optional published beta and pinned latest versions. */
+export function parsePublishedStateArguments(argv) {
   if (!Array.isArray(argv)) throw fixedError();
-  if (argv.length === 0) return undefined;
-  if (argv.length !== 2 || argv[0] !== "--version" || !validVersion(argv[1])) {
+  if (argv.length === 0) {
+    return { expectedLatest: undefined, versionOverride: undefined };
+  }
+  if (argv.length === 2 && argv[0] === "--version" && validVersion(argv[1])) {
+    return { expectedLatest: undefined, versionOverride: argv[1] };
+  }
+  if (
+    argv.length !== 4 ||
+    argv[0] !== "--version" ||
+    !validVersion(argv[1]) ||
+    argv[2] !== "--latest" ||
+    !validVersion(argv[3])
+  ) {
     throw fixedError();
   }
-  return argv[1];
+  return { expectedLatest: argv[3], versionOverride: argv[1] };
 }
 
 async function readCandidate(versionOverride) {
@@ -112,7 +123,7 @@ function validArtifact(candidate, version) {
   }
 }
 
-function validMetadata(candidate, metadata) {
+function validMetadata(candidate, metadata, expectedLatest) {
   if (
     !isRecord(metadata) ||
     metadata.name !== candidate.name ||
@@ -128,6 +139,7 @@ function validMetadata(candidate, metadata) {
     beta === candidate.version &&
     typeof latest === "string" &&
     latest.length > 0 &&
+    (expectedLatest === undefined || latest === expectedLatest) &&
     Object.hasOwn(metadata.versions, latest) &&
     Object.hasOwn(metadata.versions, candidate.version) &&
     validArtifact(candidate, metadata.versions[candidate.version])
@@ -151,7 +163,12 @@ export async function verifyNpmVersionPublished(options = {}) {
   const candidate =
     options.candidate ?? (await readCandidate(options.versionOverride));
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
-  if (!validCandidate(candidate) || typeof fetchImpl !== "function") {
+  const expectedLatest = options.expectedLatest;
+  if (
+    !validCandidate(candidate) ||
+    typeof fetchImpl !== "function" ||
+    (expectedLatest !== undefined && !validVersion(expectedLatest))
+  ) {
     throw fixedError();
   }
 
@@ -177,16 +194,17 @@ export async function verifyNpmVersionPublished(options = {}) {
       throw fixedError();
     }
     const metadata = JSON.parse(source);
-    if (!validMetadata(candidate, metadata)) throw fixedError();
+    if (!validMetadata(candidate, metadata, expectedLatest)) throw fixedError();
+
+    return {
+      checked: 2,
+      latest: metadata["dist-tags"].latest,
+      status: "published",
+      version: candidate.version,
+    };
   } catch {
     throw fixedError();
   }
-
-  return {
-    checked: 2,
-    status: "published",
-    version: candidate.version,
-  };
 }
 
 const entryPath = process.argv[1];
@@ -195,10 +213,10 @@ if (
   resolve(entryPath) === fileURLToPath(import.meta.url)
 ) {
   try {
-    const versionOverride = parsePublishedVersionArguments(
+    const { expectedLatest, versionOverride } = parsePublishedStateArguments(
       process.argv.slice(2),
     );
-    await verifyNpmVersionPublished({ versionOverride });
+    await verifyNpmVersionPublished({ expectedLatest, versionOverride });
     process.stdout.write(`${NPM_PUBLISHED_STATE_MESSAGES.success}\n`);
   } catch {
     process.stderr.write(
