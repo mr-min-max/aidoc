@@ -4,6 +4,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0-beta.6] - Forthcoming candidate
+
+### Candidate
+
+- Prepare aligned AST-first storefront copy and a deterministic provider-free
+  `createUser` demo for review.
+- Include the original logo, poster, social preview, short GIF, and progressive
+  CLI and Action documentation in the candidate evidence.
+- Keep runtime, provider, MCP, security, and model behavior unchanged.
+- Reserve intended beta publication for the OIDC-only workflow; `latest` remains
+  `0.2.0-beta.4` while the current public beta remains `0.2.0-beta.5`.
+
 ## [0.2.0-beta.5] - 2026-08-14
 
 ### Changed

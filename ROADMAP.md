@@ -3,6 +3,18 @@
 This roadmap separates the current public beta from shipped foundations and
 future work. We welcome community feedback and contributions.
 
+## Local candidate under review
+
+### v0.2.0-beta.6: Forthcoming candidate
+
+The source checkout carries a local `0.2.0-beta.6` candidate for later Gate A
+review. It aligns the AST-first storefront copy, deterministic provider-free
+`createUser` demo, original visual assets, progressive CLI and Action docs, and
+release evidence without changing runtime, provider, MCP, security, or model
+behavior. Publication is intended to use OIDC only after the candidate gates
+and a separate human decision. The current public beta remains beta.5, and
+`latest` remains beta.4.
+
 ## Current public beta
 
 ### v0.2.0-beta.5 — OIDC-published hybrid provider and host integration
