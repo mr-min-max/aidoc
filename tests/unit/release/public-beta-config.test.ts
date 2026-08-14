@@ -210,6 +210,10 @@ describe("public beta repository configuration", () => {
       "test:provider-contracts": "jest tests/unit/providers --runInBand",
       "test:codex-plugin": "node tests/e2e/codex-plugin-smoke.mjs",
       "test:hybrid-beta": "node --test tests/e2e/hybrid-beta-demo.test.mjs",
+      "demo:storefront":
+        "npm run build && node scripts/demo-hybrid-beta.mjs --presentation",
+      "test:storefront":
+        "node --test tests/e2e/storefront-demo.test.mjs && jest tests/unit/release/storefront-copy.test.ts --runInBand",
       "test:npm-unpublished": "node --test tests/e2e/npm-unpublished.test.mjs",
       "test:npm-published":
         "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs --version 0.2.0-beta.5 --latest 0.2.0-beta.4",
@@ -220,12 +224,17 @@ describe("public beta repository configuration", () => {
     expect(packageJson.scripts["test:public-beta"]).not.toContain(
       "npm run test:npm-unpublished",
     );
+    const verifyRelease = packageJson.scripts["verify:release"];
+    expect(verifyRelease).toBe(
+      "npm run lint && npm test -- --runInBand && npm run test:provider-contracts && npm run build && npm run test:impact-demo && npm run test:check && npm run test:package && npm run test:action && npm run test:mcp && npm run test:codex-plugin && npm run test:hybrid-beta && npm run test:storefront",
+    );
     for (const command of [
       "npm run test:provider-contracts",
       "npm run test:codex-plugin",
       "npm run test:hybrid-beta",
+      "npm run test:storefront",
     ]) {
-      expect(packageJson.scripts["verify:release"]).toContain(command);
+      expect(verifyRelease).toContain(command);
     }
 
     for (const currentSurface of [

@@ -83,8 +83,8 @@ async function createFixture({ documents, noImpact = false }) {
   await writeFile(
     path.join(cwd, "src", "index.ts"),
     [
-      "export function formatName(name: string): string {",
-      "  return `Hello ${name}`;",
+      "export function createUser(email: string): { email: string; role: string } {",
+      '  return { email, role: "member" };',
       "}",
       "",
     ].join("\n"),
@@ -94,7 +94,7 @@ async function createFixture({ documents, noImpact = false }) {
     await mkdir(path.dirname(path.join(cwd, document)), { recursive: true });
     await writeFile(
       path.join(cwd, document),
-      `# Hybrid fixture\n\n## API\n\nUse \`formatName\` from the source module.\n`,
+      `# Hybrid fixture\n\n## API\n\nUse \`createUser\` from the source module.\n`,
       "utf8",
     );
   }
@@ -106,8 +106,11 @@ async function createFixture({ documents, noImpact = false }) {
     await writeFile(
       path.join(cwd, "src", "index.ts"),
       [
-        "export function formatName(name: string, excited = false): string {",
-        "  return excited ? `Hello ${name}!` : `Hello ${name}`;",
+        "export function createUser(",
+        "  email: string,",
+        "  role: string,",
+        "): { email: string; role: string } {",
+        "  return { email, role };",
         "}",
         "",
       ].join("\n"),
@@ -158,58 +161,72 @@ async function runMcpEvidence(fixture) {
   });
   try {
     await client.connect(transport);
-    const before = await snapshotRepositoryTree(fixture.cwd);
-    const preparationResult = await client.callTool({
-      name: "prepare_documentation_update",
-      arguments: {
-        base: fixture.base,
-        head: fixture.head,
-        target: "README.md",
-      },
-    });
-    if (preparationResult.isError === true)
-      throw new Error("MCP preparation failed");
-    const preparation = parseToolText(preparationResult);
-    if (
-      preparation.schema_version !== "aidoc.mcp-update-preparation.v1" ||
-      preparation.target !== "README.md" ||
-      typeof preparation.preparation_digest !== "string" ||
-      typeof preparation.generation?.system_prompt !== "string" ||
-      typeof preparation.generation?.prompt !== "string"
-    ) {
-      throw new Error("MCP preparation shape failed");
-    }
-    const unchangedAfterPrepare =
-      (await snapshotRepositoryTree(fixture.cwd)) === before;
-    if (!unchangedAfterPrepare) {
-      throw new Error("MCP preparation wrote the repository");
+    const targets = ["README.md", "docs/API.md"];
+    const preparations = [];
+    const noWriteChecks = [];
+    for (const target of targets) {
+      const beforePrepare = await snapshotRepositoryTree(fixture.cwd);
+      const preparationResult = await client.callTool({
+        name: "prepare_documentation_update",
+        arguments: {
+          base: fixture.base,
+          head: fixture.head,
+          target,
+        },
+      });
+      const afterPrepare = await snapshotRepositoryTree(fixture.cwd);
+      const unchangedAfterPrepare = beforePrepare === afterPrepare;
+      noWriteChecks.push(unchangedAfterPrepare);
+      if (preparationResult.isError === true)
+        throw new Error("MCP preparation failed");
+      if (!unchangedAfterPrepare) {
+        throw new Error("MCP preparation wrote the repository");
+      }
+      const preparation = parseToolText(preparationResult);
+      if (
+        preparation.schema_version !== "aidoc.mcp-update-preparation.v1" ||
+        preparation.target !== target ||
+        typeof preparation.preparation_digest !== "string" ||
+        typeof preparation.generation?.system_prompt !== "string" ||
+        typeof preparation.generation?.prompt !== "string"
+      ) {
+        throw new Error("MCP preparation shape failed");
+      }
+      preparations.push(preparation);
     }
 
     const candidate = "# Hybrid fixture\n\nValidated by the host.\n";
-    const validationResult = await client.callTool({
-      name: "validate_documentation_draft",
-      arguments: {
-        preparation_digest: preparation.preparation_digest,
-        target: preparation.target,
-        candidate_markdown: candidate,
-      },
-    });
-    if (validationResult.isError === true)
-      throw new Error("MCP validation failed");
-    const validation = parseToolText(validationResult);
-    const approved =
-      validation.valid === true && validation.approved_markdown === candidate;
-    const unchangedAfterValidation =
-      (await snapshotRepositoryTree(fixture.cwd)) === before;
+    const approvedTargets = [];
+    for (const preparation of preparations) {
+      const beforeValidation = await snapshotRepositoryTree(fixture.cwd);
+      const validationResult = await client.callTool({
+        name: "validate_documentation_draft",
+        arguments: {
+          preparation_digest: preparation.preparation_digest,
+          target: preparation.target,
+          candidate_markdown: candidate,
+        },
+      });
+      const afterValidation = await snapshotRepositoryTree(fixture.cwd);
+      noWriteChecks.push(beforeValidation === afterValidation);
+      if (validationResult.isError === true)
+        throw new Error("MCP validation failed");
+      const validation = parseToolText(validationResult);
+      approvedTargets.push(
+        validation.valid === true && validation.approved_markdown === candidate,
+      );
+    }
 
-    const tamperedDigest = preparation.preparation_digest.endsWith("A")
-      ? `${preparation.preparation_digest.slice(0, -1)}B`
-      : `${preparation.preparation_digest.slice(0, -1)}A`;
+    const firstPreparation = preparations[0];
+    const tamperedDigest = firstPreparation.preparation_digest.endsWith("A")
+      ? `${firstPreparation.preparation_digest.slice(0, -1)}B`
+      : `${firstPreparation.preparation_digest.slice(0, -1)}A`;
+    const beforeForged = await snapshotRepositoryTree(fixture.cwd);
     const forgedResult = await client.callTool({
       name: "validate_documentation_draft",
       arguments: {
         preparation_digest: tamperedDigest,
-        target: preparation.target,
+        target: firstPreparation.target,
         candidate_markdown: candidate,
       },
     });
@@ -221,13 +238,15 @@ async function runMcpEvidence(fixture) {
       typeof forgedText === "string" &&
       forgedText.startsWith("MCP_INVALID_PREPARATION:");
     const unchangedAfterForged =
-      (await snapshotRepositoryTree(fixture.cwd)) === before;
+      (await snapshotRepositoryTree(fixture.cwd)) === beforeForged;
+    noWriteChecks.push(unchangedAfterForged);
 
+    const beforeSecret = await snapshotRepositoryTree(fixture.cwd);
     const secretResult = await client.callTool({
       name: "validate_documentation_draft",
       arguments: {
-        preparation_digest: preparation.preparation_digest,
-        target: preparation.target,
+        preparation_digest: firstPreparation.preparation_digest,
+        target: firstPreparation.target,
         candidate_markdown: `# Hybrid fixture\n\nContact: ${FAKE_SECRET}\n`,
       },
     });
@@ -239,8 +258,10 @@ async function runMcpEvidence(fixture) {
         !secretValidation.approved_markdown.includes(FAKE_SECRET)) ||
       ["redacted", "blocked"].includes(secretValidation?.trust?.action);
     const unchangedAfterSecret =
-      (await snapshotRepositoryTree(fixture.cwd)) === before;
+      (await snapshotRepositoryTree(fixture.cwd)) === beforeSecret;
+    noWriteChecks.push(unchangedAfterSecret);
 
+    const beforeFreshness = await snapshotRepositoryTree(fixture.cwd);
     const freshnessResult = await client.callTool({
       name: "check_docs_freshness",
       arguments: {
@@ -252,17 +273,18 @@ async function runMcpEvidence(fixture) {
     if (freshnessResult.isError === true)
       throw new Error("MCP freshness check failed");
     const unchangedAfterFreshness =
-      (await snapshotRepositoryTree(fixture.cwd)) === before;
+      (await snapshotRepositoryTree(fixture.cwd)) === beforeFreshness;
+    noWriteChecks.push(unchangedAfterFreshness);
 
     return {
-      approved,
-      noWrite: [
-        unchangedAfterPrepare,
-        unchangedAfterValidation,
-        unchangedAfterForged,
-        unchangedAfterSecret,
-        unchangedAfterFreshness,
-      ].every(Boolean),
+      approved:
+        preparations.length === targets.length &&
+        targets.every(
+          (target, index) => preparations[index]?.target === target,
+        ) &&
+        approvedTargets.length === targets.length &&
+        approvedTargets.every(Boolean),
+      noWrite: noWriteChecks.every(Boolean),
       forgedBlocked,
       secretSafe,
     };
@@ -276,6 +298,28 @@ function emptyChecks() {
   return Object.fromEntries(CHECK_NAMES.map((name) => [name, false]));
 }
 
+function parseArguments(args = process.argv.slice(2)) {
+  if (args.length === 0) return { presentation: false };
+  if (args.length === 1 && args[0] === "--presentation") {
+    return { presentation: true };
+  }
+  throw new Error("Expected no arguments or --presentation");
+}
+
+function formatPresentation(report) {
+  if (report.status !== "pass") return "AiDoc storefront demo\nResult: FAIL\n";
+  return [
+    "AiDoc storefront demo",
+    "Change: createUser(email) -> createUser(email, role)",
+    "Impact: README.md, docs/API.md",
+    "Host contract: prepare -> host draft -> validate",
+    "Provider calls: none",
+    "Repository writes: none",
+    "Result: PASS",
+    "",
+  ].join("\n");
+}
+
 async function runDemo() {
   const noImpactFixture = await createFixture({
     documents: ["README.md"],
@@ -285,7 +329,7 @@ async function runDemo() {
     documents: ["README.md"],
   });
   const multipleTargetFixture = await createFixture({
-    documents: ["docs/API.md", "docs/guide.md"],
+    documents: ["README.md", "docs/API.md"],
   });
 
   try {
@@ -313,6 +357,18 @@ async function runDemo() {
       singleTarget.stdout.includes("Target: README.md") &&
       singleBefore === singleAfter;
 
+    const multiplePlan = await runCli(multipleTargetFixture.cwd, [
+      "plan",
+      "--base",
+      multipleTargetFixture.base,
+      "--head",
+      multipleTargetFixture.head,
+    ]);
+    const multiplePlanCheck =
+      multiplePlan.code === 0 &&
+      multiplePlan.stdout.includes("README.md") &&
+      multiplePlan.stdout.includes("docs/API.md");
+
     const multipleBefore = await snapshotRepositoryTree(
       multipleTargetFixture.cwd,
     );
@@ -325,6 +381,7 @@ async function runDemo() {
     ]);
     const multipleMessage = `${multiple.stdout}\n${multiple.stderr}`;
     const multipleCheck =
+      multiplePlanCheck &&
       multiple.code !== 0 &&
       multipleMessage.includes("Multiple documentation targets") &&
       (await snapshotRepositoryTree(multipleTargetFixture.cwd)) ===
@@ -347,10 +404,10 @@ async function runDemo() {
         "Update progress: 2 of 2 selected targets processed.",
       ) &&
       allBefore === allAfter &&
-      allMessage.includes("Generated docs/API.md") &&
-      allMessage.includes("Generated docs/guide.md");
+      allMessage.includes("Generated README.md") &&
+      allMessage.includes("Generated docs/API.md");
 
-    const mcp = await runMcpEvidence(singleTargetFixture);
+    const mcp = await runMcpEvidence(multipleTargetFixture);
     let plugin;
     try {
       const pluginResult = await execFileAsync(
@@ -417,26 +474,31 @@ async function runDemo() {
   }
 }
 
+let presentation = false;
 try {
+  presentation = parseArguments().presentation;
   const report = await runDemo();
-  process.stdout.write(`${JSON.stringify(report)}\n`);
+  process.stdout.write(
+    presentation ? formatPresentation(report) : `${JSON.stringify(report)}\n`,
+  );
   process.exitCode = report.status === "pass" ? 0 : 1;
 } catch {
+  const report = {
+    schema_version: DEMO_SCHEMA,
+    status: "fail",
+    checks: emptyChecks(),
+    tools: [],
+    providers: ["none"],
+    fixtures: [
+      "no-impact",
+      "single-target",
+      "multiple-targets",
+      "provider-free-mcp",
+    ],
+    counts: { affected_targets: 0, secret_findings: 0 },
+  };
   process.stdout.write(
-    `${JSON.stringify({
-      schema_version: DEMO_SCHEMA,
-      status: "fail",
-      checks: emptyChecks(),
-      tools: [],
-      providers: ["none"],
-      fixtures: [
-        "no-impact",
-        "single-target",
-        "multiple-targets",
-        "provider-free-mcp",
-      ],
-      counts: { affected_targets: 0, secret_findings: 0 },
-    })}\n`,
+    presentation ? formatPresentation(report) : `${JSON.stringify(report)}\n`,
   );
   process.exitCode = 1;
 }
