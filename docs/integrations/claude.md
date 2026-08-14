@@ -1,8 +1,8 @@
 # AiDoc with Claude Desktop or Claude Code
 
-This guide covers local MCP hosting for the forthcoming/source-checkout beta.4
-integration. It does not provide Claude.ai OAuth access to AiDoc and does not
-turn a consumer subscription into an AiDoc provider credential.
+This guide covers local MCP hosting for the published beta.4 CLI. It does not
+provide Claude.ai OAuth access to AiDoc and does not turn a consumer
+subscription into an AiDoc provider credential.
 
 ## Subscription boundary
 
@@ -16,9 +16,16 @@ Official references: [Claude Code MCP](https://docs.anthropic.com/en/docs/claude
 [Claude Code Pro/Max](https://support.anthropic.com/en/articles/11145838-using-claude-code-with-your-pro-or-max-plan),
 and [consumer/API billing separation](https://support.anthropic.com/en/articles/9876003-i-subscribe-to-a-paid-claude-ai-plan-why-do-i-have-to-pay-separately-for-api-usage-on-console).
 
-## Source-checkout setup
+## Setup
 
-Build and link the local CLI from the checkout:
+Install the published prerelease:
+
+```bash
+npm install -g @mr-min-max/aidoc-gen@beta
+aidoc --version
+```
+
+For development, build and link the local CLI from a checkout:
 
 ```bash
 npm install
@@ -41,9 +48,8 @@ command:
 }
 ```
 
-This source-checkout integration is not an npm artifact, marketplace
-installation, or ChatGPT web local-STDIO path. The beta.4 release note is
-forthcoming; no public release is claimed here.
+This local MCP integration is not a marketplace installation or a ChatGPT web
+local-STDIO path. The beta.4 npm package and GitHub prerelease are public.
 
 Reverse the global development link with:
 

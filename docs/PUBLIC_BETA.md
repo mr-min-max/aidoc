@@ -1,9 +1,8 @@
 # AiDoc Public Beta
 
-This page describes the source-checkout `0.2.0-beta.4` candidate. Its package
-metadata is aligned to `@mr-min-max/aidoc-gen` in the repository, while the
-executable remains `aidoc`. beta.4 is not claimed to be published to npm,
-installed from a marketplace, or available through ChatGPT web local STDIO.
+`0.2.0-beta.4` is published to npm as `@mr-min-max/aidoc-gen` and as a GitHub
+prerelease; the executable remains `aidoc`. The repository-owned Codex plugin
+is not installed from a marketplace, and ChatGPT web does not read local STDIO.
 
 AiDoc requires Node.js `>=22.12.0`.
 
@@ -114,9 +113,20 @@ It never downloads a model. Non-interactive runs must set `AIDOC_PROVIDER` and
 Qwen consumer or coding-plan subscription is not a subscription bridge for
 AiDoc.
 
-## Source-checkout setup
+## Installation
 
-From a checkout, use the following development setup:
+Install the published prerelease through the explicit beta channel:
+
+```bash
+npm install -g @mr-min-max/aidoc-gen@beta
+aidoc --version
+```
+
+npm requires every package to have a `latest` tag. AiDoc still publishes this
+prerelease with `--tag beta`, and `@beta` is the supported install path while
+the project remains pre-v1.
+
+For development from a source checkout:
 
 ```bash
 npm install
@@ -132,8 +142,8 @@ npm unlink -g @mr-min-max/aidoc-gen
 ```
 
 The repository-owned Codex plugin lives at
-`integrations/codex/aidoc`. After `npm link`, the copyable local Codex MCP
-setup is:
+`integrations/codex/aidoc`. After the npm install or `npm link`, the copyable
+local Codex MCP setup is:
 
 ```bash
 codex mcp add aidoc -- aidoc --mcp
@@ -142,8 +152,7 @@ codex mcp list
 
 Verify with `/mcp` in Codex if preferred, and reverse with
 `codex mcp remove aidoc`. No marketplace entry or public plugin installation
-is created by this source-checkout slice; marketplace distribution is a later
-step.
+exists yet; marketplace distribution is a later step.
 
 ## Repository-contained safety
 
@@ -164,8 +173,8 @@ diff and host permission request before applying documentation.
 - Local MCP preparation/validation does not write the repository.
 - A host subscription does not provide a general AiDoc or vendor API key.
 - ChatGPT web local STDIO support is not part of this beta.
-- npm publication, a GitHub release/tag, and marketplace distribution are not
-  part of this source-checkout slice.
+- npm publication and the GitHub prerelease are available; marketplace
+  distribution is not part of this beta.
 - Beta behavior and versioned JSON envelopes may evolve before v1.
 
 Report reproducible issues with the command, fixture, and observed output.

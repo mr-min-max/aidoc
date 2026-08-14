@@ -3,12 +3,11 @@
 > **AI-powered documentation generator for codebases.**
 
 > [!IMPORTANT]
-> **Public Beta source-checkout integration (`0.2.0-beta.4` forthcoming).**
-> The repository is ready for early testing on Node.js `>=22.12.0`. The beta.4
-> plugin/integration is source-checkout work in this task; it is not an npm
-> artifact, marketplace installation, or ChatGPT-web local-STDIO integration.
-> The reserved candidate identity is `@mr-min-max/aidoc-gen`; its executable
-> remains `aidoc`.
+> **Public Beta `0.2.0-beta.4` is published.**
+> Install the prerelease from npm as `@mr-min-max/aidoc-gen@beta` on Node.js
+> `>=22.12.0`; the executable remains `aidoc`. The repository-owned Codex
+> plugin is still a local integration, not a marketplace installation or a
+> ChatGPT-web local-STDIO integration.
 > `aidoc plan` is deterministic and provider-free. Feedback and focused
 > contributions are welcome before v1.
 
@@ -55,19 +54,19 @@ It is specifically designed for **Open Source maintainers** who want to spend le
 
 See [Codex maintainer workflows](./docs/codex-maintainer-workflows.md) for the
 OSS workflow background, [Codex integration](./docs/integrations/codex.md) for
-the source-checkout host path, and [Claude integration](./docs/integrations/claude.md)
+the local host path, and [Claude integration](./docs/integrations/claude.md)
 for the equivalent local MCP setup.
 
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/mr-min-max/aidoc.git
-cd aidoc
-npm install
-npm run build
-npm link
+npm install -g @mr-min-max/aidoc-gen@beta
 aidoc --version
 ```
+
+Use the explicit `@beta` channel for this prerelease. npm registry metadata
+requires every package to have a `latest` tag, so the supported beta install
+path does not rely on the implicit default tag.
 
 The simple paths are `aidoc`, `aidoc plan`, and `aidoc update`. Bare `aidoc`
 begins with a provider-free plan and offers an update only when a safe
@@ -79,9 +78,8 @@ automatically; several targets require explicit selection or `--all`, and it
 never guesses an ambiguous target. A dry run previews the bounded update
 without writing.
 
-`npm link` is only a source-checkout development convenience. To reverse it,
-run `npm unlink -g @mr-min-max/aidoc-gen`. The beta.4 integration and plugin are not
-published to npm or installed from a marketplace by this repository slice.
+The CLI package is published to npm. The repository-owned Codex plugin is not
+installed from a marketplace; load it locally when testing the bundled skill.
 
 ### Three honest beta paths
 
@@ -125,11 +123,16 @@ Try the complete fixed, temporary-repository fixture locally:
 npm run demo:impact
 ```
 
-## 📦 Source Beta Installation
+## 📦 Public Beta Installation
 
-The beta.4 integration and scoped `@mr-min-max/aidoc-gen` identity are a
-forthcoming/source-checkout release candidate, not a published npm package or
-marketplace listing. From the checkout, run:
+Install the published prerelease with its explicit npm channel:
+
+```bash
+npm install -g @mr-min-max/aidoc-gen@beta
+aidoc --version
+```
+
+For development from a source checkout instead, run:
 
 ```bash
 npm install
@@ -304,8 +307,7 @@ aidoc watch --auto --target docs/README.md   # no prompts (great for demos)
 
 ## 🎬 GitHub Action
 
-The `v0.2.0-beta.4` examples below identify the unreleased release candidate.
-Do not use that ref until the corresponding tag is published.
+The `v0.2.0-beta.4` examples below use the published GitHub prerelease tag.
 The current composite Action accepts `openai`, `anthropic`, and `ollama`; use
 the CLI directly for the additional beta provider profiles.
 
@@ -397,11 +399,11 @@ Network access remains controlled by the selected provider transport and Trust
 Gate, not by the repository scope.
 
 Read [Codex integration](./docs/integrations/codex.md) or [Claude integration](./docs/integrations/claude.md)
-for host-specific setup. The local server can also be started directly after
-the source-checkout build:
+for host-specific setup. The local server can be started directly after npm
+installation or a source-checkout build:
 
 ```bash
-# Start the local MCP server from a built source checkout
+# Start the local MCP server from the repository it should serve
 aidoc --mcp
 ```
 
@@ -451,8 +453,8 @@ target, and exact candidate before asking the host for write permission. The
 MCP prepare/validate path never writes the repository and never receives the
 host's subscription token.
 
-For a source-checkout Codex host, after `npm link` add the local MCP server
-directly:
+After installing `@mr-min-max/aidoc-gen@beta` or using `npm link` from a source
+checkout, add the local MCP server directly:
 
 ```bash
 codex mcp add aidoc -- aidoc --mcp
