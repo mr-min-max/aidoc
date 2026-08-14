@@ -148,18 +148,23 @@ try {
   assert.equal(packedPackage.name, "@mr-min-max/aidoc-gen");
   assert.equal(packedPackage.engines.node, ">=22.12.0");
   assert.deepEqual(packedPackage.bin, { aidoc: "dist/cli/index.js" });
-  const installedCli = join(
-    consumer,
-    "node_modules",
-    ".bin",
-    process.platform === "win32" ? "aidoc.cmd" : "aidoc",
-  );
-  const cliVersion = execFileSync(installedCli, ["--version"], {
-    cwd: consumer,
-    encoding: "utf8",
-    shell: process.platform === "win32",
-    windowsHide: true,
-  }).trim();
+  const binDirectory = join(consumer, "node_modules", ".bin");
+  const cliVersion = (
+    process.platform === "win32"
+      ? execFileSync(
+          process.env.ComSpec ?? "cmd.exe",
+          ["/d", "/s", "/c", "aidoc.cmd --version"],
+          {
+            cwd: binDirectory,
+            encoding: "utf8",
+            windowsHide: true,
+          },
+        )
+      : execFileSync(join(binDirectory, "aidoc"), ["--version"], {
+          cwd: consumer,
+          encoding: "utf8",
+        })
+  ).trim();
   assert.equal(cliVersion, packedPackage.version);
   const packedCli = join(packageRoot, "dist", "cli", "index.js");
 
