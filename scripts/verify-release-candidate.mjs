@@ -7,6 +7,7 @@ const FIXED_ERRORS = Object.freeze({
   package: "Release package metadata could not be verified.",
   repository: "Release repository state could not be verified.",
   ancestry: "Release candidate is not contained in the protected main branch.",
+  expected: "Release candidate does not match the previously verified commit.",
   tag: "Release tag does not match the package version.",
 });
 
@@ -26,10 +27,11 @@ function hasControlCharacter(value) {
 }
 
 function parseArguments(argv) {
-  const expected = new Set(["--main-ref", "--candidate-ref", "--tag"]);
+  const required = new Set(["--main-ref", "--candidate-ref", "--tag"]);
+  const accepted = new Set([...required, "--expected-sha"]);
   const values = Object.create(null);
 
-  if (argv.length !== expected.size * 2) {
+  if (argv.length !== required.size * 2 && argv.length !== accepted.size * 2) {
     return null;
   }
 
@@ -37,7 +39,7 @@ function parseArguments(argv) {
     const name = argv[index];
     const value = argv[index + 1];
     if (
-      !expected.has(name) ||
+      !accepted.has(name) ||
       Object.hasOwn(values, name) ||
       typeof value !== "string" ||
       value.length === 0 ||
@@ -50,11 +52,14 @@ function parseArguments(argv) {
   }
 
   if (
+    ![...required].every((name) => Object.hasOwn(values, name)) ||
     !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/u.test(values["--main-ref"]) ||
     values["--main-ref"].includes("..") ||
     !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/u.test(values["--candidate-ref"]) ||
     values["--candidate-ref"].includes("..") ||
-    !/^v[0-9A-Za-z][0-9A-Za-z.+-]*$/u.test(values["--tag"])
+    !/^v[0-9A-Za-z][0-9A-Za-z.+-]*$/u.test(values["--tag"]) ||
+    (Object.hasOwn(values, "--expected-sha") &&
+      !/^[0-9a-f]{40,64}$/u.test(values["--expected-sha"]))
   ) {
     return null;
   }
@@ -63,6 +68,7 @@ function parseArguments(argv) {
     mainRef: values["--main-ref"],
     candidateRef: values["--candidate-ref"],
     tag: values["--tag"],
+    expectedSha: values["--expected-sha"],
   });
 }
 
@@ -126,6 +132,12 @@ if (!options) {
     const mainCommit = resolveCommit(options.mainRef);
     if (!candidateCommit || !mainCommit) {
       fail(FIXED_ERRORS.repository);
+    } else if (
+      options.expectedSha !== undefined &&
+      (candidateCommit !== options.expectedSha ||
+        mainCommit !== options.expectedSha)
+    ) {
+      fail(FIXED_ERRORS.expected);
     } else {
       const ancestry = git([
         "merge-base",

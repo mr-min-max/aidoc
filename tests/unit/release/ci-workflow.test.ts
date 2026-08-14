@@ -53,9 +53,10 @@ describe("CI workflow security policy", () => {
       "actions/setup-node": "820762786026740c76f36085b0efc47a31fe5020",
       "codecov/codecov-action": "fb8b3582c8e4def4969c97caa2f19720cb33a72f",
     };
-    const uses = workflow.jobs.test.steps.flatMap((step) =>
-      step.uses ? [step.uses] : [],
-    );
+    expect(Object.keys(workflow.jobs)).toEqual(["test"]);
+    const uses = Object.values(workflow.jobs)
+      .flatMap((job) => job.steps)
+      .flatMap((step) => (step.uses ? [step.uses] : []));
 
     expect([...uses].sort()).toEqual(
       Object.entries(reviewedActions)

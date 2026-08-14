@@ -123,23 +123,47 @@ describe("public beta repository configuration", () => {
 
   it("locks verification and tagging to one immutable main commit", () => {
     const runbook = fs.readFileSync(path.resolve("docs/RELEASING.md"), "utf8");
-    const capture = 'readonly release_sha="$(git rev-parse origin/main)"';
-    const verifyHead = 'test "$(git rev-parse HEAD)" = "$release_sha"';
-    const recheckMain = 'test "$(git rev-parse origin/main)" = "$release_sha"';
+    const capture = 'release_sha="$(git rev-parse origin/main)" &&';
+    const freeze = "readonly release_sha &&";
+    const verify =
+      'node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.3 --expected-sha "$release_sha"';
+    const markVerified = 'release_verified_sha="$release_sha" &&';
+    const requireVerified =
+      'test "${release_verified_sha:-}" = "$release_sha" &&';
     const tag = 'git tag -a v0.2.0-beta.3 "$release_sha" -m "v0.2.0-beta.3"';
 
     expect(runbook).toContain("same trusted shell session");
-    expect(runbook.split(capture)).toHaveLength(2);
-    expect(runbook.split(verifyHead)).toHaveLength(3);
-    expect(runbook).toContain(recheckMain);
-    expect(runbook).toContain(tag);
+    expect(runbook).toContain("git fetch origin main &&");
+    expect(runbook).toContain(capture);
+    expect(runbook).toContain(freeze);
+    expect(runbook.split(verify)).toHaveLength(5);
+    expect(runbook).toContain(`${verify} &&`);
+    expect(runbook).toContain('test -z "$(git status --porcelain=v1)" &&');
+    expect(runbook).toContain(markVerified);
+    expect(runbook).toContain("readonly release_verified_sha");
+    expect(runbook).toContain(requireVerified);
+    expect(runbook).toContain(`${tag} &&`);
 
     const captureIndex = runbook.indexOf(capture);
     const gateIndex = runbook.indexOf("npm run verify:release");
-    const recheckIndex = runbook.lastIndexOf(recheckMain);
+    const markVerifiedIndex = runbook.indexOf(markVerified);
+    const requireVerifiedIndex = runbook.indexOf(requireVerified);
+    const recheckIndex = runbook.lastIndexOf(`${verify} &&`);
+    const preMarkerVerifyIndex = runbook.lastIndexOf(
+      `${verify} &&`,
+      markVerifiedIndex,
+    );
+    const preMarkerCleanIndex = runbook.lastIndexOf(
+      'test -z "$(git status --porcelain=v1)" &&',
+      markVerifiedIndex,
+    );
     const tagIndex = runbook.indexOf(tag);
     expect(captureIndex).toBeGreaterThanOrEqual(0);
     expect(gateIndex).toBeGreaterThan(captureIndex);
+    expect(preMarkerVerifyIndex).toBeGreaterThan(gateIndex);
+    expect(preMarkerCleanIndex).toBeGreaterThan(preMarkerVerifyIndex);
+    expect(markVerifiedIndex).toBeGreaterThan(gateIndex);
+    expect(requireVerifiedIndex).toBeGreaterThan(markVerifiedIndex);
     expect(recheckIndex).toBeGreaterThan(gateIndex);
     expect(tagIndex).toBeGreaterThan(recheckIndex);
   });

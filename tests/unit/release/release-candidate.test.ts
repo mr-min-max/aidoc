@@ -23,20 +23,23 @@ function git(cwd: string, ...args: string[]): string {
   return result.stdout.trim();
 }
 
-function runVerifier(cwd: string, tag = "v0.2.0-beta.3") {
-  return spawnSync(
-    process.execPath,
-    [
-      verifier,
-      "--main-ref",
-      "refs/heads/main",
-      "--candidate-ref",
-      "HEAD",
-      "--tag",
-      tag,
-    ],
-    { cwd, encoding: "utf8" },
-  );
+function runVerifier(
+  cwd: string,
+  options: { tag?: string; expectedSha?: string } = {},
+) {
+  const args = [
+    verifier,
+    "--main-ref",
+    "refs/heads/main",
+    "--candidate-ref",
+    "HEAD",
+    "--tag",
+    options.tag ?? "v0.2.0-beta.3",
+  ];
+  if (options.expectedSha) {
+    args.push("--expected-sha", options.expectedSha);
+  }
+  return spawnSync(process.execPath, args, { cwd, encoding: "utf8" });
 }
 
 describe("release candidate verifier", () => {
@@ -82,12 +85,39 @@ describe("release candidate verifier", () => {
   });
 
   it("rejects a tag that does not exactly match the package version", () => {
-    const result = runVerifier(repository, "v0.2.0-beta.4");
+    const result = runVerifier(repository, { tag: "v0.2.0-beta.4" });
 
     expect(result.status).toBe(1);
     expect(result.stdout).toBe("");
     expect(result.stderr).toBe(
       "Release tag does not match the package version.\n",
     );
+  });
+
+  it("rejects a stale verified SHA even when the candidate remains on main", () => {
+    const verifiedSha = git(repository, "rev-parse", "HEAD");
+    fs.writeFileSync(path.join(repository, "advanced.txt"), "main advanced\n");
+    git(repository, "add", "advanced.txt");
+    git(repository, "commit", "-m", "advance protected main");
+
+    const result = spawnSync(
+      "bash",
+      [
+        "-c",
+        '"$1" "$2" --main-ref refs/heads/main --candidate-ref HEAD --tag v0.2.0-beta.3 --expected-sha "$3" && git tag -a v0.2.0-beta.3 "$3" -m v0.2.0-beta.3',
+        "release-chain",
+        process.execPath,
+        verifier,
+        verifiedSha,
+      ],
+      { cwd: repository, encoding: "utf8" },
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toBe(
+      "Release candidate does not match the previously verified commit.\n",
+    );
+    expect(git(repository, "tag", "--list", "v0.2.0-beta.3")).toBe("");
   });
 });
