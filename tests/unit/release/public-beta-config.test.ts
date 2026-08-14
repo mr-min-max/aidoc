@@ -240,6 +240,23 @@ describe("public beta repository configuration", () => {
       expect(source).not.toContain("0.2.0-beta.2");
     }
 
+    const packedReadme = fs.readFileSync(path.resolve("README.md"), "utf8");
+    expect(packedReadme).toContain(
+      "**Public beta channel is available on npm.**",
+    );
+    expect(packedReadme).toContain(
+      "This source tree declares version `0.2.0-beta.5`",
+    );
+    expect(packedReadme).toContain(
+      "The registry's `beta` dist-tag is authoritative",
+    );
+    expect(packedReadme).not.toContain(
+      "**Public Beta `0.2.0-beta.4` is published.**",
+    );
+    expect(packedReadme).not.toContain(
+      "The repository-owned beta.4 integration",
+    );
+
     const candidateReleaseNote = fs.readFileSync(
       path.resolve("docs/releases/v0.2.0-beta.5.md"),
       "utf8",

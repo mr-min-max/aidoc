@@ -3,11 +3,14 @@
 > **AI-powered documentation generator for codebases.**
 
 > [!IMPORTANT]
-> **Public Beta `0.2.0-beta.4` is published.**
+> **Public beta channel is available on npm.**
 > Install the prerelease from npm as `@mr-min-max/aidoc-gen@beta` on Node.js
-> `>=22.12.0`; the executable remains `aidoc`. The repository-owned Codex
-> plugin is still a local integration, not a marketplace installation or a
-> ChatGPT-web local-STDIO integration.
+> `>=22.12.0`. This source tree declares version `0.2.0-beta.5`; the package
+> version and the public channel can differ while a release candidate is being
+> verified. The registry's `beta` dist-tag is authoritative for the version
+> currently published. The executable remains `aidoc`. The repository-owned
+> Codex plugin is still a local integration, not a marketplace installation or
+> a ChatGPT-web local-STDIO integration.
 > `aidoc plan` is deterministic and provider-free. Feedback and focused
 > contributions are welcome before v1.
 
@@ -366,11 +369,11 @@ Pull-request workflows should use
 
 ## 🔌 Local MCP integrations
 
-The repository-owned beta.4 integration is designed for an official local
-Codex host authenticated with ChatGPT, or for Claude Desktop/Claude Code. It
-uses local STDIO MCP and the command `aidoc --mcp`; it does not turn a consumer
-subscription into an AiDoc API credential. ChatGPT web does not read local
-Codex configuration or local STDIO servers.
+The repository-owned local integration is designed for an official Codex host
+authenticated with ChatGPT, or for Claude Desktop/Claude Code. It uses local
+STDIO MCP and the command `aidoc --mcp`; it does not turn a consumer subscription
+into an AiDoc API credential. ChatGPT web does not read local Codex configuration
+or local STDIO servers.
 
 ### Pinned MCP repository scope
 
