@@ -78,6 +78,32 @@ function assertOrderedWorkflow(body) {
 
 function assertSafeWorkflow(body) {
   const lower = body.toLowerCase();
+  for (const code of [
+    "MCP_INVALID_PATH_INPUT",
+    "MCP_DIRECTORY_DENIED",
+    "MCP_UNSAFE_CONFIGURATION",
+  ]) {
+    assert.match(
+      lower,
+      new RegExp(code.toLowerCase()),
+      `skill must recognize ${code}`,
+    );
+  }
+  assert.match(
+    lower,
+    /(?:if|when)[\s\S]{0,260}(?:mcp_invalid_path_input|mcp_directory_denied|mcp_unsafe_configuration)[\s\S]{0,320}(?:stop|do not retry|never retry)/u,
+    "skill must stop on MCP scope/config failures",
+  );
+  assert.match(
+    lower,
+    /never\s+(?:retry|try)[\s\S]{0,120}(?:another|different)[\s\S]{0,120}(?:directory|path)|do not guess[\s\S]{0,120}(?:directory|path)/u,
+    "skill must not retry or guess a path after scope/config failure",
+  );
+  assert.match(
+    lower,
+    /correct[\s\S]{0,80}repository-relative path/u,
+    "skill must tell the host how to correct an invalid path safely",
+  );
   assert.match(lower, /multiple[\s\S]{0,240}(choose|select)/u);
   assert.match(lower, /never\s+guess|do\s+not\s+guess/u);
   assert.match(lower, /unchanged[\s\S]{0,240}preparation_digest/u);

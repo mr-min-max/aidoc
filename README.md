@@ -209,9 +209,9 @@ with:
 ```
 
 Use provider-specific environment variables such as `OPENAI_API_KEY` and
-`ANTHROPIC_API_KEY` for credentials. The legacy `.aidocrc` `apiKey` field is
-deprecated, has lower precedence than environment credentials, and remains
-readable only for a beta compatibility window.
+`ANTHROPIC_API_KEY` for credentials. Direct CLI mode keeps the legacy
+`.aidocrc` `apiKey` compatibility behavior for the beta window; MCP rejects
+that secret-bearing project-config field.
 
 Streaming responses are buffered until the complete output passes the same
 policy check, so progressive token display is temporarily unavailable.
@@ -220,9 +220,9 @@ Real CLI, GitHub Action, and watch-mode file mutations require a current Git
 worktree. They reject traversal, external, and symlink or junction targets,
 compare the prepared file snapshot before replacement, and commit through a
 same-directory rename. Dry-run, `check`, `plan`, current MCP generation tools,
-and `score` without `--output` are non-mutating. MCP directory allowlisting,
-`aidoc doctor --security`, and persisted receipts remain unimplemented. These
-repository-contained write controls are not an operating-system sandbox;
+and `score` without `--output` are non-mutating. `aidoc doctor --security` and
+persisted receipts remain unimplemented. These repository-contained write
+controls are not an operating-system sandbox;
 Trust Gate redaction is not a prompt-injection defense. In the host-managed
 MCP workflow, Trust Gate inspects AiDoc's prepared input and validated output;
 it does not control the host's context window, model, sandbox, isolation, or
@@ -366,6 +366,32 @@ Codex host authenticated with ChatGPT, or for Claude Desktop/Claude Code. It
 uses local STDIO MCP and the command `aidoc --mcp`; it does not turn a consumer
 subscription into an AiDoc API credential. ChatGPT web does not read local
 Codex configuration or local STDIO servers.
+
+### Pinned MCP repository scope
+
+Each AiDoc MCP server is pinned to the canonical Git worktree containing its
+startup cwd. One MCP server serves one startup worktree; to work on another
+repository, start and configure another server from that repository. The
+worktree root and real subdirectories are allowed. Absolute paths inside that
+worktree and repository-relative directory paths are both supported.
+
+External paths, parent traversal, `.git` or other Git metadata, missing or
+non-directory paths, and every symlink or junction path fail closed before
+project reads. Successful MCP path fields, including analyzed module paths,
+are repository-relative POSIX paths.
+
+MCP configuration is bounded from the selected directory up to the pinned
+root. It accepts declarative JSON/YAML/no-extension configuration,
+`package.json#aidoc`, and the bounded root `.env` allowlist. MCP rejects
+malformed or symlinked selected configuration, executable JavaScript,
+TypeScript, CJS, or MJS configuration, and the legacy secret-bearing `apiKey`
+field. Direct CLI cosmiconfig and dotenv behavior is unchanged.
+
+This is a repository path/read boundary, not an operating-system sandbox. A
+privileged same-host process can race entries between checks, and hard links
+are indistinguishable from ordinary repository files at this API level.
+Network access remains controlled by the selected provider transport and Trust
+Gate, not by the repository scope.
 
 Read [Codex integration](./docs/integrations/codex.md) or [Claude integration](./docs/integrations/claude.md)
 for host-specific setup. The local server can also be started directly after

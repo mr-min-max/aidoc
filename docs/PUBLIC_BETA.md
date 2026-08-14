@@ -43,6 +43,31 @@ MCP host. Claude authenticates itself; AiDoc receives no Claude subscription
 token or OAuth credential. Consumer subscriptions and API billing are
 separate for both ecosystems.
 
+### Pinned repository boundary
+
+Each MCP server is pinned to the canonical Git worktree containing its startup
+cwd. One MCP server serves one repository; to work on another repository,
+start another server from that repository. The worktree root and real
+subdirectories are allowed, including absolute in-worktree paths and
+repository-relative directory paths.
+
+External paths, parent traversal, `.git` or other Git metadata, missing or
+non-directory paths, and every symlink or junction path fail closed before
+project reads. Successful MCP path fields are repository-relative POSIX paths.
+
+MCP configuration search is bounded from the selected directory up to the
+pinned root. MCP accepts declarative JSON/YAML/no-extension configuration,
+`package.json#aidoc`, and the bounded root `.env` allowlist. It rejects
+malformed or symlinked selected configuration, executable JavaScript,
+TypeScript, CJS, or MJS configuration, and the legacy secret-bearing `apiKey`
+field. Direct CLI cosmiconfig and dotenv behavior remains unchanged.
+
+This is a repository path/read boundary, not an operating-system sandbox. A
+privileged same-host process can race entries between checks, hard links are
+indistinguishable from ordinary repository files at this API level, and
+network access remains controlled by the selected provider transport and Trust
+Gate.
+
 The host-managed update sequence is:
 
 1. Call `prepare_documentation_update`.

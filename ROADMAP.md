@@ -35,6 +35,11 @@ publication, and GitHub prerelease are separately approved and completed.
 
 ### Implemented on the current source branch
 
+- Pinned MCP read scope for one startup Git worktree, with real subdirectories
+  allowed, unsafe external/traversal/Git-metadata/symlink paths denied, and
+  successful paths kept repository-relative
+- Bounded declarative MCP configuration with executable project configuration
+  refusal while direct CLI configuration behavior remains unchanged
 - Repository-contained atomic writes for real CLI, GitHub Action, and watch
   mutations, with prepared snapshots and same-directory atomic replacement
 
@@ -42,7 +47,6 @@ publication, and GitHub prerelease are separately approved and completed.
 
 ### v0.2.0 — Trust Gate follow-ups
 
-- MCP directory allowlisting
 - Security doctor and bounded run receipts
 
 ### v0.3.0 — Evidence and verification

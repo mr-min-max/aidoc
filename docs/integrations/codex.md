@@ -54,6 +54,27 @@ To reverse the global source-checkout link:
 npm unlink -g aidoc-gen
 ```
 
+## Pinned MCP repository scope
+
+Each `aidoc --mcp` server is pinned to the canonical Git worktree containing
+its startup cwd. One server serves one startup worktree; start another server
+from another repository when you change repositories. The root and real
+subdirectories are allowed, and both absolute in-worktree paths and
+repository-relative directory paths work.
+
+External paths, parent traversal, `.git` or other Git metadata, missing or
+non-directory paths, and every symlink or junction fail closed before project
+reads. Successful MCP paths are repository-relative POSIX paths.
+
+MCP reads only bounded declarative JSON/YAML/no-extension configuration,
+`package.json#aidoc`, and the pinned-root `.env` allowlist. It rejects
+malformed or symlinked selected configuration, executable JavaScript,
+TypeScript, CJS, or MJS configuration, and the legacy `apiKey` project field.
+Direct CLI cosmiconfig and dotenv behavior is unchanged. This is a repository
+path/read boundary, not an operating-system sandbox: privileged same-host
+races and hard-link identity are outside this API-level guarantee, and network
+access remains controlled by the provider transport and Trust Gate.
+
 ## Safe documentation workflow
 
 When the user asks to update documentation, the bundled skill requires this

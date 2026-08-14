@@ -148,6 +148,7 @@ describe("public beta repository configuration", () => {
         fs.readFileSync(path.resolve(file), "utf8"),
       ]),
     );
+    const roadmap = fs.readFileSync(path.resolve("ROADMAP.md"), "utf8");
     const corpus = Object.values(documentation).join("\n");
     const readme = documentation["README.md"];
     const codexGuide = documentation["docs/integrations/codex.md"];
@@ -155,16 +156,24 @@ describe("public beta repository configuration", () => {
     const quickStartEnd = readme.indexOf("### Three honest beta paths");
     const mcpToolsStart = readme.indexOf("### Available MCP Tools");
     const mcpToolsEnd = readme.indexOf("## 🔐 Planning security and limits");
+    const mcpScopeStart = readme.indexOf("### Pinned MCP repository scope");
+    const mcpScopeEnd = readme.indexOf(
+      "Read [Codex integration]",
+      mcpScopeStart,
+    );
     const trustGateStart = readme.indexOf("## 🛡️ Trust Gate beta");
     const trustGateEnd = readme.indexOf("## 🛠️ Commands", trustGateStart);
     expect(quickStartStart).toBeGreaterThanOrEqual(0);
     expect(quickStartEnd).toBeGreaterThan(quickStartStart);
     expect(mcpToolsStart).toBeGreaterThanOrEqual(0);
     expect(mcpToolsEnd).toBeGreaterThan(mcpToolsStart);
+    expect(mcpScopeStart).toBeGreaterThanOrEqual(0);
+    expect(mcpScopeEnd).toBeGreaterThan(mcpScopeStart);
     expect(trustGateStart).toBeGreaterThanOrEqual(0);
     expect(trustGateEnd).toBeGreaterThan(trustGateStart);
     const quickStart = readme.slice(quickStartStart, quickStartEnd);
     const mcpTools = readme.slice(mcpToolsStart, mcpToolsEnd);
+    const mcpScope = readme.slice(mcpScopeStart, mcpScopeEnd);
     const trustGate = readme.slice(trustGateStart, trustGateEnd);
     const trustGateNormalized = trustGate.replace(/\s+/gu, " ").trim();
     const directTrustGate = trustGateNormalized.split(
@@ -242,6 +251,39 @@ describe("public beta repository configuration", () => {
     expect(mcpTools).toMatch(
       /legacy\/direct[\s\S]{0,160}provider-backed[\s\S]{0,160}generation tools below are separate:[\s\S]{0,160}generate_readme[\s\S]{0,120}generate_api_docs[\s\S]{0,120}generate_diagram[\s\S]{0,220}(?:provider credential|API billing)/i,
     );
+    expect(corpus).toMatch(
+      /MCP[\s\S]{0,220}(?:pinned|restricted to|startup)[\s\S]{0,160}Git worktree/i,
+    );
+    expect(corpus).toMatch(
+      /one MCP server[\s\S]{0,220}(?:another\s+repository|another\s+server|each\s+repository)/i,
+    );
+    expect(corpus).toMatch(
+      /(?:successful|returned|result)[\s\S]{0,180}repository-relative[\s\S]{0,100}path/i,
+    );
+    expect(corpus).toMatch(
+      /(?:external|traversal)[\s\S]{0,220}(?:\.git|Git metadata)[\s\S]{0,180}symlink[\s\S]{0,180}(?:deny|fail closed|rejected)/i,
+    );
+    expect(corpus).toMatch(
+      /MCP[\s\S]{0,240}(?:bounded )?(?:declarative|JSON|YAML)[\s\S]{0,220}(?:reject|never execute|does not execute)[\s\S]{0,120}(?:JavaScript|JS|TypeScript|TS|CJS|MJS)/i,
+    );
+    expect(corpus).toMatch(
+      /direct CLI[\s\S]{0,180}(?:unchanged|cosmiconfig|dotenv)/i,
+    );
+    expect(corpus).toMatch(
+      /hard links?[\s\S]{0,180}indistinguishable[\s\S]{0,180}(?:race|repository)/i,
+    );
+    expect(corpus).toMatch(
+      /(?:privileged|same-host)[\s\S]{0,180}race[\s\S]{0,180}(?:checks|sandbox)/i,
+    );
+    expect(corpus).toMatch(/not an (?:operating-system|OS) sandbox/i);
+    expect(corpus).not.toMatch(
+      /MCP directory allowlisting[\s\S]{0,80}unimplemented/i,
+    );
+    expect(mcpScope).toMatch(/startup cwd[\s\S]{0,260}another\s+repository/i);
+    expect(mcpScope).toMatch(/declarative[\s\S]{0,180}executable JavaScript/i);
+    expect(mcpScope).toMatch(/not an operating-system sandbox/i);
+    expect(roadmap).toContain("Pinned MCP read scope");
+    expect(roadmap).not.toContain("MCP directory allowlisting");
     expect(quickStart).toMatch(
       /bare `aidoc`[\s\S]{0,220}provider-free plan[\s\S]{0,300}(?:direct-provider|host-managed MCP)/i,
     );

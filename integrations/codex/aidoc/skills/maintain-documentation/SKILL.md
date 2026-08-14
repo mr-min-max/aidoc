@@ -13,6 +13,12 @@ token and this path is not a subscription bridge to an AiDoc provider.
 
 ## Fail-closed workflow
 
+If MCP returns `MCP_INVALID_PATH_INPUT`, `MCP_DIRECTORY_DENIED`, or
+`MCP_UNSAFE_CONFIGURATION`, stop. Explain that the host must start AiDoc in the
+intended Git worktree, correct the safe repository-relative path, or correct
+the safe declarative configuration. Never retry another directory, guess a
+path, or call a provider-backed generation tool to work around the failure.
+
 1. Call `prepare_documentation_update` first. It returns the signed
    `preparation_digest`, one safe repository-relative `target`, and the bounded
    `generation.system_prompt` and `generation.prompt` values.
