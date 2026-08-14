@@ -28,6 +28,9 @@ export function getConfiguredSmokeTarball(env = process.env) {
 export function assertPackedMcpArtifacts(packageRoot) {
   const requiredFiles = [
     "dist/mcp/server.js",
+    "dist/mcp/repository-scope.js",
+    "dist/mcp/scoped-config.js",
+    "dist/mcp/scoped-freshness.js",
     "dist/mcp/preparation-token.js",
     "dist/mcp/update-workflow.js",
     "dist/core/update-preparation.js",

@@ -38,6 +38,9 @@ const SOURCE_ARTIFACTS = {
   ],
   compiledMcp: [
     "dist/mcp/server.js",
+    "dist/mcp/repository-scope.js",
+    "dist/mcp/scoped-config.js",
+    "dist/mcp/scoped-freshness.js",
     "dist/mcp/update-workflow.js",
     "dist/mcp/preparation-token.js",
     "dist/core/update-preparation.js",

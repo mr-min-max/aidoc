@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { Buffer } from "node:buffer";
 import { execFile, spawn } from "node:child_process";
 import { existsSync, lstatSync } from "node:fs";
 import { readFile, realpath } from "node:fs/promises";
@@ -34,6 +35,9 @@ const BETA_SOURCE_ARTIFACTS = Object.freeze({
   ]),
   compiledMcp: Object.freeze([
     "dist/mcp/server.js",
+    "dist/mcp/repository-scope.js",
+    "dist/mcp/scoped-config.js",
+    "dist/mcp/scoped-freshness.js",
     "dist/mcp/update-workflow.js",
     "dist/mcp/preparation-token.js",
     "dist/core/update-preparation.js",
@@ -69,6 +73,7 @@ function isSafeText(value) {
   return (
     typeof value === "string" &&
     value.length > 0 &&
+    // eslint-disable-next-line no-control-regex
     !/[\u0000-\u001f\u007f]/u.test(value)
   );
 }
@@ -410,7 +415,10 @@ async function loadPrivateNeedles(repositoryRoot, privateNeedlesPath) {
   if (
     lines.length === 0 ||
     lines.some(
-      (needle) => needle.length === 0 || /[\u0000\r\n]/u.test(needle),
+      (needle) =>
+        needle.length === 0 ||
+        // eslint-disable-next-line no-control-regex
+        /[\u0000\r\n]/u.test(needle),
     ) ||
     new Set(lines).size !== lines.length
   ) {
