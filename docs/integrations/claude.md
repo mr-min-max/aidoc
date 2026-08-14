@@ -1,6 +1,6 @@
 # AiDoc with Claude Desktop or Claude Code
 
-This guide covers local MCP hosting for the published beta.4 CLI. It does not
+This guide covers local MCP hosting for the published beta.5 CLI. It does not
 provide Claude.ai OAuth access to AiDoc and does not turn a consumer
 subscription into an AiDoc provider credential.
 
@@ -49,7 +49,7 @@ command:
 ```
 
 This local MCP integration is not a marketplace installation or a ChatGPT web
-local-STDIO path. The beta.4 npm package and GitHub prerelease are public.
+local-STDIO path. The beta.5 npm package and GitHub prerelease are public.
 
 Reverse the global development link with:
 

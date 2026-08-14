@@ -5,10 +5,11 @@
 > [!IMPORTANT]
 > **Public beta channel is available on npm.**
 > Install the prerelease from npm as `@mr-min-max/aidoc-gen@beta` on Node.js
-> `>=22.12.0`. This source tree declares version `0.2.0-beta.5`; the package
-> version and the public channel can differ while a release candidate is being
-> verified. The registry's `beta` dist-tag is authoritative for the version
-> currently published. The executable remains `aidoc`. The repository-owned
+> `>=22.12.0`. This source tree and the current `beta` channel are `0.2.0-beta.5`.
+> The registry's `beta` dist-tag remains authoritative. The
+> matching [GitHub prerelease](https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.5)
+> contains the checksum-matching verified tarball. The executable remains
+> `aidoc`. The repository-owned
 > Codex plugin is still a local integration, not a marketplace installation or
 > a ChatGPT-web local-STDIO integration.
 > `aidoc plan` is deterministic and provider-free. Feedback and focused
@@ -150,7 +151,7 @@ Reverse the global development link with:
 npm unlink -g @mr-min-max/aidoc-gen
 ```
 
-See [the beta.4 release note](./docs/releases/v0.2.0-beta.4.md) for the
+See [the beta.5 release note](./docs/releases/v0.2.0-beta.5.md) for the
 integration scope and [the public-beta guide](./docs/PUBLIC_BETA.md) for the
 supported access boundaries.
 
@@ -310,7 +311,7 @@ aidoc watch --auto --target docs/README.md   # no prompts (great for demos)
 
 ## 🎬 GitHub Action
 
-The `v0.2.0-beta.4` examples below use the published GitHub prerelease tag.
+The `v0.2.0-beta.5` examples below use the published GitHub prerelease tag.
 The current composite Action accepts `openai`, `anthropic`, and `ollama`; use
 the CLI directly for the additional beta provider profiles.
 
@@ -331,7 +332,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mr-min-max/aidoc@v0.2.0-beta.4
+      - uses: mr-min-max/aidoc@v0.2.0-beta.5
         with:
           provider: openai
           api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -349,7 +350,7 @@ steps:
   - uses: actions/checkout@v4
     with:
       fetch-depth: 0
-  - uses: mr-min-max/aidoc@v0.2.0-beta.4
+  - uses: mr-min-max/aidoc@v0.2.0-beta.5
     with:
       mode: check
       since: ${{ github.event.pull_request.base.sha }}

@@ -1,11 +1,11 @@
 # 🗺️ Roadmap
 
-This roadmap separates the unreleased release candidate from shipped and future
-work. We welcome community feedback and contributions.
+This roadmap separates the current public beta from shipped foundations and
+future work. We welcome community feedback and contributions.
 
-## Current source-beta candidate
+## Current public beta
 
-### v0.2.0-beta.4 — Hybrid provider and host integration
+### v0.2.0-beta.5 — OIDC-published hybrid provider and host integration
 
 - Scoped npm identity `@mr-min-max/aidoc-gen` with the `aidoc` executable
 - Provider Trust Gate for rendered input and completed output
@@ -21,8 +21,9 @@ work. We welcome community feedback and contributions.
 - Repository-owned Codex plugin and documentation-maintenance skill
 - Packaged CLI, GitHub Action, and MCP release-integrity smoke coverage
 
-This candidate remains source-only until its public-beta checks, tag, npm
-publication, and GitHub prerelease are separately approved and completed.
+This beta is published on npm's explicit `beta` channel and as a matching
+GitHub prerelease. The npm package was published through Trusted Publishing
+(OIDC), and the verified npm and GitHub tarballs match byte-for-byte.
 
 ### Additional current-branch capabilities
 
@@ -69,9 +70,9 @@ publication, and GitHub prerelease are separately approved and completed.
 
 These bullets describe source-level foundations, not release-integrity-verified
 distribution paths. The v0.1.0 distributed template, Action, and MCP paths were
-not release-integrity verified. The current `v0.2.0-beta.4` source candidate
-repairs those packaging, automation, and transport paths and adds verification
-evidence before release.
+not release-integrity verified. The current `v0.2.0-beta.5` public beta repairs
+those packaging, automation, and transport paths and ships with verification
+evidence.
 
 ## Later ideas
 

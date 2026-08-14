@@ -188,7 +188,7 @@ describe("public beta repository configuration", () => {
     expect(tagIndex).toBeGreaterThan(preTagRegistryIndex);
   });
 
-  it("separates the beta.5 candidate identity from the published beta.4 surface", () => {
+  it("keeps the published beta.5 identity consistent across current public surfaces", () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.resolve("package.json"), "utf8"),
     ) as { name: string; version: string; scripts: Record<string, string> };
@@ -212,7 +212,7 @@ describe("public beta repository configuration", () => {
       "test:hybrid-beta": "node --test tests/e2e/hybrid-beta-demo.test.mjs",
       "test:npm-unpublished": "node --test tests/e2e/npm-unpublished.test.mjs",
       "test:npm-published":
-        "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs --version 0.2.0-beta.4",
+        "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs --version 0.2.0-beta.5 --latest 0.2.0-beta.4",
     });
     expect(packageJson.scripts["test:public-beta"]).toContain(
       "npm run test:npm-published",
@@ -236,7 +236,7 @@ describe("public beta repository configuration", () => {
       ".github/ISSUE_TEMPLATE/feature_request.yml",
     ]) {
       const source = fs.readFileSync(path.resolve(currentSurface), "utf8");
-      expect(source).toContain("0.2.0-beta.4");
+      expect(source).toContain("0.2.0-beta.5");
       expect(source).not.toContain("0.2.0-beta.2");
     }
 
@@ -244,29 +244,32 @@ describe("public beta repository configuration", () => {
     expect(packedReadme).toContain(
       "**Public beta channel is available on npm.**",
     );
-    expect(packedReadme).toContain(
-      "This source tree declares version `0.2.0-beta.5`",
+    expect(packedReadme.replace(/\s+/gu, " ")).toContain(
+      "This source tree and the current `beta` channel are `0.2.0-beta.5`",
     );
     expect(packedReadme).toContain(
-      "The registry's `beta` dist-tag is authoritative",
+      "The registry's `beta` dist-tag remains authoritative",
     );
-    expect(packedReadme).not.toContain(
-      "**Public Beta `0.2.0-beta.4` is published.**",
-    );
-    expect(packedReadme).not.toContain(
-      "The repository-owned beta.4 integration",
+    expect(packedReadme).toContain(
+      "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.5",
     );
 
-    const candidateReleaseNote = fs.readFileSync(
+    const publishedReleaseNote = fs.readFileSync(
       path.resolve("docs/releases/v0.2.0-beta.5.md"),
       "utf8",
     );
-    expect(candidateReleaseNote).toMatch(
-      /candidate[\s\S]{0,200}(?:not yet published|unpublished)/i,
+    expect(publishedReleaseNote).toMatch(
+      /published[\s\S]{0,120}(?:npm|GitHub prerelease)/i,
     );
-    expect(candidateReleaseNote).toContain("npm Trusted Publishing");
-    expect(candidateReleaseNote).not.toMatch(
-      /(?:is|was|has been) published[\s\S]{0,80}npm/i,
+    expect(publishedReleaseNote).toContain("npm Trusted Publishing");
+    expect(publishedReleaseNote).toContain(
+      "https://github.com/mr-min-max/aidoc/actions/runs/31825128025",
+    );
+    expect(publishedReleaseNote).toContain(
+      "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.5",
+    );
+    expect(publishedReleaseNote).toMatch(
+      /OIDC[\s\S]{0,240}(?:without|no)[\s\S]{0,160}(?:NPM_TOKEN|reusable npm credential)/i,
     );
 
     const mcpServer = fs.readFileSync(
@@ -277,13 +280,13 @@ describe("public beta repository configuration", () => {
     expect(mcpServer).not.toContain("npx aidoc-gen");
   });
 
-  it("documents the published beta.4 hybrid access boundaries and supported installation paths", () => {
+  it("documents the published beta.5 hybrid access boundaries and supported installation paths", () => {
     const documentationPaths = [
       "README.md",
       "docs/PUBLIC_BETA.md",
       "docs/integrations/codex.md",
       "docs/integrations/claude.md",
-      "docs/releases/v0.2.0-beta.4.md",
+      "docs/releases/v0.2.0-beta.5.md",
     ];
     const documentation = Object.fromEntries(
       documentationPaths.map((file) => [
@@ -468,7 +471,7 @@ describe("public beta repository configuration", () => {
     );
   });
 
-  it("keeps the beta.4 post-publication state truthful and removes the one-time repair path", () => {
+  it("keeps the beta.5 post-publication state truthful and preserves beta-only installation", () => {
     const runbook = fs.readFileSync(path.resolve("docs/RELEASING.md"), "utf8");
     const readme = fs.readFileSync(path.resolve("README.md"), "utf8");
     const publicBeta = fs.readFileSync(
@@ -476,7 +479,7 @@ describe("public beta repository configuration", () => {
       "utf8",
     );
     const releaseNote = fs.readFileSync(
-      path.resolve("docs/releases/v0.2.0-beta.4.md"),
+      path.resolve("docs/releases/v0.2.0-beta.5.md"),
       "utf8",
     );
 
@@ -495,6 +498,20 @@ describe("public beta repository configuration", () => {
     );
     expect(runbook).toContain("npm install -g @mr-min-max/aidoc-gen@beta");
     expect(runbook).toContain("node scripts/verify-npm-published.mjs");
+    expect(runbook).toContain(
+      "https://github.com/mr-min-max/aidoc/actions/runs/31825128025",
+    );
+    expect(runbook).toContain(
+      "npm access set mfa=publish @mr-min-max/aidoc-gen",
+    );
+    expect(runbook).toMatch(/\*\*Delete\s+Selected Tokens\*\*/u);
+    expect(runbook).toContain("The remaining account-level cleanup");
+    expect(runbook).not.toMatch(
+      /(?:temporary|bootstrap|bypass)[^\n.]{0,120}(?:tokens?)[^\n.]{0,120}(?:were|have been|are) (?:deleted|revoked)/iu,
+    );
+    expect(runbook.replace(/\s+/gu, " ")).toContain(
+      "Trusted Publisher entry for `mr-min-max/aidoc` and `release.yml` remains configured",
+    );
     expect(runbook).not.toContain(
       "npm dist-tag rm @mr-min-max/aidoc-gen latest",
     );
@@ -504,7 +521,7 @@ describe("public beta repository configuration", () => {
     expect(readme).toContain("npm install -g @mr-min-max/aidoc-gen@beta");
     expect(publicBeta).toContain("npm install -g @mr-min-max/aidoc-gen@beta");
     expect(releaseNote).toContain(
-      "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.4",
+      "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.5",
     );
     expect(releaseNote).toMatch(/published[\s\S]{0,80}npm/i);
   });

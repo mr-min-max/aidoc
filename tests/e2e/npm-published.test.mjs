@@ -3,30 +3,40 @@ import test from "node:test";
 
 import {
   NPM_PUBLISHED_STATE_MESSAGES,
-  parsePublishedVersionArguments,
+  parsePublishedStateArguments,
   verifyNpmVersionPublished,
 } from "../../scripts/verify-npm-published.mjs";
 
 const candidate = Object.freeze({
   name: "@mr-min-max/aidoc-gen",
-  version: "0.2.0-beta.4",
+  version: "0.2.0-beta.5",
 });
+const expectedLatest = "0.2.0-beta.4";
 
 function publishedMetadata(overrides = {}) {
   return {
     name: candidate.name,
     "dist-tags": {
       beta: candidate.version,
-      latest: candidate.version,
+      latest: expectedLatest,
     },
     versions: {
+      [expectedLatest]: {
+        name: candidate.name,
+        version: expectedLatest,
+        dist: {
+          integrity: "sha512-aGlzdG9yaWNhbA==",
+          tarball:
+            "https://registry.npmjs.org/@mr-min-max/aidoc-gen/-/aidoc-gen-0.2.0-beta.4.tgz",
+        },
+      },
       [candidate.version]: {
         name: candidate.name,
         version: candidate.version,
         dist: {
           integrity: "sha512-c2FmZS1pbnRlZ3JpdHk=",
           tarball:
-            "https://registry.npmjs.org/@mr-min-max/aidoc-gen/-/aidoc-gen-0.2.0-beta.4.tgz",
+            "https://registry.npmjs.org/@mr-min-max/aidoc-gen/-/aidoc-gen-0.2.0-beta.5.tgz",
         },
       },
     },
@@ -41,23 +51,45 @@ function jsonResponse(status, value) {
   };
 }
 
-test("selects one explicit published version without accepting extra arguments", () => {
-  assert.equal(parsePublishedVersionArguments([]), undefined);
-  assert.equal(
-    parsePublishedVersionArguments(["--version", "0.2.0-beta.4"]),
-    "0.2.0-beta.4",
+test("selects explicit beta and latest versions without accepting extra arguments", () => {
+  assert.deepEqual(parsePublishedStateArguments([]), {
+    expectedLatest: undefined,
+    versionOverride: undefined,
+  });
+  assert.deepEqual(
+    parsePublishedStateArguments(["--version", "0.2.0-beta.5"]),
+    {
+      expectedLatest: undefined,
+      versionOverride: "0.2.0-beta.5",
+    },
+  );
+  assert.deepEqual(
+    parsePublishedStateArguments([
+      "--version",
+      "0.2.0-beta.5",
+      "--latest",
+      "0.2.0-beta.4",
+    ]),
+    {
+      expectedLatest: "0.2.0-beta.4",
+      versionOverride: "0.2.0-beta.5",
+    },
   );
 
   for (const args of [
     ["--version"],
     ["--version", ""],
-    ["--version", "0.2.0-beta.4", "extra"],
-    ["--other", "0.2.0-beta.4"],
-    ["--version", "../0.2.0-beta.4"],
-    ["--version", "0.2.0-beta.4\nseeded-secret"],
+    ["--latest", "0.2.0-beta.4"],
+    ["--version", "0.2.0-beta.5", "extra"],
+    ["--other", "0.2.0-beta.5"],
+    ["--version", "../0.2.0-beta.5"],
+    ["--version", "0.2.0-beta.5\nseeded-secret"],
+    ["--version", "0.2.0-beta.5", "--latest", ""],
+    ["--version", "0.2.0-beta.5", "--latest", "../0.2.0-beta.4"],
+    ["--latest", "0.2.0-beta.4", "--version", "0.2.0-beta.5"],
   ]) {
     assert.throws(
-      () => parsePublishedVersionArguments(args),
+      () => parsePublishedStateArguments(args),
       new Error(NPM_PUBLISHED_STATE_MESSAGES.verificationFailed),
     );
   }
@@ -67,6 +99,7 @@ test("accepts the immutable beta version, exact beta tag, and required latest ta
   const requests = [];
   const result = await verifyNpmVersionPublished({
     candidate,
+    expectedLatest,
     fetchImpl: async (url, options) => {
       requests.push({ url: String(url), options });
       return requests.length === 1
@@ -77,6 +110,7 @@ test("accepts the immutable beta version, exact beta tag, and required latest ta
 
   assert.deepEqual(result, {
     checked: 2,
+    latest: expectedLatest,
     status: "published",
     version: candidate.version,
   });
@@ -118,6 +152,24 @@ test("allows latest to move only when it still names an existing version", async
           ? jsonResponse(404, {})
           : jsonResponse(200, metadata),
     }),
+  );
+});
+
+test("fails when the pinned latest tag moves even to another existing version", async () => {
+  const metadata = publishedMetadata({
+    "dist-tags": { beta: candidate.version, latest: candidate.version },
+  });
+
+  await assert.rejects(
+    verifyNpmVersionPublished({
+      candidate,
+      expectedLatest,
+      fetchImpl: async (_url) =>
+        _url.toString().includes("aidoc-gen/0.2.0-beta.3")
+          ? jsonResponse(404, {})
+          : jsonResponse(200, metadata),
+    }),
+    new Error(NPM_PUBLISHED_STATE_MESSAGES.verificationFailed),
   );
 });
 

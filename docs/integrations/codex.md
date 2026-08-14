@@ -1,6 +1,6 @@
 # AiDoc with local Codex
 
-This guide covers the published beta.4 CLI with the official local Codex host
+This guide covers the published beta.5 CLI with the official local Codex host
 and AiDoc's provider-free MCP tools. It is not a ChatGPT web integration or a
 marketplace installation guide.
 
