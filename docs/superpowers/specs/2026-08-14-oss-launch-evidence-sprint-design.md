@@ -15,8 +15,9 @@ can understand, try, and evaluate without prior knowledge of AiDoc.
 
 The sprint has three connected outcomes:
 
-1. A clear GitHub storefront that explains the broad documentation benefit
-   before introducing the AST, bounded-context, and Trust Gate details.
+1. A clear GitHub storefront that explains both initial documentation creation
+   and ongoing maintenance before introducing the AST, bounded-context, and
+   Trust Gate details.
 2. A reproducible demonstration that shows a real code change becoming a
    focused, reviewable documentation update.
 3. Honest adoption evidence from unrelated public repositories, a clean-account
@@ -31,8 +32,8 @@ evidence.
 ### 2.1 Primary user
 
 The primary user is an open-source maintainer who uses Codex, Claude, or a
-direct model provider and wants project documentation to stay aligned with code
-changes.
+direct model provider and wants to create useful project documentation, then
+keep it aligned with code changes.
 
 The first screen must solve the user's immediate question:
 
@@ -48,7 +49,26 @@ documentation generator:
 - it supports provider-free host workflows for Codex and Claude;
 - it preserves explicit provider, billing, trust, and repository boundaries.
 
-### 2.2 Core promise
+### 2.2 Positioning decision
+
+Two tempting positions are rejected:
+
+1. **Generic AI documentation generator.** This is easy to understand but
+   crowded, interchangeable, and too weak to explain the AST, impact planning,
+   validation, and automation already implemented.
+2. **Documentation preflight only.** This is differentiated but too narrow. It
+   hides initial README, API, changelog, diagram, annotation, watch, score, and
+   Action capabilities.
+
+The selected position is an **AST-first documentation workflow for
+maintainers**. The simple promise is creation plus continued alignment. The
+technical proof is semantic analysis, focused context, explicit validation,
+and review boundaries.
+
+AiDoc remains a focused documentation tool. It must not be presented as a
+general coding agent, repository platform, or autonomous documentation team.
+
+### 2.3 Core promise
 
 The approved Russian meaning is:
 
@@ -60,21 +80,21 @@ The public English headline is:
 
 The supporting copy is:
 
-> AiDoc helps Codex, Claude, or your chosen model create and update READMEs,
-> API docs, changelogs, and diagrams. It analyzes code changes first, finds the
-> docs that need attention, then gives you a focused update to review.
+> AiDoc helps Codex, Claude, or a supported model create READMEs, API docs,
+> changelogs, diagrams, and code comments, then keep them aligned as code
+> changes. It analyzes code structure first, focuses the relevant context, and
+> keeps change-driven updates reviewable.
 
 This copy deliberately starts with the familiar outcome, then explains the
 technical difference. The phrase "documentation preflight" may appear later as
 a compact category description, but it must not be the main headline.
 
-### 2.3 Repository description
+### 2.4 Repository description
 
 Use this short GitHub description:
 
-> AST-first documentation updates for Codex, Claude, and your own model. AiDoc
-> finds affected docs, prepares bounded context, and keeps every change
-> reviewable.
+> AST-first documentation for Codex, Claude, and supported models. Generate
+> project docs, map code changes to affected files, and review focused updates.
 
 Recommended repository topics:
 
@@ -93,18 +113,35 @@ The repository homepage should point to the public npm package until a real
 documentation site exists. A placeholder website must not be created for this
 sprint.
 
-### 2.4 Market and grant rationale
+### 2.5 Capability model
+
+The product is explained through three existing capability groups:
+
+| User job                     | Existing AiDoc surface                                       | Important boundary                                                                                                |
+| ---------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Create project documentation | `readme`, `api`, `changelog`, `diagram`, `annotate`          | Real CLI generation uses an explicit direct provider or local Ollama                                              |
+| Keep documentation current   | `plan`, `update`, `watch`, `check`, `score`                  | Planning, co-change checks, and scoring are deterministic; generation still needs a model path                    |
+| Connect the workflow         | Codex and Claude local MCP, GitHub Action, provider registry | The provider-free MCP path prepares and validates Markdown; it does not turn a subscription into an AiDoc API key |
+
+This model prevents the storefront from becoming a command catalogue. A reader
+first chooses a job, then follows the relevant path and its honest boundary.
+
+`score` measures AST-derived documentation coverage, not prose quality.
+`check` is a source/document co-change guard, not proof of semantic correctness.
+These distinctions remain visible wherever those commands are introduced.
+
+### 2.6 Market and grant rationale
 
 Codex already presents documentation maintenance as a first-class use case.
 Other documentation products also advertise repository-aware generation and
 automated update workflows. AiDoc therefore cannot stand out by saying only
 "AI documentation generator."
 
-The defensible distinction is the complete path from semantic change analysis
-to a bounded, reviewable update. This position is useful to maintainers and is
-also relevant to the Codex for Open Source program because it demonstrates a
-concrete Codex workflow, maintainer automation, release discipline, and public
-OSS evidence.
+The defensible distinction is the complete path from AST-backed initial
+documentation to semantic change analysis, bounded update context, and review.
+This position is useful to maintainers and is also relevant to the Codex for
+Open Source program because it demonstrates concrete Codex documentation work,
+maintainer automation, release discipline, and public OSS evidence.
 
 The program does not publish a required testimonial count or a fixed number of
 users. We will not invent either. The application should use exact evidence
@@ -173,12 +210,29 @@ interactive user without requiring them to memorize the command surface. The
 provider-free `aidoc plan` command remains visible in the first quick-start
 section for users who want an explicit or non-interactive planning path.
 
+Bare `aidoc` is most useful in a repository with an actual code change. A user
+evaluating AiDoc from a clean repository must be sent to the seeded demo instead
+of being left with a correct but unhelpful no-impact result.
+
 The first screen must not contain provider tables, environment-variable lists,
 all MCP tools, architecture details, grant language, or a wall of badges.
 
-### 4.2 Three-step explanation
+### 4.2 Two jobs, one product
 
-Immediately after the first screen, show the workflow in three steps:
+Before technical detail, show two compact paths:
+
+1. **Create project docs.** Generate a README, API reference, changelog,
+   architecture diagram, or code comments from AST-backed analysis.
+2. **Keep docs current.** Map code changes to affected docs, prepare a focused
+   update, validate it, and use checks in local or CI workflows.
+
+This is a small text or two-card section, not a second hero. It broadens the
+product accurately without adding more commands to the first screen.
+
+### 4.3 Three-step update explanation
+
+For change-driven maintenance, show the strongest differentiated workflow in
+three steps:
 
 1. **Analyze the change.** AiDoc compares supported code through ASTs.
 2. **Focus the update.** AiDoc identifies affected documentation and prepares
@@ -194,23 +248,34 @@ Standalone README, API, changelog, diagram, and annotation commands retain
 their documented behavior and must not be presented as if they all use the
 same target-selection sequence.
 
-### 4.3 README sequence
+### 4.4 README sequence
 
-After the three-step explanation, use this order:
+After the first screen, use this order:
 
-1. real demonstration;
-2. what AiDoc can create or update;
-3. why it is different from one-shot generation;
-4. quick starts for Codex, provider-free planning, and direct providers;
-5. safety and trust boundaries;
-6. supported languages and known limits;
-7. contribution and public-beta feedback links;
-8. links to detailed provider, MCP, release, and security documents.
+1. the two-job creation and maintenance summary;
+2. the three-step change-update explanation;
+3. real demonstration;
+4. the complete capability map grouped by user job;
+5. why it is different from one-shot generation;
+6. quick starts for the seeded demo, a changed repository, initial generation,
+   Codex, and direct providers;
+7. safety and trust boundaries;
+8. supported languages and known limits;
+9. contribution and public-beta feedback links;
+10. links to detailed provider, MCP, release, and security documents.
 
 Detailed provider variables, Qwen regions, complete MCP tool reference, and
 long architecture explanations stay in linked documents or lower sections.
 
-### 4.4 Comparison language
+The quick starts must account for user state:
+
+- a curious visitor uses the seeded demo and needs no provider key;
+- a maintainer with code changes uses bare `aidoc` or `aidoc plan`;
+- a maintainer creating the first document chooses a supported direct provider,
+  local Ollama, or the documented host-managed Markdown path;
+- a CI user follows the Action's generation or deterministic check boundary.
+
+### 4.5 Comparison language
 
 AiDoc should not attack or name competitors in the README. The comparison is
 between workflows:
@@ -224,6 +289,24 @@ between workflows:
 
 The table must not imply that every alternative always behaves this way. Label
 the first column as a workflow pattern, not a universal competitor claim.
+
+### 4.6 Public-surface consistency
+
+The storefront change must update active product descriptions together:
+
+| Surface                               | Required focus                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| GitHub README and repository metadata | Broad creation plus ongoing maintenance, followed by the AST-first difference                     |
+| npm package description and keywords  | The same broad product category in registry-length copy                                           |
+| CLI top-level help                    | Plain AST-first documentation creation and change-aware updates, without emoji or generic AI copy |
+| GitHub Action metadata                | Generation and deterministic documentation checks in CI                                           |
+| Public-beta overview                  | The three honest model-access paths and both product jobs                                         |
+| Codex plugin                          | Change-driven Markdown maintenance only, because that is the bundled skill's real scope           |
+
+Historical release notes remain historical. Detailed integration guides retain
+their narrower host-specific purpose. The implementation must remove the old
+generic `AI-powered documentation generator for codebases` phrase from active
+public entry points so a user does not encounter two competing product stories.
 
 ## 5. Visual System and Assets
 
@@ -311,6 +394,12 @@ The demonstration shows:
 The demo must use the provider-free host workflow. It must not contain API
 keys, private paths, personal data, hidden setup, or paid-provider output.
 
+The canonical demo intentionally focuses on ongoing maintenance because that
+is AiDoc's strongest differentiated story. It does not redefine the whole
+product. The README also includes a compact, non-animated creation path with
+the real `readme`, `api`, `changelog`, `diagram`, and `annotate` commands plus
+their explicit model requirement. Do not force both stories into one video.
+
 ### 6.2 Short animation
 
 Create a silent 12 to 18 second loop for the README:
@@ -351,6 +440,11 @@ video description. Captions remain mandatory because many viewers watch muted.
 Store the final caption text and a WebVTT file with the video-production
 materials so the walkthrough remains searchable and editable.
 
+The canonical full video is attached to the beta.6 GitHub prerelease and linked
+from a static README poster. This keeps the evidence tied to the release without
+adding a large video blob to Git history. A YouTube copy is optional for easier
+playback and discovery; it must use the same reviewed edit and description.
+
 The short animation is a launch requirement. The narrated walkthrough is a
 polish item and must not delay the storefront if its editing is unfinished.
 
@@ -380,16 +474,21 @@ result instead of silently removing it.
 For every target:
 
 1. clone it into an isolated temporary directory;
-2. use the published `0.2.0-beta.5` package, not unpublished local code;
+2. use the exact storefront release published at Gate A, expected to be
+   `0.2.0-beta.6`, not unpublished local code;
 3. select a real recent source-changing commit and its parent;
-4. run the human and JSON impact-plan paths;
-5. exercise the provider-free MCP prepare and validate path with a bounded
+4. run bounded local AST analysis and `aidoc score --json` without an output
+   file;
+5. run the human and JSON impact-plan paths;
+6. run the freshness guard when the repository has a safe documentation
+   target;
+7. exercise the provider-free MCP prepare and validate path with a bounded
    deterministic draft;
-6. compare complete repository snapshots before and after every dry run;
-7. do not push, open a pull request, contact maintainers, or write to the
+8. compare complete repository snapshots before and after every dry run;
+9. do not push, open a pull request, contact maintainers, or write to the
    original repository;
-8. do not send repository content to a remote model during the compatibility
-   matrix.
+10. do not send repository content to a remote model during the compatibility
+    matrix.
 
 One external repository may receive a deeper Codex-hosted dry-run after the
 matrix, still in a disposable clone and without writing or pushing. The
@@ -407,7 +506,11 @@ Use four result classes:
 Record at least:
 
 - setup result;
+- supported parser and analysis result;
+- score command completion, without comparing project scores as product
+  quality rankings;
 - plan result and affected target count;
+- freshness result where applicable;
 - manual relevance notes;
 - schema and path-safety result;
 - no-write snapshot result;
@@ -532,6 +635,7 @@ Repository-owned deliverables:
 - logo and brand exports;
 - social preview source and final image;
 - progressive-disclosure README rewrite;
+- synchronized package, CLI help, Action, public-beta, and GitHub metadata copy;
 - canonical demo repository or fixture;
 - short animation;
 - full-video script, captions, and shot list;
@@ -539,9 +643,22 @@ Repository-owned deliverables:
 - semantic tests for factual documentation claims;
 - repository description, topics, homepage, and community-profile review.
 
-Gate A passes when a new reader can identify the outcome, install the beta,
-understand the three-step workflow, and reproduce the demo without private
-instructions.
+Gate A passes when a new reader can identify both creation and maintenance
+jobs, install the beta, choose the correct path for their current state,
+understand the three-step update workflow, and reproduce the demo without
+private instructions.
+
+After Gate A passes and the maintainer approves the public assets, publish one
+coherent `0.2.0-beta.6` prerelease through the existing OIDC workflow. The new
+version is required because npm metadata, the packaged README, and installed
+CLI help for `0.2.0-beta.5` are immutable. The release may contain storefront,
+help-copy, documentation, demo, and test changes without pretending they are a
+new runtime feature. The npm `beta` tag moves to beta.6; `latest` is not
+promoted.
+
+Do not republish beta.5, bypass OIDC, restore an npm token, or create repeated
+cosmetic versions. Phase B starts only after the exact beta.6 package and
+GitHub prerelease pass the existing release-integrity checks.
 
 ### 10.2 Phase B: compatibility evidence
 
@@ -586,7 +703,8 @@ This sprint does not include:
 - a marketplace launch;
 - paid advertising;
 - manufactured issues, users, stars, or testimonials;
-- a beta.6 release unless testing finds a code-level blocker;
+- another prerelease after the planned storefront beta.6 unless testing finds
+  a code-level blocker;
 - history rewriting or maintainer-identity changes.
 
 ## 11. Safety and Failure Handling
@@ -617,6 +735,9 @@ Before a storefront pull request:
 - run focused ESLint and Prettier checks;
 - run `npm run verify:release` where the artifact scope changes;
 - run semantic README and public-beta claim tests;
+- verify the active README, package, CLI, Action, and repository descriptions
+  express one compatible product story while the Codex plugin remains
+  intentionally maintenance-specific;
 - verify every new internal link and media path;
 - scan new public prose for the prohibited Unicode em dash character;
 - inspect the packed package if package-visible files change;
@@ -678,6 +799,7 @@ The maintainer is responsible only for decisions that require personal identity
 or human participation:
 
 - approve the final logo, README presentation, and social preview;
+- approve the beta.6 publication after the release gate passes;
 - optionally record or generate the English narration;
 - approve publication of externally hosted video assets;
 - complete the clean-account onboarding run using the public instructions;
