@@ -29,6 +29,7 @@ const DEFAULT_EXCLUDE = [
 const DEFAULT_OUTPUT_DIR = "./docs";
 const DEFAULT_CONTEXT_BYTES = 12000;
 
+/** Returns a fresh planning configuration with the repository scan defaults. */
 export function defaultPlanningConfig(): PlanningConfig {
   return {
     include: [...DEFAULT_INCLUDE],
@@ -38,6 +39,7 @@ export function defaultPlanningConfig(): PlanningConfig {
   };
 }
 
+/** Validates the bounded provider-context byte budget used by planning. */
 export function parseContextBudget(value: unknown): number {
   if (
     typeof value !== "number" ||
@@ -55,6 +57,7 @@ function safeOwnValue(config: object, key: string): unknown {
   return descriptor && "value" in descriptor ? descriptor.value : undefined;
 }
 
+/** Parses planning fields defensively and fills omitted fields from defaults. */
 export function parsePlanningConfig(value: unknown): PlanningConfig {
   const result = defaultPlanningConfig();
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -94,6 +97,7 @@ export function parsePlanningConfig(value: unknown): PlanningConfig {
   return result;
 }
 
+/** Loads ordinary CLI planning configuration and applies an optional budget override. */
 export function loadPlanningConfig(
   cwd: string,
   overrideMaxContextBytes?: unknown,

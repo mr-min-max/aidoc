@@ -30,6 +30,7 @@ export const ONBOARDING_GROUPS = {
   exit: "Exit without sending data",
 } as const;
 
+/** Builds deterministic interactive choices from ready and connectable providers. */
 export function buildProviderChoices(input: {
   readyProviders: readonly string[];
   availableModels: readonly string[];
@@ -71,6 +72,7 @@ export function buildProviderChoices(input: {
   return choices;
 }
 
+/** Rejects Qwen plans that custom applications are not permitted to use. */
 export function assertQwenPlanAllowed(plan: QwenPlan): void {
   if (plan !== "pay-as-you-go") {
     throw new ProviderConfigurationError(

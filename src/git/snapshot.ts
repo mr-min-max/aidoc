@@ -128,6 +128,7 @@ export interface GitSnapshotSet {
   ignored: { unsupported: number; excluded: number };
 }
 
+/** Reads bounded Git/worktree snapshots and captures source text for planning. */
 export class GitSnapshotReader {
   private repositoryRoot?: string;
 
@@ -136,6 +137,7 @@ export class GitSnapshotReader {
     private readonly env: NodeJS.ProcessEnv = process.env,
   ) {}
 
+  /** Resolves the selected refs, classifies changed paths, and captures safe sources. */
   async read(options: {
     base?: string;
     head?: string;

@@ -24,6 +24,7 @@ export interface CompatibleTransportOptions {
 
 type RequestImplementation = typeof import("node:https").request;
 
+/** Represents a categorized provider-transport failure for safe boundary handling. */
 export class ProviderTransportError extends Error {
   constructor(
     readonly code: string,
@@ -579,6 +580,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     });
   }
 
+  /** Sends one approved-compatible request and returns a non-empty text response. */
   async generate(
     prompt: string,
     options: GenerateOptions = {},
@@ -592,6 +594,7 @@ export class OpenAICompatibleProvider implements LLMProvider {
     }
   }
 
+  /** Streams one approved-compatible request and retries only before output is emitted. */
   async generateStream(
     prompt: string,
     options: GenerateOptions,

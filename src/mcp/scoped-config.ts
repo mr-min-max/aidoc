@@ -325,6 +325,7 @@ export class MCPUnsafeConfigurationError extends Error {
     );
   }
 
+  /** Returns the fixed payload only for an authentic, unmodified configuration error. */
   static read(
     error: unknown,
   ): { readonly code: string; readonly message: string } | undefined {
@@ -353,6 +354,7 @@ export class MCPUnsafeConfigurationError extends Error {
     return { ...payload };
   }
 
+  /** Detects configuration-shaped errors without trusting their mutable values. */
   static isCandidate(error: unknown): boolean {
     if (typeof error !== "object" || error === null) return false;
     if (MCP_UNSAFE_CONFIGURATION_PAYLOADS.has(error)) return true;
@@ -417,6 +419,7 @@ export interface MCPProviderSettings {
   readonly credentials: ProviderCredentialEnvironment;
 }
 
+/** Loads bounded MCP planning, provider, and package metadata snapshots. */
 export class MCPScopedConfigLoader {
   readonly #scope: MCPRepositoryReadScope;
   readonly #hostEnvironment: Readonly<Record<string, string>>;
@@ -429,6 +432,7 @@ export class MCPScopedConfigLoader {
     this.#hostEnvironment = captureEnvironment(hostEnvironment ?? process.env);
   }
 
+  /** Loads and validates planning fields without consulting ambient CLI config search. */
   async loadPlanning(
     directory: AuthorizedMCPDirectory,
   ): Promise<Readonly<PlanningConfig>> {
@@ -444,6 +448,7 @@ export class MCPScopedConfigLoader {
     }
   }
 
+  /** Loads safe project/provider settings and a frozen allowlisted environment snapshot. */
   async loadProvider(
     directory: AuthorizedMCPDirectory,
   ): Promise<MCPProviderSettings> {
@@ -487,6 +492,7 @@ export class MCPScopedConfigLoader {
     }
   }
 
+  /** Reads selected-directory package metadata with deterministic safe fallbacks. */
   async readProjectMetadata(
     directory: AuthorizedMCPDirectory,
   ): Promise<MCPProjectMetadata> {

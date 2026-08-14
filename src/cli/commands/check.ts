@@ -8,6 +8,7 @@ interface CheckOptions {
   json?: boolean;
 }
 
+/** Runs the CLI freshness check and maps the report status to an exit code. */
 export async function runCheckCommand(
   options: CheckOptions,
   cwd = process.cwd(),
@@ -35,6 +36,7 @@ export async function runCheckCommand(
   return 2;
 }
 
+/** Creates the Commander definition for the `aidoc check` command. */
 export function createCheckCommand(): Command {
   return new Command("check")
     .description("Check whether a document co-changed with AST-backed source")

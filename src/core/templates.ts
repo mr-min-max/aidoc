@@ -11,6 +11,7 @@ export const REQUIRED_TEMPLATE_NAMES = [
   "update",
 ] as const;
 
+/** Resolves the packaged template directory and verifies every required template exists. */
 export function resolveTemplatesDir(moduleDir = __dirname): string {
   const templatesDir = path.resolve(moduleDir, "../templates");
   const missing = REQUIRED_TEMPLATE_NAMES.filter(

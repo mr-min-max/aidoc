@@ -33,7 +33,7 @@ export class MCPPreparationError extends Error {
   }
 }
 
-/** Issues and verifies bounded opaque preparation claims for one MCP server. */
+/** Issues and verifies bounded authenticated preparation claims for one MCP server. */
 export class PreparationTokenCodec {
   private readonly secret: Uint8Array;
 
@@ -44,6 +44,7 @@ export class PreparationTokenCodec {
     this.secret = new Uint8Array(secret);
   }
 
+  /** Signs validated bounded claims into an authenticated preparation token. */
   issue(claims: PreparationClaims): string {
     try {
       const normalized = validateClaims(claims);
@@ -62,6 +63,7 @@ export class PreparationTokenCodec {
     }
   }
 
+  /** Verifies the MAC and canonical claims before returning a preparation snapshot. */
   verify(token: string): PreparationClaims {
     try {
       if (typeof token !== "string" || token.length === 0) {

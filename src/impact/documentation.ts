@@ -34,6 +34,7 @@ interface MutableSection {
 const GENERIC_HEADING_NAMES = new Set(["get", "set", "run", "main", "open"]);
 const API_CATEGORIES = new Set(["added", "removed", "contract-changed"]);
 
+/** Indexes Markdown headings and their normalized repository-relative evidence. */
 export function indexDocumentation(
   files: DocumentationFile[],
 ): DocumentationSection[] {
@@ -45,6 +46,7 @@ export function indexDocumentation(
   }));
 }
 
+/** Maps symbol changes to direct and recommended documentation sections. */
 export function mapDocumentationImpact(
   changes: SymbolChange[],
   files: DocumentationFile[],

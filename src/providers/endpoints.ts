@@ -323,6 +323,7 @@ function parsedUrl(rawUrl: string): URL {
   return url;
 }
 
+/** Resolves and approves a public HTTPS or explicitly permitted loopback HTTP endpoint. */
 export async function approveCompatibleEndpoint(input: {
   rawUrl: string;
   allowLocalHttp: boolean;
@@ -400,6 +401,7 @@ function isDnsLabelSafe(value: string): boolean {
   return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(value);
 }
 
+/** Builds the fixed Qwen PAYG endpoint for a validated region and workspace. */
 export function buildQwenPaygEndpoint(input: {
   region: NonNullable<AidocConfig["qwenRegion"]>;
   workspaceId?: string;

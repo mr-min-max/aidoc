@@ -532,6 +532,7 @@ export class OllamaProvider implements LLMProvider {
     );
   }
 
+  /** Generates one response from the selected local Ollama model with bounded retries. */
   async generate(
     prompt: string,
     options: GenerateOptions = {},
@@ -541,6 +542,7 @@ export class OllamaProvider implements LLMProvider {
     });
   }
 
+  /** Streams one local Ollama response and retries only before output is emitted. */
   async generateStream(
     prompt: string,
     options: GenerateOptions,

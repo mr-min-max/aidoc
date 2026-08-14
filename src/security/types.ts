@@ -296,12 +296,14 @@ export class TrustViolationError extends Error {
     );
   }
 
+  /** Returns the stable diagnostic payload only for an authentic Trust violation. */
   static read(
     error: unknown,
   ): { readonly code: string; readonly message: string } | undefined {
     return readAuthenticTrustPayload(error, TRUST_VIOLATION_PAYLOADS);
   }
 
+  /** Detects Trust-violation-shaped errors without evaluating hostile accessors. */
   static isCandidate(error: unknown): boolean {
     return isTrustErrorCandidate(
       error,
@@ -347,12 +349,14 @@ export class TrustInvalidProviderOutputError extends Error {
     );
   }
 
+  /** Returns the stable diagnostic payload only for an authentic output error. */
   static read(
     error: unknown,
   ): { readonly code: string; readonly message: string } | undefined {
     return readAuthenticTrustPayload(error, TRUST_INVALID_OUTPUT_PAYLOADS);
   }
 
+  /** Detects output-error-shaped values without trusting mutable public properties. */
   static isCandidate(error: unknown): boolean {
     return isTrustErrorCandidate(
       error,

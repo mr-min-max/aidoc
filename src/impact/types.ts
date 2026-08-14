@@ -190,6 +190,7 @@ export interface ParserSymbolSnapshot {
 
 const PLAN_FAILURE_PAYLOADS = new WeakMap<object, Readonly<PlanError>>();
 
+/** Carries a stable planning failure code with an optional safe relative path. */
 export class PlanFailure extends Error {
   readonly code: PlanErrorCode;
   declare readonly path?: string;
@@ -222,6 +223,7 @@ export class PlanFailure extends Error {
     );
   }
 
+  /** Returns the sanitized payload only when the error is an authentic PlanFailure. */
   static read(error: unknown): PlanError | undefined {
     if (typeof error !== "object" || error === null) return undefined;
     const payload = PLAN_FAILURE_PAYLOADS.get(error);

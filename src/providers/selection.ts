@@ -381,6 +381,7 @@ async function resolveExplicit(input: {
   };
 }
 
+/** Resolves provider, model, endpoint, and credential metadata without creating a provider. */
 export async function resolveProviderSelection(input: {
   config: AidocConfig;
   overrides?: ProviderSelectionOverrides;
@@ -509,6 +510,7 @@ export async function resolveProviderSelection(input: {
   throw new ProviderConfigurationError("PROVIDER_SELECTION_REQUIRED");
 }
 
+/** Confirms an explicit provider boundary, using the prompter only when required. */
 export async function confirmProviderBoundary(input: {
   selection: ResolvedProviderSelection;
   targetPaths: readonly string[];

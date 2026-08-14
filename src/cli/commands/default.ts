@@ -27,6 +27,7 @@ const DEFAULT_HELP = [
   "  score     Score documentation quality",
 ].join("\n");
 
+/** Runs the interactive default workflow, including planning and optional updates. */
 export async function executeDefaultCommand(
   runtime: DefaultCommandRuntime = createDefaultRuntime(),
   cwd = process.cwd(),

@@ -77,6 +77,7 @@ const profileByName = new Map<string, ProviderProfile>(
   PROVIDER_PROFILES.map((item) => [item.name, item]),
 );
 
+/** Returns the immutable built-in provider profile for a known provider name. */
 export function getProviderProfile(name: string): ProviderProfile | undefined {
   return profileByName.get(name);
 }

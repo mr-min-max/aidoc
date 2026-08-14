@@ -350,6 +350,7 @@ function requirePreparedTarget(
   return target.prepared;
 }
 
+/** Converts command flags into the options consumed by the shared write flow. */
 export function toWriteDocOptions(options: CommandOptions): {
   dryRun?: boolean;
   auto?: boolean;
@@ -362,6 +363,7 @@ export function toWriteDocOptions(options: CommandOptions): {
   };
 }
 
+/** Enforces strict-mode input requirements while preserving the boolean result. */
 export function hasGenerationInput(
   condition: boolean,
   options: CommandOptions,

@@ -70,6 +70,7 @@ export interface ValidateDocumentationDraftArguments {
   readonly candidate_markdown: string;
 }
 
+/** Indicates that a safe existing Markdown target must be selected explicitly. */
 export class MCPTargetRequiredError extends Error {
   readonly code = MCP_TARGET_REQUIRED;
   readonly candidates: readonly string[];
@@ -88,6 +89,7 @@ export class MCPTargetRequiredError extends Error {
 
 const FALLBACK_CODEC = new PreparationTokenCodec(randomBytes(32));
 
+/** Builds a workflow context with a per-server token codec and fresh config loader. */
 export function createMCPUpdateWorkflowContext(
   serverCwd: string,
   tokenCodec = new PreparationTokenCodec(randomBytes(32)),
@@ -98,6 +100,7 @@ export function createMCPUpdateWorkflowContext(
   return { serverCwd, tokenCodec, trustPolicy, loadPlanningConfig };
 }
 
+/** Provides the bounded direct-call compatibility context for a server directory. */
 export function defaultMCPUpdateWorkflowContext(
   serverCwd: string,
 ): MCPUpdateWorkflowContext {
@@ -118,6 +121,7 @@ async function loadPlanningConfigForFreshScope(
   return loader.loadPlanning(directory);
 }
 
+/** Plans and inspects a repository update without writing files or calling a provider. */
 export async function prepareDocumentationUpdate(
   args: unknown,
   context: MCPUpdateWorkflowContext,
@@ -198,6 +202,7 @@ export async function prepareDocumentationUpdate(
   };
 }
 
+/** Rechecks preparation freshness and validates a candidate Markdown draft safely. */
 export async function validateDocumentationDraft(
   args: unknown,
   context: MCPUpdateWorkflowContext,

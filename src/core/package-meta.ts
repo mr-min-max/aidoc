@@ -5,6 +5,7 @@ interface PackageMetadata {
   version?: unknown;
 }
 
+/** Reads and validates the package version relative to a compiled module directory. */
 export function readPackageVersion(moduleDir = __dirname): string {
   const packagePath = path.resolve(moduleDir, "../../package.json");
   const metadata = JSON.parse(

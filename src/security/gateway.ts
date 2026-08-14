@@ -167,6 +167,7 @@ export class TrustGateway {
     }
   }
 
+  /** Applies the configured input policy to both provider-bound envelope fields. */
   approveInputEnvelope(envelope: ContextEnvelope): ApprovedTrustInput {
     if (this.policy === "strict") {
       return this.approveStrictInput(envelope);
@@ -234,6 +235,7 @@ export class TrustGateway {
     }
   }
 
+  /** Applies the configured output policy and rejects non-string provider results. */
   approveOutputEnvelope(envelope: ContextEnvelope, output: unknown): string {
     if (typeof output !== "string") {
       throw new TrustInvalidProviderOutputError();

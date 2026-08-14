@@ -140,6 +140,7 @@ export class MCPLegacyGenerationError extends Error {
     );
   }
 
+  /** Returns the fixed payload only for an authentic, unmodified generation error. */
   static read(
     error: unknown,
   ): { readonly code: string; readonly message: string } | undefined {
@@ -168,6 +169,7 @@ export class MCPLegacyGenerationError extends Error {
     return { ...payload };
   }
 
+  /** Detects generation-shaped errors without trusting mutable candidate fields. */
   static isCandidate(error: unknown): boolean {
     if (typeof error !== "object" || error === null) return false;
     if (MCP_GENERATION_ERROR_PAYLOADS.has(error)) return true;
@@ -261,6 +263,7 @@ function readMCPPlanOptions(args: unknown): {
   return { base, head, maxContextBytes };
 }
 
+/** Formats sanitized MCP diagnostics and collapses forged error candidates safely. */
 export function formatMCPError(error: unknown): string {
   const scopeError = MCPRepositoryScopeError.read(error);
   if (scopeError !== undefined) {
@@ -619,6 +622,7 @@ function diffSummarySchema(): object {
   };
 }
 
+/** Creates the single pinned scope, config loader, and workflow context for a server. */
 export async function createMCPServerContext(
   serverCwd = process.cwd(),
   hostEnvironment?: Readonly<NodeJS.ProcessEnv>,
@@ -1095,6 +1099,7 @@ export async function handleToolCall(
   }
 }
 
+/** Creates an MCP server whose tool calls share one startup context. */
 export async function createMCPServer(
   serverCwd = process.cwd(),
   hostEnvironment?: Readonly<NodeJS.ProcessEnv>,

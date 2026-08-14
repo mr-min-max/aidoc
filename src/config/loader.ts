@@ -19,6 +19,7 @@ function ownString(
   }
 }
 
+/** Projects the allowlisted AIDOC_* environment settings into config fields. */
 export function environmentConfig(
   env: Readonly<NodeJS.ProcessEnv>,
 ): Record<string, unknown> {
@@ -52,6 +53,7 @@ function parseBooleanEnvironment(
   return undefined;
 }
 
+/** Loads ordinary CLI configuration through cosmiconfig and applies environment overrides. */
 export function loadConfig(
   searchFrom?: string,
   env: NodeJS.ProcessEnv = process.env,
@@ -120,6 +122,7 @@ function safeFileRecord(value: unknown): Record<string, unknown> {
   return result;
 }
 
+/** Combines a declarative config value with the selected environment snapshot. */
 export function parseConfigValues(
   fileValue: unknown,
   env: Readonly<NodeJS.ProcessEnv>,

@@ -345,6 +345,7 @@ export class MCPRepositoryReadScope {
     this.#state = state;
   }
 
+  /** Opens a scope after pinning the startup directory to a canonical Git worktree. */
   static async open(serverCwd: string): Promise<MCPRepositoryReadScope> {
     if (typeof serverCwd !== "string" || serverCwd.length === 0) {
       throw directoryDenied();
@@ -398,6 +399,7 @@ export class MCPRepositoryReadScope {
     }
   }
 
+  /** Returns the authenticated directory handle for the pinned repository root. */
   rootDirectory(): AuthorizedMCPDirectory {
     return this.#state.rootDirectory;
   }
@@ -419,6 +421,7 @@ export class MCPRepositoryReadScope {
     });
   }
 
+  /** Returns selected-directory-to-root handles in the order used for config lookup. */
   configurationDirectories(
     directory: AuthorizedMCPDirectory,
   ): readonly AuthorizedMCPDirectory[] {
@@ -439,6 +442,7 @@ export class MCPRepositoryReadScope {
     return Object.freeze(values);
   }
 
+  /** Validates and authenticates a real, symlink-free directory in this scope. */
   async authorizeDirectory(raw: unknown): Promise<AuthorizedMCPDirectory> {
     const input = validateDirectoryInput(raw);
     let candidate = isAbsolute(input)
@@ -500,6 +504,7 @@ export class MCPRepositoryReadScope {
     });
   }
 
+  /** Reads an optional regular file through the no-follow, identity-checked boundary. */
   async readOptionalFile(
     directory: AuthorizedMCPDirectory,
     rawRelativePath: unknown,
@@ -508,6 +513,7 @@ export class MCPRepositoryReadScope {
     return this.readFile(directory, rawRelativePath, false, options);
   }
 
+  /** Reads a required regular file or raises a fixed scope denial. */
   async readRequiredFile(
     directory: AuthorizedMCPDirectory,
     rawRelativePath: unknown,
@@ -518,6 +524,7 @@ export class MCPRepositoryReadScope {
     return file as AuthorizedMCPExistingFile;
   }
 
+  /** Distinguishes an omitted glob override from a validated caller-supplied list. */
   parseOptionalGlobList(
     raw: unknown,
     kind: "include" | "exclude",
@@ -526,6 +533,7 @@ export class MCPRepositoryReadScope {
     return this.validateGlobList(raw, kind);
   }
 
+  /** Validates bounded POSIX glob patterns before filesystem enumeration. */
   validateGlobList(
     raw: unknown,
     kind: "include" | "exclude",
@@ -575,6 +583,7 @@ export class MCPRepositoryReadScope {
     return Object.freeze([...values]);
   }
 
+  /** Enumerates deterministic captured source files while pruning symlinks and bounds. */
   async enumerateSources(
     directory: AuthorizedMCPDirectory,
     include: readonly string[],
@@ -643,6 +652,7 @@ export class MCPRepositoryReadScope {
     return Object.freeze(matches);
   }
 
+  /** Validates a bounded Git ref without coercion or option-like values. */
   validateGitRef(raw: unknown, fallback: string): string {
     const value = raw === undefined ? fallback : raw;
     if (
@@ -661,6 +671,7 @@ export class MCPRepositoryReadScope {
     return value;
   }
 
+  /** Returns validated, sorted, selected-directory Git paths from a fixed Git invocation. */
   async changedFiles(
     directory: AuthorizedMCPDirectory,
     fromRef: string,

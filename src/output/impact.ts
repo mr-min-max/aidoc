@@ -15,6 +15,7 @@ export interface ImpactPlanPresentation {
   readonly requiresExplicitTarget: boolean;
 }
 
+/** Formats an impact plan for humans without changing the underlying plan data. */
 export function formatImpactPlan(
   plan: ImpactPlan,
   verbose = false,
@@ -66,6 +67,7 @@ export function formatImpactPlan(
   return lines.join("\n");
 }
 
+/** Serializes a plan command result with deterministic canonical key ordering. */
 export function serializePlanCommandResult(result: PlanCommandResult): string {
   return canonicalStringify(result);
 }

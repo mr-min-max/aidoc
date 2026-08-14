@@ -110,6 +110,7 @@ export class RepositoryWriteScope {
     this.#gitEntryIdentity = gitEntryIdentity;
   }
 
+  /** Pins canonical Git-worktree identities for later contained atomic writes. */
   static async open(cwd: string): Promise<RepositoryWriteScope> {
     const lexicalCwd = resolve(cwd);
     const canonicalCwd = await canonicalDirectory(cwd);
@@ -149,6 +150,7 @@ export class RepositoryWriteScope {
     );
   }
 
+  /** Validates and snapshots one contained target before any replacement is allowed. */
   async prepare(rawTarget: string): Promise<PreparedRepositoryTarget> {
     assertValidRepositoryTarget(rawTarget);
     await this.requireStableScope();

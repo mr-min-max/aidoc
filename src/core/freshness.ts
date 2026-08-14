@@ -48,6 +48,7 @@ function isCliDocumentationSourcePath(file: string): boolean {
   return !isTestPath(normalized) && getParserForFile(normalized) !== null;
 }
 
+/** Parses changed CLI source files and returns the supported normalized paths. */
 export async function collectAstSourceFiles(
   cwd: string,
   changedFiles: string[],
@@ -73,6 +74,7 @@ export async function collectAstSourceFiles(
   return sourceFiles.sort();
 }
 
+/** Classifies documentation freshness from changed, AST-backed, and target paths. */
 export function assessDocumentationFreshness(
   changedFiles: string[],
   sourceFiles: string[],
@@ -118,6 +120,7 @@ export function assessDocumentationFreshness(
   };
 }
 
+/** Runs the filesystem-backed CLI freshness check and sanitizes operational failures. */
 export async function checkDocumentationFreshness(
   cwd: string,
   target: string,

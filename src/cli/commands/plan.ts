@@ -26,6 +26,7 @@ const processIO: PlanCommandIO = {
   stderr: (value) => process.stderr.write(value),
 };
 
+/** Executes the deterministic impact plan command and emits text or canonical JSON. */
 export async function executePlanCommand(
   options: PlanCommandOptions,
   io: PlanCommandIO = processIO,

@@ -14,6 +14,7 @@ export interface UpdateSelectionRuntime {
   ): Promise<readonly string[]>;
 }
 
+/** Resolves explicit, all-target, or interactive documentation target selection. */
 export async function selectUpdateTargets(input: {
   candidates: readonly ResolvedDocumentationTarget[];
   explicit: boolean;
