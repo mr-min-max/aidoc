@@ -321,12 +321,18 @@ TypeScript, `js-yaml`, GitHub issue forms, Markdown, npm provenance/OIDC.
   ```
 
   Add a real temporary Git regression proving an unmerged descendant fails.
+  Extend it with an optional immutable `--expected-sha` boundary and an
+  executable `guard && git tag` regression proving that a moved `main` stops
+  before tag creation.
   Tighten workflow tests so the complete action multiset equals the reviewed
-  allowlist, there is exactly one normalized `npm publish` command, no
-  `--tag latest`, no job/workflow token exposure, and both artifact downloads
-  have only the current-run `name` and `path` inputs. Update the runbook to
-  capture one readonly `release_sha`, test that exact checkout, revalidate the
-  same remote and local SHA before tagging, and tag only the stored SHA.
+  allowlist, the complete CI/release job sets are fixed, `id-token: write`
+  exists only on publish, there is exactly one normalized `npm publish`
+  command, no `--tag latest`, no job/workflow token exposure, and both artifact
+  downloads have only the current-run `name` and `path` inputs. Update the
+  runbook to capture one readonly `release_sha`, test that exact checkout,
+  create a verification marker only after every gate succeeds, revalidate the
+  same SHA before tagging, and keep every safety condition plus tag creation in
+  one fail-closed `&&` chain.
 
 - [ ] **Step 11: Review and commit Task 1**
 

@@ -46,7 +46,17 @@ describe("release workflow", () => {
   it("has only the version-tag trigger and read-only default permissions", () => {
     expect(workflow.on).toEqual({ push: { tags: ["v*"] } });
     expect(workflow.permissions).toEqual({ contents: "read" });
+    expect(Object.keys(workflow.jobs).sort()).toEqual([
+      "github-release",
+      "publish",
+      "verify",
+    ]);
     expect(workflow.jobs.verify.permissions).toEqual({ contents: "read" });
+    for (const [name, job] of Object.entries(workflow.jobs)) {
+      expect(job.permissions?.["id-token"]).toBe(
+        name === "publish" ? "write" : undefined,
+      );
+    }
   });
 
   it("pins every external action to its reviewed commit", () => {

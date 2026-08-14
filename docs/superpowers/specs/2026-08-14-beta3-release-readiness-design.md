@@ -177,11 +177,17 @@ The readiness pull request must add or extend deterministic tests that assert:
 - the complete `uses:` multiset equals the reviewed action allowlist, the
   publish command occurs exactly once, and artifact downloads cannot select a
   different run or repository;
+- the complete CI and release job-name sets are fixed, and `id-token: write`
+  occurs only on the publish job;
 - a real temporary Git fixture proves that a candidate contained in `main`
-  passes while an unmerged descendant fails before install;
+  passes while an unmerged descendant fails before install; it also proves a
+  previously recorded SHA fails after `main` moves and that the chained tag
+  command is never reached;
 - the maintainer runbook captures one immutable `origin/main` SHA, verifies and
   tests that checkout, revalidates the same SHA immediately before tagging, and
-  tags only that stored value;
+  tags only that stored value. Its verification and tag blocks use fail-closed
+  command chains, and the publication block requires a shell variable created
+  only after every release gate succeeds;
 - stale private/source-only claims are removed only where they are already
   false, while no document claims that npm publication has happened;
 - no Gmail address, local absolute path, credential, token value, placeholder,

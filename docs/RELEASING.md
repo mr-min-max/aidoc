@@ -24,10 +24,11 @@ section and repeat every gate.
    checked-out candidate is that commit:
 
    ```bash
-   git fetch origin main
-   readonly release_sha="$(git rev-parse origin/main)"
-   test "$(git rev-parse HEAD)" = "$release_sha"
-   git status --short
+   git fetch origin main &&
+   release_sha="$(git rev-parse origin/main)" &&
+   readonly release_sha &&
+   node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.3 --expected-sha "$release_sha" &&
+   test -z "$(git status --porcelain=v1)"
    ```
 
    The worktree and index must be clean. Hosted CI on Node 22 and 24 must be
@@ -47,13 +48,23 @@ section and repeat every gate.
 4. Install from the lockfile and run every release gate:
 
    ```bash
-   npm ci
-   npm run verify:release
-   npm run build
-   node dist/cli/index.js score --min 80
-   npm run test:public-beta
-   node scripts/public-beta-preflight.mjs --json --candidate-ref "$release_sha"
+   node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.3 --expected-sha "$release_sha" &&
+   test -z "$(git status --porcelain=v1)" &&
+   npm ci &&
+   npm run verify:release &&
+   npm run build &&
+   node dist/cli/index.js score --min 80 &&
+   npm run test:public-beta &&
+   node scripts/public-beta-preflight.mjs --json --candidate-ref "$release_sha" &&
+   node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.3 --expected-sha "$release_sha" &&
+   test -z "$(git status --porcelain=v1)" &&
+   release_verified_sha="$release_sha" &&
+   readonly release_verified_sha
    ```
+
+   The block checks the exact commit and clean tree both before and after the
+   gates. The final variable is created only if the whole chain succeeds. Do
+   not assign it manually or continue after any command in the chain fails.
 
 5. Review candidate commit identities, changed paths, and workflow permissions.
    Stop if a personal email, secret candidate, user-specific absolute path,
@@ -89,11 +100,11 @@ fails, do not tag; restart pre-release verification at the new commit.
 1. Revalidate and create an annotated tag at that exact verified commit:
 
    ```bash
-   git fetch origin main
-   test "$(git rev-parse origin/main)" = "$release_sha"
-   test "$(git rev-parse HEAD)" = "$release_sha"
-   test -z "$(git status --porcelain=v1)"
-   git tag -a v0.2.0-beta.3 "$release_sha" -m "v0.2.0-beta.3"
+   test "${release_verified_sha:-}" = "$release_sha" &&
+   git fetch origin main &&
+   node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.3 --expected-sha "$release_sha" &&
+   test -z "$(git status --porcelain=v1)" &&
+   git tag -a v0.2.0-beta.3 "$release_sha" -m "v0.2.0-beta.3" &&
    git show --no-patch --format=fuller v0.2.0-beta.3
    ```
 
