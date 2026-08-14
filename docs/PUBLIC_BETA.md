@@ -1,5 +1,12 @@
 # AiDoc Public Beta
 
+> Documentation that keeps up with your code.
+
+AiDoc helps Codex, Claude, or a supported model create READMEs, API docs,
+changelogs, diagrams, and code comments, then keep them aligned as code
+changes. It analyzes code structure first, focuses the relevant context, and
+keeps change-driven updates reviewable.
+
 `0.2.0-beta.5` is published to npm as `@mr-min-max/aidoc-gen` and as a
 [GitHub prerelease](https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.5);
 the executable remains `aidoc`. The release was published by GitHub Actions

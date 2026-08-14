@@ -23,7 +23,7 @@ const program = new Command();
 program
   .name("aidoc")
   .description(
-    "🤖 AI-powered documentation generator for codebases. Analyzes your code via AST parsing and generates professional documentation using LLM.",
+    "AST-first documentation creation and change-aware updates for codebases.",
   )
   .version(readPackageVersion())
   .option("--verbose", "Enable verbose debug logging")
