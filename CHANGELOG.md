@@ -6,6 +6,10 @@ All notable changes to this project are documented in this file.
 
 ### Fixed
 
+- Label working-tree comparisons truthfully in verbose human plan output while
+  preserving the versioned JSON descriptor.
+- Reject every C0 control character and DEL in Git revision inputs before Git
+  execution.
 - Ship Handlebars prompt templates with the compiled npm package.
 - Propagate GitHub Action generation and push failures.
 - Reject malformed generated Markdown before the Action writes or commits it.
