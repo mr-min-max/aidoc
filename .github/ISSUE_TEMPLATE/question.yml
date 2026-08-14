@@ -1,0 +1,56 @@
+name: "❓ Question / Support"
+description: Ask for help using the AiDoc public beta
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please remove credentials, private source, absolute local paths, and personal data before submitting.
+  - type: input
+    id: version
+    attributes:
+      label: AiDoc version or commit
+      description: Use the package version or exact source-checkout commit.
+      placeholder: "0.2.0-beta.3 or commit SHA"
+    validations:
+      required: true
+  - type: input
+    id: node-version
+    attributes:
+      label: Node.js version
+      description: Run `node --version` in the same environment.
+      placeholder: "22.x or 24.x"
+    validations:
+      required: true
+  - type: dropdown
+    id: workflow
+    attributes:
+      label: Workflow
+      options:
+        - Provider-free CLI planning
+        - Direct provider CLI generation
+        - Codex MCP integration
+        - Claude MCP integration
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to do, what command did you run, and where are you blocked?
+    validations:
+      required: true
+  - type: textarea
+    id: attempts
+    attributes:
+      label: What you already tried
+      description: Include a minimal provider-free reproduction when possible. Never include API keys.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I removed credentials, private source, absolute local paths, and personal data.
+          required: true

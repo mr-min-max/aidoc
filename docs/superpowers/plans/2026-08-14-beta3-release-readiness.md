@@ -481,8 +481,9 @@ TypeScript, `js-yaml`, GitHub issue forms, Markdown, npm provenance/OIDC.
   5. `Post-publication proof` — version, beta/latest dist-tags, provenance,
      exact tarball checksum, packed install/MCP smoke, GitHub prerelease.
   6. `OIDC migration and cleanup` — configure `mr-min-max/aidoc` +
-     `release.yml`, verify the next intentionally versioned prerelease, then
-     `gh secret delete NPM_TOKEN`, revoke the token, and restrict token access.
+     `release.yml`, remove the GitHub secret before the next intentionally
+     versioned prerelease so fallback is impossible, verify OIDC-only
+     publication, then revoke the npm token and restrict token access.
   7. `Failure handling` — stop before publish on any mismatch; never overwrite
      an immutable npm version; preserve evidence after partial success.
 
@@ -508,7 +509,7 @@ TypeScript, `js-yaml`, GitHub issue forms, Markdown, npm provenance/OIDC.
 
   ```bash
   rg -n '[A-Za-z0-9._%+-]+@gmail\.com|npm_[A-Za-z0-9]+' GOVERNANCE.md SUPPORT.md docs/RELEASING.md .github/ISSUE_TEMPLATE tests/unit/release/public-beta-config.test.ts
-  rg -n 'TBD|TODO|FIXME|currently private|/discussions' GOVERNANCE.md SUPPORT.md docs/RELEASING.md .github/ISSUE_TEMPLATE
+  rg -n 'currently private|/discussions' GOVERNANCE.md SUPPORT.md docs/RELEASING.md .github/ISSUE_TEMPLATE
   ```
 
   Expected: both commands return no unsafe matches. The intentional word

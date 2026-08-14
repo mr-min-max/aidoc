@@ -1,8 +1,7 @@
 # Governance
 
-aidoc is an MIT-licensed project intended for public open-source development.
-The canonical repository is currently private pending separate repository
-privacy cleanup.
+aidoc is an MIT-licensed project developed in the public canonical repository
+at [`mr-min-max/aidoc`](https://github.com/mr-min-max/aidoc).
 
 ## Maintainer Role
 
@@ -27,7 +26,9 @@ Changes are accepted when they:
 ## Release Process
 
 Releases are tagged with `v*` tags and published through the release workflow.
-Before a release, maintainers should run:
+The complete maintainer procedure is documented in
+[`docs/RELEASING.md`](docs/RELEASING.md). Before a release, maintainers must
+run:
 
 ```bash
 npm run verify:release
