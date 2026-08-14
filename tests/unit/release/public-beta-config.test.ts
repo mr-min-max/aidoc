@@ -211,7 +211,15 @@ describe("public beta repository configuration", () => {
       "test:codex-plugin": "node tests/e2e/codex-plugin-smoke.mjs",
       "test:hybrid-beta": "node --test tests/e2e/hybrid-beta-demo.test.mjs",
       "test:npm-unpublished": "node --test tests/e2e/npm-unpublished.test.mjs",
+      "test:npm-published":
+        "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs",
     });
+    expect(packageJson.scripts["test:public-beta"]).toContain(
+      "npm run test:npm-published",
+    );
+    expect(packageJson.scripts["test:public-beta"]).not.toContain(
+      "npm run test:npm-unpublished",
+    );
     for (const command of [
       "npm run test:provider-contracts",
       "npm run test:codex-plugin",
@@ -240,7 +248,7 @@ describe("public beta repository configuration", () => {
     expect(mcpServer).not.toContain("npx aidoc-gen");
   });
 
-  it("documents the beta.4 hybrid access boundaries and source-checkout workflow", () => {
+  it("documents the published beta.4 hybrid access boundaries and supported installation paths", () => {
     const documentationPaths = [
       "README.md",
       "docs/PUBLIC_BETA.md",
@@ -405,6 +413,7 @@ describe("public beta repository configuration", () => {
     expect(codexGuide).toContain("codex mcp remove aidoc");
 
     for (const setupLine of [
+      "npm install -g @mr-min-max/aidoc-gen@beta",
       "npm install",
       "npm run build",
       "npm link",
@@ -416,9 +425,11 @@ describe("public beta repository configuration", () => {
     ]) {
       expect(corpus).toContain(setupLine);
     }
-    expect(corpus).toMatch(/forthcoming|source-checkout/i);
+    expect(corpus).toMatch(
+      /(?:published|released)[\s\S]{0,120}(?:to npm|on npm|GitHub prerelease)/i,
+    );
     expect(corpus).not.toMatch(
-      /(?:already|has been|is)\s+(?:published|released)\s+(?:to npm|on npm|publicly)/i,
+      /^npm install -g @mr-min-max\/aidoc-gen(?:@latest)?$/mu,
     );
     expect(corpus).not.toMatch(
       /(?:already|is|was|has been)\s+installed\s+(?:from|through)\s+(?:the\s+)?marketplace/i,
@@ -426,5 +437,46 @@ describe("public beta repository configuration", () => {
     expect(corpus).not.toMatch(
       /ChatGPT web[\s\S]{0,160}(?:supports|can use|is available|use local)/i,
     );
+  });
+
+  it("keeps the beta.4 post-publication state truthful and removes the one-time repair path", () => {
+    const runbook = fs.readFileSync(path.resolve("docs/RELEASING.md"), "utf8");
+    const readme = fs.readFileSync(path.resolve("README.md"), "utf8");
+    const publicBeta = fs.readFileSync(
+      path.resolve("docs/PUBLIC_BETA.md"),
+      "utf8",
+    );
+    const releaseNote = fs.readFileSync(
+      path.resolve("docs/releases/v0.2.0-beta.4.md"),
+      "utf8",
+    );
+
+    expect(
+      fs.existsSync(
+        path.resolve(".github/workflows/repair-beta4-dist-tag.yml"),
+      ),
+    ).toBe(false);
+    expect(
+      fs.existsSync(
+        path.resolve("tests/unit/release/dist-tag-repair-workflow.test.ts"),
+      ),
+    ).toBe(false);
+    expect(runbook).toMatch(
+      /every npm package[\s\S]{0,120}(?:has|must have)[\s\S]{0,80}`latest`/i,
+    );
+    expect(runbook).toContain("npm install -g @mr-min-max/aidoc-gen@beta");
+    expect(runbook).toContain("node scripts/verify-npm-published.mjs");
+    expect(runbook).not.toContain(
+      "npm dist-tag rm @mr-min-max/aidoc-gen latest",
+    );
+    expect(runbook).toMatch(
+      /npm maintainer[\s\S]{0,180}approved privacy alias[\s\S]{0,180}(?:personal|private) email/i,
+    );
+    expect(readme).toContain("npm install -g @mr-min-max/aidoc-gen@beta");
+    expect(publicBeta).toContain("npm install -g @mr-min-max/aidoc-gen@beta");
+    expect(releaseNote).toContain(
+      "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.4",
+    );
+    expect(releaseNote).toMatch(/published[\s\S]{0,80}npm/i);
   });
 });

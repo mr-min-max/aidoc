@@ -4,6 +4,8 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0-beta.4] - 2026-08-14
+
 ### Fixed
 
 - Label working-tree comparisons truthfully in verbose human plan output while
@@ -45,4 +47,5 @@ All notable changes to this project are documented in this file.
 
 - Require Node.js 22.12 or newer and test supported LTS lines in CI.
 - Replace raw-diff updates with deterministic byte-bounded semantic plans.
-- Align the source candidate at `0.2.0-beta.4`; no package or tag is published.
+- Publish the scoped `@mr-min-max/aidoc-gen@0.2.0-beta.4` package on the npm
+  `beta` channel with matching provenance-backed GitHub prerelease assets.

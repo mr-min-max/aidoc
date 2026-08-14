@@ -1,9 +1,8 @@
 # AiDoc with local Codex
 
-This is the source-checkout guide for the forthcoming beta.4 Codex
-integration. It uses the official local Codex host and AiDoc's provider-free
-MCP tools. It is not a ChatGPT web integration, npm publication, or marketplace
-installation guide.
+This guide covers the published beta.4 CLI with the official local Codex host
+and AiDoc's provider-free MCP tools. It is not a ChatGPT web integration or a
+marketplace installation guide.
 
 ## What is authenticated
 
@@ -20,9 +19,16 @@ you choose direct AiDoc provider mode instead, configure `openai` with
 Official references: [Codex authentication](https://developers.openai.com/codex/auth)
 and [Codex MCP](https://developers.openai.com/codex/mcp).
 
-## Source-checkout setup
+## Setup
 
-From the AiDoc checkout:
+Install the published prerelease:
+
+```bash
+npm install -g @mr-min-max/aidoc-gen@beta
+aidoc --version
+```
+
+For development from an AiDoc checkout:
 
 ```bash
 npm install
@@ -32,12 +38,12 @@ aidoc --version
 ```
 
 The repository-owned plugin root is `integrations/codex/aidoc`. Its local MCP
-configuration invokes exactly `aidoc --mcp`. This task does not create a
-marketplace entry, install a plugin into a personal marketplace, or claim that
-beta.4 is already publicly released. Use the host's local plugin-development
-workflow to load the repository-owned source integration when testing it.
+configuration invokes exactly `aidoc --mcp`. This release does not create a
+marketplace entry or install a plugin into a personal marketplace. Use the
+host's local plugin-development workflow to load the repository-owned source
+integration when testing it.
 
-For a copyable source-checkout MCP setup after `npm link`:
+For a copyable MCP setup after the npm install or `npm link`:
 
 ```bash
 codex mcp add aidoc -- aidoc --mcp
