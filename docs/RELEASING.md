@@ -10,8 +10,14 @@ release workflow runs only after a matching `v*` tag is pushed. Do not create
 or push a release tag without a separate explicit publication decision made
 after every pre-release check below passes.
 
-The first npm beta is `aidoc-gen@0.2.0-beta.3`. It must use the npm `beta`
-dist-tag, not `latest`.
+The first npm beta is `@mr-min-max/aidoc-gen@0.2.0-beta.4`. It must use the npm
+`beta` dist-tag, not `latest`.
+
+The public `v0.2.0-beta.3` tag records a failed first-publication attempt. npm
+verified provenance but rejected the unscoped name under its package-similarity
+policy; no npm version or GitHub Release was created. That tag must not be
+moved, deleted, repointed, rerun, or reused. Recovery continues only through
+the scoped beta.4 package and a new tag.
 
 ## Pre-release Verification
 
@@ -27,7 +33,7 @@ section and repeat every gate.
    git fetch origin main &&
    release_sha="$(git rev-parse origin/main)" &&
    readonly release_sha &&
-   node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.3 --expected-sha "$release_sha" &&
+   node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.4 --expected-sha "$release_sha" &&
    test -z "$(git status --porcelain=v1)"
    ```
 
@@ -35,20 +41,20 @@ section and repeat every gate.
    green at that exact commit.
 
 2. Confirm `package.json` and `package-lock.json` both identify
-   `0.2.0-beta.3`, and confirm the intended tag will be
-   `v0.2.0-beta.3`.
+   `0.2.0-beta.4`, and confirm the intended tag will be
+   `v0.2.0-beta.4`.
 
 3. Before the first publication, verify that the package name is still
    available. A registry `404` is the expected unpublished result:
 
    ```bash
-   npm view aidoc-gen version --json
+   npm view @mr-min-max/aidoc-gen@0.2.0-beta.4 version --json
    ```
 
 4. Install from the lockfile and run every release gate:
 
    ```bash
-   node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.3 --expected-sha "$release_sha" &&
+   node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.4 --expected-sha "$release_sha" &&
    test -z "$(git status --porcelain=v1)" &&
    npm ci &&
    npm run verify:release &&
@@ -56,7 +62,7 @@ section and repeat every gate.
    node dist/cli/index.js score --min 80 &&
    npm run test:public-beta &&
    node scripts/public-beta-preflight.mjs --json --candidate-ref "$release_sha" &&
-   node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.3 --expected-sha "$release_sha" &&
+   node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.4 --expected-sha "$release_sha" &&
    test -z "$(git status --porcelain=v1)" &&
    release_verified_sha="$release_sha" &&
    readonly release_verified_sha
@@ -79,7 +85,7 @@ version needs a temporary bootstrap credential.
 2. Create the shortest-lived granular automation token that can publish the
    new public package. Grant only the required package read/write permission
    and the CI-specific 2FA bypass required for unattended publishing. Restrict
-   it to `aidoc-gen` if npm permits selecting the unpublished name.
+   it to `@mr-min-max/aidoc-gen` if npm permits selecting the unpublished name.
 3. From a trusted terminal, store it through the hidden GitHub CLI prompt:
 
    ```bash
@@ -102,16 +108,16 @@ fails, do not tag; restart pre-release verification at the new commit.
    ```bash
    test "${release_verified_sha:-}" = "$release_sha" &&
    git fetch origin main &&
-   node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.3 --expected-sha "$release_sha" &&
+   node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.4 --expected-sha "$release_sha" &&
    test -z "$(git status --porcelain=v1)" &&
-   git tag -a v0.2.0-beta.3 "$release_sha" -m "v0.2.0-beta.3" &&
-   git show --no-patch --format=fuller v0.2.0-beta.3
+   git tag -a v0.2.0-beta.4 "$release_sha" -m "v0.2.0-beta.4" &&
+   git show --no-patch --format=fuller v0.2.0-beta.4
    ```
 
 2. Inspect the tag target and identity. Then push only that tag:
 
    ```bash
-   git push origin v0.2.0-beta.3
+   git push origin v0.2.0-beta.4
    ```
 
 3. Watch the `Release` workflow. It verifies Node 22/24, packs once, checksums
@@ -125,12 +131,12 @@ fails, do not tag; restart pre-release verification at the new commit.
 Verify every external surface before updating installation documentation:
 
 ```bash
-npm view aidoc-gen@0.2.0-beta.3 version --json
-npm dist-tag ls aidoc-gen
-gh release view v0.2.0-beta.3 --repo mr-min-max/aidoc
+npm view @mr-min-max/aidoc-gen@0.2.0-beta.4 version --json
+npm dist-tag ls @mr-min-max/aidoc-gen
+gh release view v0.2.0-beta.4 --repo mr-min-max/aidoc
 ```
 
-The `beta` dist-tag must point to `0.2.0-beta.3`; `latest` must not point to the
+The `beta` dist-tag must point to `0.2.0-beta.4`; `latest` must not point to the
 prerelease. Confirm npm displays provenance from `mr-min-max/aidoc`, download
 the release tarball and checksum, verify the checksum, and repeat the packed
 CLI/MCP smoke against those exact bytes.

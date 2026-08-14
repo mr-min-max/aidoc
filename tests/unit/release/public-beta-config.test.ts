@@ -126,13 +126,19 @@ describe("public beta repository configuration", () => {
     const capture = 'release_sha="$(git rev-parse origin/main)" &&';
     const freeze = "readonly release_sha &&";
     const verify =
-      'node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.3 --expected-sha "$release_sha"';
+      'node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.4 --expected-sha "$release_sha"';
     const markVerified = 'release_verified_sha="$release_sha" &&';
     const requireVerified =
       'test "${release_verified_sha:-}" = "$release_sha" &&';
-    const tag = 'git tag -a v0.2.0-beta.3 "$release_sha" -m "v0.2.0-beta.3"';
+    const tag = 'git tag -a v0.2.0-beta.4 "$release_sha" -m "v0.2.0-beta.4"';
 
     expect(runbook).toContain("same trusted shell session");
+    expect(runbook).toMatch(
+      /`v0\.2\.0-beta\.3`[\s\S]{0,320}(?:must not|do not)[\s\S]{0,160}(?:move|repoint|reuse|rerun)/i,
+    );
+    expect(runbook).toContain(
+      "npm view @mr-min-max/aidoc-gen@0.2.0-beta.4 version --json",
+    );
     expect(runbook).toContain("git fetch origin main &&");
     expect(runbook).toContain(capture);
     expect(runbook).toContain(freeze);
@@ -168,19 +174,23 @@ describe("public beta repository configuration", () => {
     expect(tagIndex).toBeGreaterThan(recheckIndex);
   });
 
-  it("aligns the beta.3 package identity and focused hybrid verification surface", () => {
+  it("aligns the scoped beta.4 package identity and focused hybrid verification surface", () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.resolve("package.json"), "utf8"),
-    ) as { version: string; scripts: Record<string, string> };
+    ) as { name: string; version: string; scripts: Record<string, string> };
     const packageLock = JSON.parse(
       fs.readFileSync(path.resolve("package-lock.json"), "utf8"),
     ) as {
+      name: string;
       version: string;
-      packages: Record<string, { version?: string }>;
+      packages: Record<string, { name?: string; version?: string }>;
     };
 
-    expect(packageJson.version).toBe("0.2.0-beta.3");
+    expect(packageJson.name).toBe("@mr-min-max/aidoc-gen");
+    expect(packageJson.version).toBe("0.2.0-beta.4");
+    expect(packageLock.name).toBe(packageJson.name);
     expect(packageLock.version).toBe(packageJson.version);
+    expect(packageLock.packages[""]?.name).toBe(packageJson.name);
     expect(packageLock.packages[""]?.version).toBe(packageJson.version);
     expect(packageJson.scripts).toMatchObject({
       "test:provider-contracts": "jest tests/unit/providers --runInBand",
@@ -203,18 +213,18 @@ describe("public beta repository configuration", () => {
       ".github/ISSUE_TEMPLATE/feature_request.yml",
     ]) {
       const source = fs.readFileSync(path.resolve(currentSurface), "utf8");
-      expect(source).toContain("0.2.0-beta.3");
+      expect(source).toContain("0.2.0-beta.4");
       expect(source).not.toContain("0.2.0-beta.2");
     }
   });
 
-  it("documents the beta.3 hybrid access boundaries and source-checkout workflow", () => {
+  it("documents the beta.4 hybrid access boundaries and source-checkout workflow", () => {
     const documentationPaths = [
       "README.md",
       "docs/PUBLIC_BETA.md",
       "docs/integrations/codex.md",
       "docs/integrations/claude.md",
-      "docs/releases/v0.2.0-beta.3.md",
+      "docs/releases/v0.2.0-beta.4.md",
     ];
     const documentation = Object.fromEntries(
       documentationPaths.map((file) => [
@@ -377,7 +387,7 @@ describe("public beta repository configuration", () => {
       "npm run build",
       "npm link",
       "aidoc --version",
-      "npm unlink -g aidoc-gen",
+      "npm unlink -g @mr-min-max/aidoc-gen",
       "codex mcp add aidoc -- aidoc --mcp",
       "codex mcp list",
       "codex mcp remove aidoc",

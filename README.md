@@ -3,10 +3,12 @@
 > **AI-powered documentation generator for codebases.**
 
 > [!IMPORTANT]
-> **Public Beta source-checkout integration (`0.2.0-beta.3` forthcoming).**
-> The repository is ready for early testing on Node.js `>=22.12.0`. The beta.3
+> **Public Beta source-checkout integration (`0.2.0-beta.4` forthcoming).**
+> The repository is ready for early testing on Node.js `>=22.12.0`. The beta.4
 > plugin/integration is source-checkout work in this task; it is not an npm
 > artifact, marketplace installation, or ChatGPT-web local-STDIO integration.
+> The reserved candidate identity is `@mr-min-max/aidoc-gen`; its executable
+> remains `aidoc`.
 > `aidoc plan` is deterministic and provider-free. Feedback and focused
 > contributions are welcome before v1.
 
@@ -78,7 +80,7 @@ never guesses an ambiguous target. A dry run previews the bounded update
 without writing.
 
 `npm link` is only a source-checkout development convenience. To reverse it,
-run `npm unlink -g aidoc-gen`. The beta.3 integration and plugin are not
+run `npm unlink -g @mr-min-max/aidoc-gen`. The beta.4 integration and plugin are not
 published to npm or installed from a marketplace by this repository slice.
 
 ### Three honest beta paths
@@ -125,8 +127,9 @@ npm run demo:impact
 
 ## 📦 Source Beta Installation
 
-The beta.3 integration is a forthcoming/source-checkout release note, not a
-published npm package or marketplace listing. From the checkout, run:
+The beta.4 integration and scoped `@mr-min-max/aidoc-gen` identity are a
+forthcoming/source-checkout release candidate, not a published npm package or
+marketplace listing. From the checkout, run:
 
 ```bash
 npm install
@@ -138,10 +141,10 @@ aidoc --version
 Reverse the global development link with:
 
 ```bash
-npm unlink -g aidoc-gen
+npm unlink -g @mr-min-max/aidoc-gen
 ```
 
-See [the beta.3 release note](./docs/releases/v0.2.0-beta.3.md) for the
+See [the beta.4 release note](./docs/releases/v0.2.0-beta.4.md) for the
 integration scope and [the public-beta guide](./docs/PUBLIC_BETA.md) for the
 supported access boundaries.
 
@@ -301,7 +304,7 @@ aidoc watch --auto --target docs/README.md   # no prompts (great for demos)
 
 ## 🎬 GitHub Action
 
-The `v0.2.0-beta.3` examples below identify the unreleased release candidate.
+The `v0.2.0-beta.4` examples below identify the unreleased release candidate.
 Do not use that ref until the corresponding tag is published.
 The current composite Action accepts `openai`, `anthropic`, and `ollama`; use
 the CLI directly for the additional beta provider profiles.
@@ -323,7 +326,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mr-min-max/aidoc@v0.2.0-beta.3
+      - uses: mr-min-max/aidoc@v0.2.0-beta.4
         with:
           provider: openai
           api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -341,7 +344,7 @@ steps:
   - uses: actions/checkout@v4
     with:
       fetch-depth: 0
-  - uses: mr-min-max/aidoc@v0.2.0-beta.3
+  - uses: mr-min-max/aidoc@v0.2.0-beta.4
     with:
       mode: check
       since: ${{ github.event.pull_request.base.sha }}
@@ -361,7 +364,7 @@ Pull-request workflows should use
 
 ## 🔌 Local MCP integrations
 
-The repository-owned beta.3 integration is designed for an official local
+The repository-owned beta.4 integration is designed for an official local
 Codex host authenticated with ChatGPT, or for Claude Desktop/Claude Code. It
 uses local STDIO MCP and the command `aidoc --mcp`; it does not turn a consumer
 subscription into an AiDoc API credential. ChatGPT web does not read local

@@ -1,6 +1,6 @@
 {
   "name": "aidoc",
-  "version": "0.2.0-beta.3",
+  "version": "0.2.0-beta.4",
   "description": "Plan, prepare, and validate AST-backed documentation updates.",
   "author": {
     "name": "aidoc contributors"
