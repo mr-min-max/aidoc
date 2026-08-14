@@ -673,6 +673,7 @@ try {
   const packedCli = join(
     consumer,
     "node_modules",
+    "@mr-min-max",
     "aidoc-gen",
     "dist",
     "cli",
@@ -680,11 +681,17 @@ try {
   );
   const packedPackage = JSON.parse(
     readFileSync(
-      join(consumer, "node_modules", "aidoc-gen", "package.json"),
+      join(
+        consumer,
+        "node_modules",
+        "@mr-min-max",
+        "aidoc-gen",
+        "package.json",
+      ),
       "utf8",
     ),
   );
-  assert.equal(packedPackage.name, "aidoc-gen");
+  assert.equal(packedPackage.name, "@mr-min-max/aidoc-gen");
   await runRepositoryIsolationRoundTrip(
     resolve("dist/cli/index.js"),
     repositoryA,

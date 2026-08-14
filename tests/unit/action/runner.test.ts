@@ -220,6 +220,6 @@ describe("composite Action package", () => {
   it("installs the npm version declared by the same Action ref", () => {
     const metadata = fs.readFileSync(path.resolve("action.yml"), "utf8");
     expect(metadata).toContain("require('./package.json').version");
-    expect(metadata).toContain("aidoc-gen@$version");
+    expect(metadata).toContain("@mr-min-max/aidoc-gen@$version");
   });
 });
