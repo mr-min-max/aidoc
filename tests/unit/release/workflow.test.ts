@@ -10,7 +10,7 @@ interface WorkflowStep {
   uses?: string;
   run?: string;
   env?: Record<string, string>;
-  with?: Record<string, string>;
+  with?: Record<string, string | boolean>;
 }
 
 interface WorkflowJob {
@@ -37,11 +37,11 @@ function stepNamed(job: WorkflowJob, name: string): WorkflowStep {
 describe("release workflow", () => {
   it("pins every external action to its reviewed commit", () => {
     const reviewedActions = {
-      "actions/checkout": "11d5960a326750d5838078e36cf38b85af677262",
-      "actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020",
-      "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02",
-      "actions/download-artifact": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
-      "softprops/action-gh-release": "3bb12739c298aeb8a4eeaf626c5b8d85266b0e65",
+      "actions/checkout": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+      "actions/setup-node": "820762786026740c76f36085b0efc47a31fe5020",
+      "actions/upload-artifact": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+      "actions/download-artifact": "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+      "softprops/action-gh-release": "3d0d9888cb7fd7b750713d6e236d1fcb99157228",
     };
     const uses = Object.values(workflow.jobs)
       .flatMap((job) => job.steps)
@@ -117,43 +117,75 @@ describe("release workflow", () => {
     expect(installIndex).toBeGreaterThan(identityIndex);
   });
 
-  it("publishes the checksum-verified tarball in an independent job", () => {
+  it("publishes only the checksum-verified tarball with beta provenance", () => {
     const publish = workflow.jobs.publish;
     expect(publish).toBeDefined();
     expect(publish.needs).toBe("verify");
-    expect(publish.permissions?.contents).not.toBe("write");
+    expect(publish.permissions).toEqual({
+      contents: "read",
+      "id-token": "write",
+    });
 
     const validate = stepNamed(publish, "Validate verified artifact");
     expect(validate.run).toContain("tarballs=(");
     expect(validate.run).toContain("checksums=(");
     expect(validate.run).toContain("sha256sum --check");
 
+    const npmGuard = stepNamed(
+      publish,
+      "Verify npm trusted-publishing support",
+    );
+    expect(npmGuard.run).toContain("11.5.1");
+    expect(npmGuard.env?.NODE_AUTH_TOKEN).toBeUndefined();
+
     const publishStep = stepNamed(publish, "Publish verified artifact");
     expect(publishStep.run).toContain(
       'npm publish "${{ steps.artifact.outputs.tarball }}"',
     );
     expect(publishStep.run).toContain("--ignore-scripts");
-    expect(publishStep.env?.NODE_AUTH_TOKEN).toBe("${{ secrets.NPM_TOKEN }}");
+    expect(publishStep.run).toContain("--access public");
+    expect(publishStep.run).toContain("--tag beta");
+    expect(publishStep.run).toContain("--provenance");
+    expect(publishStep.env).toEqual({
+      NODE_AUTH_TOKEN: "${{ secrets.NPM_TOKEN }}",
+    });
     expect(
       publish.steps
         .filter((step) => step !== publishStep)
-        .some((step) => step.env?.NODE_AUTH_TOKEN !== undefined),
-    ).toBe(false);
+        .every((step) => step.env?.NODE_AUTH_TOKEN === undefined),
+    ).toBe(true);
   });
 
-  it("creates the GitHub Release only after publish without rebuilding", () => {
+  it("attaches the verified files to a post-publish GitHub prerelease", () => {
     const githubRelease = workflow.jobs["github-release"];
     expect(githubRelease).toBeDefined();
     expect(githubRelease.needs).toBe("publish");
     expect(githubRelease.permissions).toEqual({ contents: "write" });
-    expect(githubRelease.steps).toHaveLength(1);
-    expect(githubRelease.steps[0].uses).toBe(
-      "softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65",
+
+    const download = githubRelease.steps.find((step) =>
+      step.uses?.startsWith("actions/download-artifact@"),
     );
+    const validate = stepNamed(githubRelease, "Validate release assets");
+    const release = githubRelease.steps.find((step) =>
+      step.uses?.startsWith("softprops/action-gh-release@"),
+    );
+
+    expect(download?.with).toMatchObject({
+      name: "aidoc-npm-package",
+      path: "${{ runner.temp }}/aidoc-artifact",
+    });
+    expect(validate.run).toContain("sha256sum --check --strict");
+    expect(release?.with).toMatchObject({
+      generate_release_notes: true,
+      prerelease: true,
+      fail_on_unmatched_files: true,
+    });
+    expect(String(release?.with?.files)).toContain("*.tgz");
+    expect(String(release?.with?.files)).toContain("*.sha256");
 
     const serializedSteps = JSON.stringify(githubRelease.steps);
     expect(serializedSteps).not.toMatch(
-      /actions\/checkout|\bnpm\b|\bbuild\b|\binstall\b|\bpackage\b|\bpublish\b/i,
+      /actions\/checkout|npm ci|npm install|npm pack|npm publish|npm run build/i,
     );
   });
 });
