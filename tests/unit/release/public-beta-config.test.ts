@@ -505,9 +505,11 @@ describe("public beta repository configuration", () => {
       "npm access set mfa=publish @mr-min-max/aidoc-gen",
     );
     expect(runbook).toMatch(/\*\*Delete\s+Selected Tokens\*\*/u);
-    expect(runbook).toContain("The remaining account-level cleanup");
-    expect(runbook).not.toMatch(
-      /(?:temporary|bootstrap|bypass)[^\n.]{0,120}(?:tokens?)[^\n.]{0,120}(?:were|have been|are) (?:deleted|revoked)/iu,
+    expect(runbook).toContain("The account-level cleanup was completed");
+    expect(runbook).toContain("zero active npm tokens");
+    expect(runbook).not.toContain("The remaining account-level cleanup");
+    expect(runbook).toMatch(
+      /temporary granular bypass tokens[\s\S]{0,180}were deleted/iu,
     );
     expect(runbook.replace(/\s+/gu, " ")).toContain(
       "Trusted Publisher entry for `mr-min-max/aidoc` and `release.yml` remains configured",
@@ -524,5 +526,6 @@ describe("public beta repository configuration", () => {
       "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.5",
     );
     expect(releaseNote).toMatch(/published[\s\S]{0,80}npm/i);
+    expect(releaseNote).toContain("zero active npm tokens");
   });
 });
