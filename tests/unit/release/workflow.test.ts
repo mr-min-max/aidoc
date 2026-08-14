@@ -41,7 +41,7 @@ describe("release workflow", () => {
       "actions/setup-node": "49933ea5288caeca8642d1e84afbd3f7d6820020",
       "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02",
       "actions/download-artifact": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
-      "softprops/action-gh-release": "3bb12739c298aeb8a4eeaf626c5b8d85266b0e65",
+      "softprops/action-gh-release": "3d0d9888cb7fd7b750713d6e236d1fcb99157228",
     };
     const uses = Object.values(workflow.jobs)
       .flatMap((job) => job.steps)
@@ -148,7 +148,7 @@ describe("release workflow", () => {
     expect(githubRelease.permissions).toEqual({ contents: "write" });
     expect(githubRelease.steps).toHaveLength(1);
     expect(githubRelease.steps[0].uses).toBe(
-      "softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65",
+      "softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228",
     );
 
     const serializedSteps = JSON.stringify(githubRelease.steps);
