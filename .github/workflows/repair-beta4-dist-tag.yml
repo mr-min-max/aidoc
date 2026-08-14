@@ -1,0 +1,58 @@
+name: Repair beta.4 npm dist-tag
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  remove-unintended-latest:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          registry-url: "https://registry.npmjs.org"
+      - name: Verify exact precondition
+        shell: bash
+        run: |
+          set -euo pipefail
+          tags_text="$(npm dist-tag ls @mr-min-max/aidoc-gen --userconfig=/dev/null --registry=https://registry.npmjs.org)"
+          node -e '
+            const lines = process.argv[1].trim().split(/\r?\n/u);
+            const entries = lines.map((line) => line.match(/^([^:\s]+): ([^\s]+)$/u));
+            if (entries.some((entry) => entry === null)) {
+              console.error("Unexpected npm dist-tag state");
+              process.exit(1);
+            }
+            const tags = Object.fromEntries(entries.map((entry) => entry.slice(1)));
+            if (entries.length !== 2 || tags.beta !== "0.2.0-beta.4" || tags.latest !== "0.2.0-beta.4") {
+              console.error("Unexpected npm dist-tag state");
+              process.exit(1);
+            }
+          ' "$tags_text"
+      - name: Remove unintended latest tag
+        run: npm dist-tag rm @mr-min-max/aidoc-gen latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - name: Verify exact postcondition
+        shell: bash
+        run: |
+          set -euo pipefail
+          tags_text="$(npm dist-tag ls @mr-min-max/aidoc-gen --userconfig=/dev/null --registry=https://registry.npmjs.org)"
+          node -e '
+            const lines = process.argv[1].trim().split(/\r?\n/u);
+            const entries = lines.map((line) => line.match(/^([^:\s]+): ([^\s]+)$/u));
+            if (entries.some((entry) => entry === null)) {
+              console.error("npm dist-tags were not repaired");
+              process.exit(1);
+            }
+            const tags = Object.fromEntries(entries.map((entry) => entry.slice(1)));
+            if (entries.length !== 1 || tags.beta !== "0.2.0-beta.4" || Object.hasOwn(tags, "latest")) {
+              console.error("npm dist-tags were not repaired");
+              process.exit(1);
+            }
+          ' "$tags_text"
