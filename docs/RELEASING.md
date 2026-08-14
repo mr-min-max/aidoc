@@ -44,11 +44,17 @@ section and repeat every gate.
    `0.2.0-beta.4`, and confirm the intended tag will be
    `v0.2.0-beta.4`.
 
-3. Before the first publication, verify that the package name is still
-   available. A registry `404` is the expected unpublished result:
+3. Before the first publication, verify both registry invariants:
+
+   - the rejected `aidoc-gen@0.2.0-beta.3` version remains unpublished;
+   - `@mr-min-max/aidoc-gen@0.2.0-beta.4` remains available.
+
+   The checker is pinned to `https://registry.npmjs.org`, accepts only an exact
+   `404` for each version, and fails closed on an existing version, redirect,
+   authentication/rate/server response, or transport failure:
 
    ```bash
-   npm view @mr-min-max/aidoc-gen@0.2.0-beta.4 version --json
+   node scripts/verify-npm-unpublished.mjs
    ```
 
 4. Install from the lockfile and run every release gate:
@@ -63,6 +69,7 @@ section and repeat every gate.
    npm run test:public-beta &&
    node scripts/public-beta-preflight.mjs --json --candidate-ref "$release_sha" &&
    node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.4 --expected-sha "$release_sha" &&
+   node scripts/verify-npm-unpublished.mjs &&
    test -z "$(git status --porcelain=v1)" &&
    release_verified_sha="$release_sha" &&
    readonly release_verified_sha
@@ -109,6 +116,7 @@ fails, do not tag; restart pre-release verification at the new commit.
    test "${release_verified_sha:-}" = "$release_sha" &&
    git fetch origin main &&
    node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.4 --expected-sha "$release_sha" &&
+   node scripts/verify-npm-unpublished.mjs &&
    test -z "$(git status --porcelain=v1)" &&
    git tag -a v0.2.0-beta.4 "$release_sha" -m "v0.2.0-beta.4" &&
    git show --no-patch --format=fuller v0.2.0-beta.4
