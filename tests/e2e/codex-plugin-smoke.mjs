@@ -151,7 +151,7 @@ function assertSafeWorkflow(body) {
 
 const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
 assert.equal(manifest.name, "aidoc");
-assert.equal(manifest.version, "0.2.0-beta.5");
+assert.equal(manifest.version, "0.2.0-beta.6");
 assert.equal(
   manifest.description,
   "Plan, prepare, and validate AST-backed documentation updates.",

@@ -31,6 +31,7 @@ const SOURCE_ARTIFACTS = {
     "docs/integrations/claude.md",
     "docs/releases/v0.2.0-beta.4.md",
     "docs/releases/v0.2.0-beta.5.md",
+    "docs/releases/v0.2.0-beta.6.md",
   ],
   storefrontDocumentation: [
     "docs/CLI.md",
@@ -838,6 +839,6 @@ test("detects missing and present beta source artifacts when requested", async (
     findCheck(presentReport, "storefront-documentation").summary,
     "Storefront documentation artifacts are present.",
   );
-  assert.equal(presentReport.counts.sourceArtifacts, 46);
+  assert.equal(presentReport.counts.sourceArtifacts, 47);
   assertValueSafe(presentReport, fixture);
 });

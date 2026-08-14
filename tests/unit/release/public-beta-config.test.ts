@@ -188,7 +188,7 @@ describe("public beta repository configuration", () => {
     expect(tagIndex).toBeGreaterThan(preTagRegistryIndex);
   });
 
-  it("keeps the published beta.5 identity consistent across current public surfaces", () => {
+  it("keeps the beta.6 local candidate split from current-public beta.5 surfaces", () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.resolve("package.json"), "utf8"),
     ) as { name: string; version: string; scripts: Record<string, string> };
@@ -201,7 +201,7 @@ describe("public beta repository configuration", () => {
     };
 
     expect(packageJson.name).toBe("@mr-min-max/aidoc-gen");
-    expect(packageJson.version).toBe("0.2.0-beta.5");
+    expect(packageJson.version).toBe("0.2.0-beta.6");
     expect(packageLock.name).toBe(packageJson.name);
     expect(packageLock.version).toBe(packageJson.version);
     expect(packageLock.packages[""]?.name).toBe(packageJson.name);
@@ -221,8 +221,8 @@ describe("public beta repository configuration", () => {
     expect(packageJson.scripts["test:public-beta"]).toContain(
       "npm run test:npm-published",
     );
-    expect(packageJson.scripts["test:public-beta"]).not.toContain(
-      "npm run test:npm-unpublished",
+    expect(packageJson.scripts["test:public-beta"]).toBe(
+      "node --test tests/e2e/public-beta-preflight.test.mjs && npm run test:npm-unpublished && node scripts/verify-npm-unpublished.mjs && npm run test:npm-published && jest tests/unit/release/public-beta-config.test.ts --runInBand",
     );
     const verifyRelease = packageJson.scripts["verify:release"];
     expect(verifyRelease).toBe(
@@ -241,13 +241,42 @@ describe("public beta repository configuration", () => {
       "README.md",
       "ROADMAP.md",
       "CHANGELOG.md",
+      "docs/PUBLIC_BETA.md",
+      "docs/RELEASING.md",
       ".github/ISSUE_TEMPLATE/bug_report.yml",
       ".github/ISSUE_TEMPLATE/feature_request.yml",
+      ".github/ISSUE_TEMPLATE/question.yml",
     ]) {
       const source = fs.readFileSync(path.resolve(currentSurface), "utf8");
       expect(source).toContain("0.2.0-beta.5");
+      expect(source).toContain("0.2.0-beta.6");
       expect(source).not.toContain("0.2.0-beta.2");
+      if (currentSurface.startsWith(".github/ISSUE_TEMPLATE/")) {
+        expect(source).toContain(
+          "0.2.0-beta.5, 0.2.0-beta.6 candidate, or commit SHA",
+        );
+      }
     }
+
+    const candidateReleaseNote = fs.readFileSync(
+      path.resolve("docs/releases/v0.2.0-beta.6.md"),
+      "utf8",
+    );
+    expect(candidateReleaseNote).toContain("Status: Forthcoming candidate");
+    for (const phrase of [
+      "aligned AST-first storefront copy",
+      "deterministic `createUser` provider-free demo",
+      "original logo, poster, social preview, and short GIF",
+      "progressive CLI and Action documentation",
+      "No runtime, provider, MCP, security, or model change",
+      "intended OIDC-only beta publication",
+      "`latest` remains `0.2.0-beta.4`",
+    ]) {
+      expect(candidateReleaseNote).toContain(phrase);
+    }
+    expect(candidateReleaseNote).not.toMatch(
+      /(?:is|was|has been)\s+(?:published|released|available|installable)[\s\S]{0,80}0\.2\.0-beta\.6/i,
+    );
 
     const storefrontCorpus = [
       "README.md",
@@ -291,6 +320,24 @@ describe("public beta repository configuration", () => {
     );
     expect(mcpServer).toContain("aidoc --mcp");
     expect(mcpServer).not.toContain("npx aidoc-gen");
+  });
+
+  it("keeps the candidate release note separate from current-public beta.5", () => {
+    const candidateReleaseNote = fs.readFileSync(
+      path.resolve("docs/releases/v0.2.0-beta.6.md"),
+      "utf8",
+    );
+    const publishedReleaseNote = fs.readFileSync(
+      path.resolve("docs/releases/v0.2.0-beta.5.md"),
+      "utf8",
+    );
+
+    expect(candidateReleaseNote).toContain("Forthcoming candidate");
+    expect(candidateReleaseNote).toContain(
+      "`0.2.0-beta.5` remains the current public beta",
+    );
+    expect(publishedReleaseNote).toContain("# v0.2.0-beta.5");
+    expect(publishedReleaseNote).not.toContain("Forthcoming candidate");
   });
 
   it("documents the published beta.5 hybrid access boundaries across the progressive storefront corpus", () => {

@@ -4,7 +4,7 @@ import * as os from "os";
 import * as path from "path";
 
 const verifier = path.resolve("scripts/verify-pushed-release-tag.mjs");
-const tagName = "v0.2.0-beta.5";
+const tagName = "v0.2.0-beta.6";
 const tagRef = `refs/tags/${tagName}`;
 
 function gitAs(

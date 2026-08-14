@@ -245,6 +245,21 @@ Trusted Publishing requires a GitHub-hosted runner, `id-token: write`, Node
 `>=22.14.0`, and npm `>=11.5.1`. The release workflow checks the npm floor and
 grants OIDC only to its publish job.
 
+## Forthcoming beta.6 Candidate
+
+The source checkout may carry `0.2.0-beta.6` as a local candidate for Gate A
+review. This candidate records the aligned AST-first storefront copy,
+deterministic provider-free `createUser` demo, original visual assets,
+progressive CLI and Action documentation, and no runtime, provider, MCP,
+security, or model change. The intended publication path is OIDC only, and it
+requires a separate human decision after the candidate gates pass.
+
+Before that decision, verify the candidate gate with `npm run test:public-beta`.
+It must prove the candidate version is absent from npm, the legacy unscoped
+beta.3 collision remains absent, npm `beta` remains `0.2.0-beta.5`, and npm
+`latest` remains `0.2.0-beta.4`. Do not create or push a tag, publish a package,
+move a dist-tag, or create a GitHub release during this candidate window.
+
 ## Failure Handling
 
 - Before npm accepts the package, stop on any identity, version, name,

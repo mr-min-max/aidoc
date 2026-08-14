@@ -14,6 +14,15 @@ through npm Trusted Publishing (OIDC), without a reusable npm credential in
 the workflow. The repository-owned Codex plugin is not installed from a
 marketplace, and ChatGPT web does not read local STDIO.
 
+This source checkout also carries a forthcoming `0.2.0-beta.6` candidate for a
+separate Gate A review. It synchronizes the AST-first storefront copy,
+deterministic provider-free demo, original visual assets, progressive CLI and
+Action documentation, and candidate release evidence. It does not change
+runtime, provider, MCP, security, or model behavior. Until a separate human
+publication decision, npm `beta` and public Action examples remain beta.5,
+while `latest` remains beta.4. Any later beta publication is intended to use
+OIDC only.
+
 AiDoc requires Node.js `>=22.12.0`.
 
 For the complete command catalogue, see [CLI.md](./CLI.md). For the exact

@@ -28,6 +28,7 @@ const BETA_SOURCE_ARTIFACTS = Object.freeze({
     "docs/integrations/claude.md",
     "docs/releases/v0.2.0-beta.4.md",
     "docs/releases/v0.2.0-beta.5.md",
+    "docs/releases/v0.2.0-beta.6.md",
   ]),
   storefrontDocumentation: Object.freeze([
     "docs/CLI.md",
@@ -637,7 +638,7 @@ async function sourceArtifactChecks(repositoryRoot) {
       ];
       codexShapeValid =
         manifest?.name === "aidoc" &&
-        manifest?.version === "0.2.0-beta.5" &&
+        manifest?.version === "0.2.0-beta.6" &&
         manifest?.skills === "./skills/" &&
         manifest?.mcpServers === "./.mcp.json" &&
         JSON.stringify(Object.keys(mcp)) === JSON.stringify(["mcpServers"]) &&
