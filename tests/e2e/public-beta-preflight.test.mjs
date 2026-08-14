@@ -61,6 +61,17 @@ const SOURCE_ARTIFACTS = {
     "docs/assets/demo/aidoc-flow-poster.svg",
     "docs/assets/demo/aidoc-flow-poster.png",
   ],
+  storefrontMedia: [
+    "docs/assets/demo/frame-01-change.svg",
+    "docs/assets/demo/frame-02-plan.svg",
+    "docs/assets/demo/frame-03-targets.svg",
+    "docs/assets/demo/frame-04-diff.svg",
+    "docs/assets/demo/frame-05-validated.svg",
+    "docs/assets/demo/aidoc-flow.gif",
+    "docs/demo/aidoc-walkthrough-script.md",
+    "docs/demo/aidoc-walkthrough.vtt",
+    "docs/demo/recording-checklist.md",
+  ],
 };
 
 async function git(repositoryRoot, args) {
@@ -170,6 +181,7 @@ async function createSourceArtifacts(repositoryRoot) {
     ...SOURCE_ARTIFACTS.demo,
     ...SOURCE_ARTIFACTS.compiledMcp,
     ...SOURCE_ARTIFACTS.storefrontStatic,
+    ...SOURCE_ARTIFACTS.storefrontMedia,
   ];
   for (const relativePath of files) {
     const absolutePath = path.join(repositoryRoot, relativePath);
@@ -774,9 +786,14 @@ test("detects missing and present beta source artifacts when requested", async (
   assert.equal(findCheck(missingReport, "hybrid-demo-source").status, "fail");
   assert.equal(findCheck(missingReport, "compiled-mcp").status, "fail");
   assert.equal(findCheck(missingReport, "storefront-static").status, "fail");
+  assert.equal(findCheck(missingReport, "storefront-media").status, "fail");
   assert.equal(
     findCheck(missingReport, "storefront-static").summary,
     "Storefront static assets are missing.",
+  );
+  assert.equal(
+    findCheck(missingReport, "storefront-media").summary,
+    "Storefront media assets are missing.",
   );
   assertValueSafe(missingReport, fixture);
 
@@ -793,10 +810,11 @@ test("detects missing and present beta source artifacts when requested", async (
   assert.equal(findCheck(presentReport, "hybrid-demo-source").status, "pass");
   assert.equal(findCheck(presentReport, "compiled-mcp").status, "pass");
   assert.equal(findCheck(presentReport, "storefront-static").status, "pass");
+  assert.equal(findCheck(presentReport, "storefront-media").status, "pass");
   assert.equal(
     findCheck(presentReport, "storefront-static").summary,
     "Storefront static assets are present.",
   );
-  assert.equal(presentReport.counts.sourceArtifacts, 33);
+  assert.equal(presentReport.counts.sourceArtifacts, 42);
   assertValueSafe(presentReport, fixture);
 });
