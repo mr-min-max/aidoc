@@ -218,9 +218,9 @@ The completed migration record is:
    the supported prerelease channel and must not be removed merely because it
    still names beta.4.
 
-The remaining account-level cleanup is performed in the authenticated npm UI
-or CLI session and must not expose token identifiers, values, or authenticator
-codes in repository logs:
+The account-level cleanup was completed on 2026-08-14 in the authenticated npm
+UI and CLI session without recording token identifiers, values, or
+authenticator codes in repository logs:
 
 1. Set package publishing access to **Require two-factor authentication and
    disallow bypass tokens**:
@@ -229,12 +229,13 @@ codes in repository logs:
    npm access set mfa=publish @mr-min-max/aidoc-gen
    ```
 
-2. Delete every temporary granular bypass token created for the beta.4
-   bootstrap/recovery attempts. npm's CLI may display granular token identifiers
-   only as `***`; in that case use the npm token settings page and **Delete
-   Selected Tokens** rather than guessing an identifier.
-3. Confirm the Trusted Publisher entry for `mr-min-max/aidoc` and `release.yml`
-   remains configured after cleanup.
+2. Both temporary granular bypass tokens created for the beta.4
+   bootstrap/recovery attempts were deleted with **Delete Selected Tokens**.
+   A safe authenticated follow-up audit reported zero active npm tokens and
+   zero temporary bypass tokens without printing token metadata.
+3. The Trusted Publisher entry for `mr-min-max/aidoc` and `release.yml` remains
+   configured after cleanup. Ordinary releases must continue to use OIDC; do
+   not recreate `NPM_TOKEN` or mint another automation token as a shortcut.
 
 If OIDC fails on a future release, diagnose the trust configuration first.
 Restoring the bootstrap secret requires a separate deliberate recovery
