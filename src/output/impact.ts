@@ -88,6 +88,7 @@ function appendReferences(
 }
 
 function formatSnapshot(snapshot: SnapshotDescriptor): string {
+  if (snapshot.type === "working-tree") return "working-tree";
   return snapshot.commit === undefined
     ? snapshot.label
     : `${snapshot.label} (${snapshot.commit})`;

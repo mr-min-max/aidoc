@@ -87,13 +87,31 @@ describe("impact-plan output", () => {
     expect(output).toMatch(/Next: aidoc update$/);
   });
 
-  // Break caught: verbose metadata leaks into ordinary output or fails to show
-  // both resolved snapshots when explicitly requested.
-  it("adds resolved base and head only in verbose mode", () => {
-    const output = formatImpactPlan(plan(), true);
+  // Break caught: a working-tree descriptor displays its anchor label as though
+  // it were an immutable head instead of naming the current working tree.
+  it("renders working-tree and immutable snapshot labels truthfully", () => {
+    const workingTreePlan = plan({
+      head: { type: "working-tree", label: "HEAD" },
+    });
+    const workingOutput = formatImpactPlan(workingTreePlan, true);
 
-    expect(output).toContain(`Base: main (${"a".repeat(40)})`);
-    expect(output).toContain("Head: working-tree");
+    expect(workingOutput).toContain(`Base: main (${"a".repeat(40)})`);
+    expect(workingOutput).toContain("Head: working-tree");
+    expect(workingOutput).not.toContain("Head: HEAD");
+
+    const immutableOutput = formatImpactPlan(
+      plan({
+        head: {
+          type: "git",
+          label: "release-candidate",
+          commit: "d".repeat(40),
+        },
+      }),
+      true,
+    );
+    expect(immutableOutput).toContain(
+      `Head: release-candidate (${"d".repeat(40)})`,
+    );
   });
 
   // Break caught: zero impact still emits noisy empty sections or suggests
@@ -236,10 +254,20 @@ describe("impact-plan output", () => {
   // Break caught: JSON output gains whitespace/log framing or relies on object
   // insertion order instead of canonical command-result serialization.
   it("serializes one canonical JSON command-result object", () => {
-    const value = serializePlanCommandResult({ ok: true, plan: plan() });
+    const workingTreePlan = plan({
+      head: { type: "working-tree", label: "HEAD" },
+    });
+    const value = serializePlanCommandResult({
+      ok: true,
+      plan: workingTreePlan,
+    });
 
     expect(value.startsWith('{"ok":true,"plan":{')).toBe(true);
-    expect(JSON.parse(value)).toEqual({ ok: true, plan: plan() });
+    expect(JSON.parse(value)).toEqual({ ok: true, plan: workingTreePlan });
+    expect(JSON.parse(value).plan.head).toEqual({
+      type: "working-tree",
+      label: "HEAD",
+    });
     expect(value).not.toContain("\n");
     expect(value).not.toContain("\u001b[");
   });
