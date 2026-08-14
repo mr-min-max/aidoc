@@ -89,6 +89,7 @@ git commit -m "fix(release): require scoped package identity"
 
 - Modify: `package.json`
 - Modify: `package-lock.json`
+- Modify: `action.yml`
 - Modify: `tests/e2e/package-smoke.mjs`
 - Modify: `tests/e2e/mcp-smoke.mjs`
 - Modify: `tests/unit/action/runner.test.ts`
@@ -134,7 +135,9 @@ Set the root package fields in both files to:
 }
 ```
 
-Do not change dependencies, scripts, `bin.aidoc`, or runtime exports.
+Update the Action's version-coupled install command to
+`npm install -g "@mr-min-max/aidoc-gen@$version"`. Do not change dependencies,
+scripts, `bin.aidoc`, or runtime exports.
 
 - [ ] **Step 4: Run process/action checks and confirm GREEN**
 
@@ -143,7 +146,7 @@ Run the four commands from Step 2 and require success.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add package.json package-lock.json tests/e2e/package-smoke.mjs tests/e2e/mcp-smoke.mjs tests/unit/action/runner.test.ts
+git add package.json package-lock.json action.yml tests/e2e/package-smoke.mjs tests/e2e/mcp-smoke.mjs tests/unit/action/runner.test.ts
 git commit -m "fix(release): adopt scoped beta4 package"
 ```
 
