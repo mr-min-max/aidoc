@@ -30,6 +30,7 @@ const SOURCE_ARTIFACTS = {
     "docs/integrations/codex.md",
     "docs/integrations/claude.md",
     "docs/releases/v0.2.0-beta.4.md",
+    "docs/releases/v0.2.0-beta.5.md",
   ],
   demo: [
     "scripts/demo-hybrid-beta.mjs",

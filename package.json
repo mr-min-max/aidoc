@@ -1,6 +1,6 @@
 {
   "name": "@mr-min-max/aidoc-gen",
-  "version": "0.2.0-beta.4",
+  "version": "0.2.0-beta.5",
   "description": "AI-powered documentation generator for codebases. Analyzes code via AST parsing and LLM to generate README, API docs, JSDoc, CHANGELOG, and architecture diagrams.",
   "main": "dist/cli/index.js",
   "bin": {
@@ -24,7 +24,7 @@
     "test:codex-plugin": "node tests/e2e/codex-plugin-smoke.mjs",
     "test:hybrid-beta": "node --test tests/e2e/hybrid-beta-demo.test.mjs",
     "test:npm-unpublished": "node --test tests/e2e/npm-unpublished.test.mjs",
-    "test:npm-published": "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs",
+    "test:npm-published": "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs --version 0.2.0-beta.4",
     "demo:impact": "npm run build && node scripts/demo-impact.mjs",
     "test:impact-demo": "node scripts/demo-impact.mjs --verify",
     "test:check": "npm run build && node tests/e2e/check-cli-smoke.mjs",
