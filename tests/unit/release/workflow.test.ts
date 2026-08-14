@@ -137,6 +137,8 @@ describe("release workflow", () => {
     );
     const identity = stepNamed(verify, "Verify protected Git identities");
     const identityIndex = verify.steps.indexOf(identity);
+    const releaseTag = stepNamed(verify, "Verify annotated release tag");
+    const releaseTagIndex = verify.steps.indexOf(releaseTag);
     const releaseCandidate = stepNamed(verify, "Verify release candidate");
     const releaseCandidateIndex = verify.steps.indexOf(releaseCandidate);
     const installIndex = verify.steps.findIndex(
@@ -152,11 +154,15 @@ describe("release workflow", () => {
       "node scripts/public-beta-preflight.mjs --json --candidate-ref HEAD --skip-source-artifacts",
     );
     expect(identity.run).toContain("--main-ref origin/main");
+    expect(normalizedCommand(releaseTag.run)).toBe(
+      'node scripts/verify-pushed-release-tag.mjs --ref "$GITHUB_REF"',
+    );
     expect(normalizedCommand(releaseCandidate.run)).toBe(
       'node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag "$GITHUB_REF_NAME"',
     );
     expect(identityIndex).toBeGreaterThanOrEqual(0);
-    expect(releaseCandidateIndex).toBeGreaterThan(identityIndex);
+    expect(releaseTagIndex).toBeGreaterThan(identityIndex);
+    expect(releaseCandidateIndex).toBeGreaterThan(releaseTagIndex);
     expect(installIndex).toBeGreaterThan(releaseCandidateIndex);
   });
 
