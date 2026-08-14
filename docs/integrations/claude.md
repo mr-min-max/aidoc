@@ -1,6 +1,6 @@
 # AiDoc with Claude Desktop or Claude Code
 
-This guide covers local MCP hosting for the forthcoming/source-checkout beta.3
+This guide covers local MCP hosting for the forthcoming/source-checkout beta.4
 integration. It does not provide Claude.ai OAuth access to AiDoc and does not
 turn a consumer subscription into an AiDoc provider credential.
 
@@ -42,13 +42,13 @@ command:
 ```
 
 This source-checkout integration is not an npm artifact, marketplace
-installation, or ChatGPT web local-STDIO path. The beta.3 release note is
+installation, or ChatGPT web local-STDIO path. The beta.4 release note is
 forthcoming; no public release is claimed here.
 
 Reverse the global development link with:
 
 ```bash
-npm unlink -g aidoc-gen
+npm unlink -g @mr-min-max/aidoc-gen
 ```
 
 ## Pinned MCP repository scope

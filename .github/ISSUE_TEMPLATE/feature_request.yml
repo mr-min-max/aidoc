@@ -12,7 +12,7 @@ body:
     attributes:
       label: aidoc version or commit
       description: Provide the source-beta version or exact Git commit used for this request.
-      placeholder: "0.2.0-beta.3 or commit SHA"
+      placeholder: "0.2.0-beta.4 or commit SHA"
     validations:
       required: true
   - type: input

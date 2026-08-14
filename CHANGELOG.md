@@ -19,6 +19,8 @@ All notable changes to this project are documented in this file.
 - Prevent raw source and raw Git diffs from entering provider impact context.
 - Harden Git snapshot reads against path replacement, unsafe refs, and rename
   endpoint confusion.
+- Move the first public beta to the scoped `@mr-min-max/aidoc-gen` identity
+  after npm rejected the superseded unscoped name under its similarity policy.
 
 ### Added
 
@@ -43,4 +45,4 @@ All notable changes to this project are documented in this file.
 
 - Require Node.js 22.12 or newer and test supported LTS lines in CI.
 - Replace raw-diff updates with deterministic byte-bounded semantic plans.
-- Align the source candidate at `0.2.0-beta.3`; no package or tag is published.
+- Align the source candidate at `0.2.0-beta.4`; no package or tag is published.

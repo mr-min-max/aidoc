@@ -1,9 +1,9 @@
 # AiDoc Public Beta
 
-This page describes the source-checkout `0.2.0-beta.3` candidate. Its package
-metadata is aligned in the repository, but beta.3 is not claimed to be
-published to npm, installed from a marketplace, or available through ChatGPT
-web local STDIO.
+This page describes the source-checkout `0.2.0-beta.4` candidate. Its package
+metadata is aligned to `@mr-min-max/aidoc-gen` in the repository, while the
+executable remains `aidoc`. beta.4 is not claimed to be published to npm,
+installed from a marketplace, or available through ChatGPT web local STDIO.
 
 AiDoc requires Node.js `>=22.12.0`.
 
@@ -128,7 +128,7 @@ aidoc --version
 Reverse the global development link with:
 
 ```bash
-npm unlink -g aidoc-gen
+npm unlink -g @mr-min-max/aidoc-gen
 ```
 
 The repository-owned Codex plugin lives at

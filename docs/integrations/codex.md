@@ -1,6 +1,6 @@
 # AiDoc with local Codex
 
-This is the source-checkout guide for the forthcoming beta.3 Codex
+This is the source-checkout guide for the forthcoming beta.4 Codex
 integration. It uses the official local Codex host and AiDoc's provider-free
 MCP tools. It is not a ChatGPT web integration, npm publication, or marketplace
 installation guide.
@@ -34,7 +34,7 @@ aidoc --version
 The repository-owned plugin root is `integrations/codex/aidoc`. Its local MCP
 configuration invokes exactly `aidoc --mcp`. This task does not create a
 marketplace entry, install a plugin into a personal marketplace, or claim that
-beta.3 is already publicly released. Use the host's local plugin-development
+beta.4 is already publicly released. Use the host's local plugin-development
 workflow to load the repository-owned source integration when testing it.
 
 For a copyable source-checkout MCP setup after `npm link`:
@@ -51,7 +51,7 @@ step; no marketplace entry is created here.
 To reverse the global source-checkout link:
 
 ```bash
-npm unlink -g aidoc-gen
+npm unlink -g @mr-min-max/aidoc-gen
 ```
 
 ## Pinned MCP repository scope

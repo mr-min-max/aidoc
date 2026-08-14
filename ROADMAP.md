@@ -5,8 +5,9 @@ work. We welcome community feedback and contributions.
 
 ## Current source-beta candidate
 
-### v0.2.0-beta.3 — Hybrid provider and host integration
+### v0.2.0-beta.4 — Hybrid provider and host integration
 
+- Scoped npm identity `@mr-min-max/aidoc-gen` with the `aidoc` executable
 - Provider Trust Gate for rendered input and completed output
 - Provider-free `aidoc plan` with human and versioned JSON output
 - Stable AST snapshots for TypeScript, JavaScript, and Python
@@ -68,7 +69,7 @@ publication, and GitHub prerelease are separately approved and completed.
 
 These bullets describe source-level foundations, not release-integrity-verified
 distribution paths. The v0.1.0 distributed template, Action, and MCP paths were
-not release-integrity verified. The current `v0.2.0-beta.3` source candidate
+not release-integrity verified. The current `v0.2.0-beta.4` source candidate
 repairs those packaging, automation, and transport paths and adds verification
 evidence before release.
 
