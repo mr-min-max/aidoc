@@ -18,11 +18,19 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
+      - name: Verify protected Git identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --local user.name mr-min-max
+          git config --local user.email 254284659+mr-min-max@users.noreply.github.com
+          node scripts/public-beta-preflight.mjs --json --candidate-ref HEAD --skip-source-artifacts --main-ref origin/main
       - run: npm ci
       - name: Verify tag matches package version
         shell: bash

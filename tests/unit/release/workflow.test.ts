@@ -93,6 +93,30 @@ describe("release workflow", () => {
     expect(upload.with?.path).toContain("${{ steps.pack.outputs.checksum }}");
   });
 
+  it("fetches complete history and rejects unprotected commit identities before install", () => {
+    const verify = workflow.jobs.verify;
+    const checkout = verify.steps.find((step) =>
+      step.uses?.startsWith("actions/checkout@"),
+    );
+    const identity = stepNamed(verify, "Verify protected Git identities");
+    const identityIndex = verify.steps.indexOf(identity);
+    const installIndex = verify.steps.findIndex(
+      (step) => step.run === "npm ci",
+    );
+
+    expect(checkout?.with?.["fetch-depth"]).toBe(0);
+    expect(identity.run).toContain("git config --local user.name mr-min-max");
+    expect(identity.run).toContain(
+      "git config --local user.email 254284659+mr-min-max@users.noreply.github.com",
+    );
+    expect(identity.run).toContain(
+      "node scripts/public-beta-preflight.mjs --json --candidate-ref HEAD --skip-source-artifacts",
+    );
+    expect(identity.run).toContain("--main-ref origin/main");
+    expect(identityIndex).toBeGreaterThanOrEqual(0);
+    expect(installIndex).toBeGreaterThan(identityIndex);
+  });
+
   it("publishes the checksum-verified tarball in an independent job", () => {
     const publish = workflow.jobs.publish;
     expect(publish).toBeDefined();
