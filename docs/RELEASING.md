@@ -185,17 +185,21 @@ claims match.
 
 Use `0.2.0-beta.5` as the intentionally versioned verification release. Its
 candidate change removes the last `NODE_AUTH_TOKEN` wiring from the workflow.
+The GitHub bootstrap secret was deleted on 2026-08-14 after this Trusted
+Publisher was configured; `gh secret list --repo mr-min-max/aidoc` returned no
+Actions secrets. Do not recreate it during ordinary release recovery.
+
 Complete the remaining migration in this order:
 
-1. Delete the GitHub bootstrap secret before the OIDC verification run:
+1. Confirm the GitHub bootstrap secret remains absent before the OIDC
+   verification run:
 
    ```bash
-   gh secret delete NPM_TOKEN --repo mr-min-max/aidoc
+   gh secret list --repo mr-min-max/aidoc
    ```
 
-   Confirm `gh secret list --repo mr-min-max/aidoc` no longer contains
-   `NPM_TOKEN`. The command exposes only secret names and timestamps, never the
-   stored value.
+   The output must not contain `NPM_TOKEN`. The command exposes only secret
+   names and timestamps, never stored values.
 
 2. Merge the reviewed beta.5 candidate only after its hosted Node 22 and 24 CI
    checks pass. Re-run the complete immutable-main and unpublished-version
