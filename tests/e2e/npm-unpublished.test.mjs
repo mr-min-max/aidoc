@@ -39,15 +39,19 @@ test("accepts only exact 404 responses for both release identities", async () =>
 });
 
 test("fails distinctly when either version exists", async () => {
-  await assert.rejects(
-    verifyNpmVersionsUnpublished({
-      candidate,
-      fetchImpl: async (url) => ({
-        status: String(url).includes("aidoc-gen/0.2.0-beta.3") ? 200 : 404,
+  for (const statuses of [
+    [200, 404],
+    [404, 200],
+  ]) {
+    let requestIndex = 0;
+    await assert.rejects(
+      verifyNpmVersionsUnpublished({
+        candidate,
+        fetchImpl: async () => ({ status: statuses[requestIndex++] }),
       }),
-    }),
-    new Error(NPM_REGISTRY_STATE_MESSAGES.versionExists),
-  );
+      new Error(NPM_REGISTRY_STATE_MESSAGES.versionExists),
+    );
+  }
 });
 
 test("fails closed on authentication, rate, server, and redirect responses", async () => {
@@ -68,6 +72,18 @@ test("fails closed with a fixed diagnostic on transport errors", async () => {
       candidate,
       fetchImpl: async () => {
         throw new Error("seeded network path and credential");
+      },
+    }),
+    new Error(NPM_REGISTRY_STATE_MESSAGES.verificationFailed),
+  );
+
+  let requestIndex = 0;
+  await assert.rejects(
+    verifyNpmVersionsUnpublished({
+      candidate,
+      fetchImpl: async () => {
+        if (requestIndex++ === 0) return { status: 404 };
+        throw new Error("seeded second-request failure");
       },
     }),
     new Error(NPM_REGISTRY_STATE_MESSAGES.verificationFailed),
