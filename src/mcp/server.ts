@@ -13,7 +13,7 @@
  * - check_docs_freshness: Run an AST-backed source/document co-change guard
  *
  * Usage:
- *   npx aidoc-gen --mcp
+ *   aidoc --mcp
  *   # or add to Claude/Cursor MCP config
  */
 

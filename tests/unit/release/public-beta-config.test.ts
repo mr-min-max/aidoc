@@ -127,6 +127,7 @@ describe("public beta repository configuration", () => {
     const freeze = "readonly release_sha &&";
     const verify =
       'node scripts/verify-release-candidate.mjs --main-ref origin/main --candidate-ref HEAD --tag v0.2.0-beta.4 --expected-sha "$release_sha"';
+    const registryCheck = "node scripts/verify-npm-unpublished.mjs";
     const markVerified = 'release_verified_sha="$release_sha" &&';
     const requireVerified =
       'test "${release_verified_sha:-}" = "$release_sha" &&';
@@ -139,6 +140,8 @@ describe("public beta repository configuration", () => {
     expect(runbook).toContain(
       "npm view @mr-min-max/aidoc-gen@0.2.0-beta.4 version --json",
     );
+    expect(runbook).toContain("aidoc-gen@0.2.0-beta.3");
+    expect(runbook.split(registryCheck)).toHaveLength(4);
     expect(runbook).toContain("git fetch origin main &&");
     expect(runbook).toContain(capture);
     expect(runbook).toContain(freeze);
@@ -163,15 +166,26 @@ describe("public beta repository configuration", () => {
       'test -z "$(git status --porcelain=v1)" &&',
       markVerifiedIndex,
     );
+    const preMarkerRegistryIndex = runbook.lastIndexOf(
+      `${registryCheck} &&`,
+      markVerifiedIndex,
+    );
     const tagIndex = runbook.indexOf(tag);
+    const preTagRegistryIndex = runbook.lastIndexOf(
+      `${registryCheck} &&`,
+      tagIndex,
+    );
     expect(captureIndex).toBeGreaterThanOrEqual(0);
     expect(gateIndex).toBeGreaterThan(captureIndex);
     expect(preMarkerVerifyIndex).toBeGreaterThan(gateIndex);
-    expect(preMarkerCleanIndex).toBeGreaterThan(preMarkerVerifyIndex);
+    expect(preMarkerRegistryIndex).toBeGreaterThan(preMarkerVerifyIndex);
+    expect(preMarkerCleanIndex).toBeGreaterThan(preMarkerRegistryIndex);
     expect(markVerifiedIndex).toBeGreaterThan(gateIndex);
     expect(requireVerifiedIndex).toBeGreaterThan(markVerifiedIndex);
     expect(recheckIndex).toBeGreaterThan(gateIndex);
-    expect(tagIndex).toBeGreaterThan(recheckIndex);
+    expect(preTagRegistryIndex).toBeGreaterThan(requireVerifiedIndex);
+    expect(preTagRegistryIndex).toBeGreaterThan(recheckIndex);
+    expect(tagIndex).toBeGreaterThan(preTagRegistryIndex);
   });
 
   it("aligns the scoped beta.4 package identity and focused hybrid verification surface", () => {
@@ -196,6 +210,7 @@ describe("public beta repository configuration", () => {
       "test:provider-contracts": "jest tests/unit/providers --runInBand",
       "test:codex-plugin": "node tests/e2e/codex-plugin-smoke.mjs",
       "test:hybrid-beta": "node --test tests/e2e/hybrid-beta-demo.test.mjs",
+      "test:npm-unpublished": "node --test tests/e2e/npm-unpublished.test.mjs",
     });
     for (const command of [
       "npm run test:provider-contracts",
@@ -216,6 +231,13 @@ describe("public beta repository configuration", () => {
       expect(source).toContain("0.2.0-beta.4");
       expect(source).not.toContain("0.2.0-beta.2");
     }
+
+    const mcpServer = fs.readFileSync(
+      path.resolve("src/mcp/server.ts"),
+      "utf8",
+    );
+    expect(mcpServer).toContain("aidoc --mcp");
+    expect(mcpServer).not.toContain("npx aidoc-gen");
   });
 
   it("documents the beta.4 hybrid access boundaries and source-checkout workflow", () => {
