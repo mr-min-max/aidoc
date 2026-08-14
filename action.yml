@@ -1,5 +1,5 @@
-name: "aidoc — AI Documentation Generator"
-description: "Automatically generate and validate documentation (README, API docs, changelogs) using AI-powered code analysis in your CI/CD pipeline."
+name: "AiDoc: AST-first documentation workflow"
+description: "Generate project documentation and run deterministic change-aware checks in CI."
 author: "aidoc contributors"
 
 branding:
