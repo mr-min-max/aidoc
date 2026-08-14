@@ -4,6 +4,10 @@ This guide covers local MCP hosting for the published beta.5 CLI. It does not
 provide Claude.ai OAuth access to AiDoc and does not turn a consumer
 subscription into an AiDoc provider credential.
 
+For the complete command catalogue and beta boundaries, see [CLI.md](../CLI.md)
+and [Public Beta](../PUBLIC_BETA.md). The [GitHub Action reference](../GITHUB_ACTION.md)
+covers the separate CI generate and check path.
+
 ## Subscription boundary
 
 Claude Desktop and Claude Code authenticate their own host session. Claude Pro

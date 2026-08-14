@@ -29,6 +29,12 @@ const BETA_SOURCE_ARTIFACTS = Object.freeze({
     "docs/releases/v0.2.0-beta.4.md",
     "docs/releases/v0.2.0-beta.5.md",
   ]),
+  storefrontDocumentation: Object.freeze([
+    "docs/CLI.md",
+    "docs/GITHUB_ACTION.md",
+    "tests/e2e/storefront-demo.test.mjs",
+    "tests/e2e/storefront-readme.test.mjs",
+  ]),
   hybridDemo: Object.freeze([
     "scripts/demo-hybrid-beta.mjs",
     "scripts/hybrid-beta-snapshot.mjs",
@@ -653,6 +659,10 @@ async function sourceArtifactChecks(repositoryRoot) {
     repositoryRoot,
     BETA_SOURCE_ARTIFACTS.integrationDocumentation,
   );
+  const storefrontDocumentationPresent = sourceArtifactFilesPresent(
+    repositoryRoot,
+    BETA_SOURCE_ARTIFACTS.storefrontDocumentation,
+  );
   const demoFilesPresent = sourceArtifactFilesPresent(
     repositoryRoot,
     BETA_SOURCE_ARTIFACTS.hybridDemo,
@@ -699,6 +709,13 @@ async function sourceArtifactChecks(repositoryRoot) {
       docsPresent
         ? "Beta integration documentation artifacts are present."
         : "Beta integration documentation artifacts are missing.",
+    ),
+    makeCheck(
+      "storefront-documentation",
+      storefrontDocumentationPresent ? "pass" : "fail",
+      storefrontDocumentationPresent
+        ? "Storefront documentation artifacts are present."
+        : "Storefront documentation artifacts are missing.",
     ),
     makeCheck(
       "hybrid-demo-source",
