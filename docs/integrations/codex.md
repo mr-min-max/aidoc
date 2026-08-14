@@ -4,6 +4,10 @@ This guide covers the published beta.5 CLI with the official local Codex host
 and AiDoc's provider-free MCP tools. It is not a ChatGPT web integration or a
 marketplace installation guide.
 
+For the complete command catalogue and beta boundaries, see [CLI.md](../CLI.md)
+and [Public Beta](../PUBLIC_BETA.md). The [GitHub Action reference](../GITHUB_ACTION.md)
+covers the separate CI generate and check path.
+
 ## What is authenticated
 
 Sign in to the official local Codex client using its supported ChatGPT

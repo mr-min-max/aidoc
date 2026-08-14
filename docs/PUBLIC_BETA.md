@@ -16,6 +16,11 @@ marketplace, and ChatGPT web does not read local STDIO.
 
 AiDoc requires Node.js `>=22.12.0`.
 
+For the complete command catalogue, see [CLI.md](./CLI.md). For the exact
+composite Action inputs and outputs, see [GITHUB_ACTION.md](./GITHUB_ACTION.md).
+The [Codex](./integrations/codex.md) and
+[Claude](./integrations/claude.md) guides cover the host-managed MCP paths.
+
 ## Fast paths
 
 The simple CLI entry points are:
@@ -93,13 +98,36 @@ The host-managed update sequence is:
    target, and then call `check_docs_freshness`.
 
 AiDoc Trust Gate inspects AiDoc's prepared input and validated output for
-secret findings. Configured `strict` blocks findings; configured `warn` or
-`redact` redacts detected sensitive values before host generation or return.
-An `allowed` result means no findings were detected. Trust Gate does not
-control the host's context window, model, sandbox, isolation, or permission
-system. The host's official permissions remain authoritative.
+secret findings. For direct/general provider flows, configured `strict` blocks
+findings, configured `redact` replaces detected values with typed placeholders,
+and configured `warn` preserves the detected text while reporting findings. The
+host-managed MCP prepare/validate workflow has a stricter privacy floor:
+configured `warn` and `redact` both use effective redaction before host
+generation or return, while the result still reports the configured policy. An
+`allowed` result means no findings were detected. Trust Gate does not control
+the host's context window, model, sandbox, isolation, or permission system.
+The host's official permissions remain authoritative.
 
 See [Codex integration](./integrations/codex.md) and [Claude integration](./integrations/claude.md).
+
+### MCP tools
+
+The subscription-friendly, provider-free path is
+`plan_documentation_impact` -> `prepare_documentation_update` ->
+`validate_documentation_draft` -> `check_docs_freshness`. The legacy/direct
+provider-backed generation tools are separate: `generate_readme`,
+`generate_api_docs`, and `generate_diagram` require an explicit AiDoc provider
+credential and the provider's API billing. The bundled documentation skill
+does not call those provider-backed generation tools.
+
+## GitHub Action
+
+The published beta.5 Action is used at the pinned `v0.2.0-beta.5` tag. Its
+`generate` mode invokes supported provider-backed CLI commands and its `check`
+mode runs the deterministic AST-backed source/document co-change guard. The
+Action does not turn a consumer subscription into an AiDoc API key. See the
+[GitHub Action reference](./GITHUB_ACTION.md) for inputs, outputs, trust-policy
+behavior, dry-run, auto-commit, and permission requirements.
 
 ## Direct AiDoc provider mode
 

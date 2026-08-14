@@ -32,6 +32,12 @@ const SOURCE_ARTIFACTS = {
     "docs/releases/v0.2.0-beta.4.md",
     "docs/releases/v0.2.0-beta.5.md",
   ],
+  storefrontDocumentation: [
+    "docs/CLI.md",
+    "docs/GITHUB_ACTION.md",
+    "tests/e2e/storefront-demo.test.mjs",
+    "tests/e2e/storefront-readme.test.mjs",
+  ],
   demo: [
     "scripts/demo-hybrid-beta.mjs",
     "scripts/hybrid-beta-snapshot.mjs",
@@ -178,6 +184,7 @@ async function createSourceArtifacts(repositoryRoot) {
   const files = [
     ...SOURCE_ARTIFACTS.plugin,
     ...SOURCE_ARTIFACTS.docs,
+    ...SOURCE_ARTIFACTS.storefrontDocumentation,
     ...SOURCE_ARTIFACTS.demo,
     ...SOURCE_ARTIFACTS.compiledMcp,
     ...SOURCE_ARTIFACTS.storefrontStatic,
@@ -783,6 +790,10 @@ test("detects missing and present beta source artifacts when requested", async (
     findCheck(missingReport, "integration-documentation").status,
     "fail",
   );
+  assert.equal(
+    findCheck(missingReport, "storefront-documentation").status,
+    "fail",
+  );
   assert.equal(findCheck(missingReport, "hybrid-demo-source").status, "fail");
   assert.equal(findCheck(missingReport, "compiled-mcp").status, "fail");
   assert.equal(findCheck(missingReport, "storefront-static").status, "fail");
@@ -794,6 +805,10 @@ test("detects missing and present beta source artifacts when requested", async (
   assert.equal(
     findCheck(missingReport, "storefront-media").summary,
     "Storefront media assets are missing.",
+  );
+  assert.equal(
+    findCheck(missingReport, "storefront-documentation").summary,
+    "Storefront documentation artifacts are missing.",
   );
   assertValueSafe(missingReport, fixture);
 
@@ -807,6 +822,10 @@ test("detects missing and present beta source artifacts when requested", async (
     findCheck(presentReport, "integration-documentation").status,
     "pass",
   );
+  assert.equal(
+    findCheck(presentReport, "storefront-documentation").status,
+    "pass",
+  );
   assert.equal(findCheck(presentReport, "hybrid-demo-source").status, "pass");
   assert.equal(findCheck(presentReport, "compiled-mcp").status, "pass");
   assert.equal(findCheck(presentReport, "storefront-static").status, "pass");
@@ -815,6 +834,10 @@ test("detects missing and present beta source artifacts when requested", async (
     findCheck(presentReport, "storefront-static").summary,
     "Storefront static assets are present.",
   );
-  assert.equal(presentReport.counts.sourceArtifacts, 42);
+  assert.equal(
+    findCheck(presentReport, "storefront-documentation").summary,
+    "Storefront documentation artifacts are present.",
+  );
+  assert.equal(presentReport.counts.sourceArtifacts, 46);
   assertValueSafe(presentReport, fixture);
 });

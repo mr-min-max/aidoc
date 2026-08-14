@@ -213,7 +213,7 @@ describe("public beta repository configuration", () => {
       "demo:storefront":
         "npm run build && node scripts/demo-hybrid-beta.mjs --presentation",
       "test:storefront":
-        "node --test tests/e2e/storefront-demo.test.mjs tests/e2e/storefront-assets.test.mjs && jest tests/unit/release/storefront-copy.test.ts --runInBand",
+        "node --test tests/e2e/storefront-demo.test.mjs tests/e2e/storefront-assets.test.mjs tests/e2e/storefront-readme.test.mjs && jest tests/unit/release/storefront-copy.test.ts --runInBand",
       "test:npm-unpublished": "node --test tests/e2e/npm-unpublished.test.mjs",
       "test:npm-published":
         "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs --version 0.2.0-beta.5 --latest 0.2.0-beta.4",
@@ -249,17 +249,21 @@ describe("public beta repository configuration", () => {
       expect(source).not.toContain("0.2.0-beta.2");
     }
 
-    const packedReadme = fs.readFileSync(path.resolve("README.md"), "utf8");
-    expect(packedReadme).toContain(
-      "**Public beta channel is available on npm.**",
+    const storefrontCorpus = [
+      "README.md",
+      "docs/CLI.md",
+      "docs/GITHUB_ACTION.md",
+      "docs/PUBLIC_BETA.md",
+      "docs/integrations/codex.md",
+      "docs/integrations/claude.md",
+      "docs/releases/v0.2.0-beta.5.md",
+    ]
+      .map((file) => fs.readFileSync(path.resolve(file), "utf8"))
+      .join("\n");
+    expect(storefrontCorpus.replace(/\s+/gu, " ")).toContain(
+      "npm `beta` still resolves to `0.2.0-beta.5`",
     );
-    expect(packedReadme.replace(/\s+/gu, " ")).toContain(
-      "This source tree and the current `beta` channel are `0.2.0-beta.5`",
-    );
-    expect(packedReadme).toContain(
-      "The registry's `beta` dist-tag remains authoritative",
-    );
-    expect(packedReadme).toContain(
+    expect(storefrontCorpus).toContain(
       "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.5",
     );
 
@@ -289,47 +293,46 @@ describe("public beta repository configuration", () => {
     expect(mcpServer).not.toContain("npx aidoc-gen");
   });
 
-  it("documents the published beta.5 hybrid access boundaries and supported installation paths", () => {
+  it("documents the published beta.5 hybrid access boundaries across the progressive storefront corpus", () => {
     const documentationPaths = [
       "README.md",
+      "docs/CLI.md",
+      "docs/GITHUB_ACTION.md",
       "docs/PUBLIC_BETA.md",
       "docs/integrations/codex.md",
       "docs/integrations/claude.md",
       "docs/releases/v0.2.0-beta.5.md",
     ];
+    const missingDocumentation = documentationPaths.filter(
+      (file) => !fs.existsSync(path.resolve(file)),
+    );
+    expect(missingDocumentation).toEqual([]);
     const documentation = Object.fromEntries(
       documentationPaths.map((file) => [
         file,
-        fs.readFileSync(path.resolve(file), "utf8"),
+        fs.existsSync(path.resolve(file))
+          ? fs.readFileSync(path.resolve(file), "utf8")
+          : "",
       ]),
     );
     const roadmap = fs.readFileSync(path.resolve("ROADMAP.md"), "utf8");
     const corpus = Object.values(documentation).join("\n");
     const readme = documentation["README.md"];
+    const publicBeta = documentation["docs/PUBLIC_BETA.md"];
+    const cliGuide = documentation["docs/CLI.md"];
+    const actionGuide = documentation["docs/GITHUB_ACTION.md"];
     const codexGuide = documentation["docs/integrations/codex.md"];
-    const quickStartStart = readme.indexOf("## 🚀 Quick Start");
-    const quickStartEnd = readme.indexOf("### Three honest beta paths");
-    const mcpToolsStart = readme.indexOf("### Available MCP Tools");
-    const mcpToolsEnd = readme.indexOf("## 🔐 Planning security and limits");
-    const mcpScopeStart = readme.indexOf("### Pinned MCP repository scope");
-    const mcpScopeEnd = readme.indexOf(
-      "Read [Codex integration]",
-      mcpScopeStart,
-    );
-    const trustGateStart = readme.indexOf("## 🛡️ Trust Gate beta");
-    const trustGateEnd = readme.indexOf("## 🛠️ Commands", trustGateStart);
-    expect(quickStartStart).toBeGreaterThanOrEqual(0);
-    expect(quickStartEnd).toBeGreaterThan(quickStartStart);
-    expect(mcpToolsStart).toBeGreaterThanOrEqual(0);
-    expect(mcpToolsEnd).toBeGreaterThan(mcpToolsStart);
-    expect(mcpScopeStart).toBeGreaterThanOrEqual(0);
-    expect(mcpScopeEnd).toBeGreaterThan(mcpScopeStart);
-    expect(trustGateStart).toBeGreaterThanOrEqual(0);
-    expect(trustGateEnd).toBeGreaterThan(trustGateStart);
-    const quickStart = readme.slice(quickStartStart, quickStartEnd);
-    const mcpTools = readme.slice(mcpToolsStart, mcpToolsEnd);
-    const mcpScope = readme.slice(mcpScopeStart, mcpScopeEnd);
-    const trustGate = readme.slice(trustGateStart, trustGateEnd);
+    const quickStart = readme;
+    const mcpTools = [
+      readme,
+      cliGuide,
+      actionGuide,
+      publicBeta,
+      codexGuide,
+      documentation["docs/integrations/claude.md"],
+    ].join("\n");
+    const mcpScope = publicBeta;
+    const trustGate = publicBeta;
     const trustGateNormalized = trustGate.replace(/\s+/gu, " ").trim();
     const directTrustGate = trustGateNormalized.split(
       "The host-managed MCP prepare/validate workflow",
@@ -341,7 +344,9 @@ describe("public beta repository configuration", () => {
     expect(corpus).toMatch(
       /automatic(?:ally)?[\s\S]{0,180}(?:safe|explicit|ambiguous|guess)/i,
     );
-    expect(corpus).toMatch(/ChatGPT[\s\S]{0,180}(?:official Codex|local MCP)/i);
+    expect(corpus).toMatch(
+      /ChatGPT[\s\S]{0,180}(?:official (?:local )?Codex|local MCP)/i,
+    );
     expect(corpus).toMatch(
       /ChatGPT web[\s\S]{0,180}(?:does not|not|cannot|unsupported)/i,
     );
@@ -404,7 +409,7 @@ describe("public beta repository configuration", () => {
       /provider-free[\s\S]{0,220}(?:plan_documentation_impact|prepare_documentation_update)[\s\S]{0,320}validate_documentation_draft[\s\S]{0,180}check_docs_freshness/i,
     );
     expect(mcpTools).toMatch(
-      /legacy\/direct[\s\S]{0,160}provider-backed[\s\S]{0,160}generation tools below are separate:[\s\S]{0,160}generate_readme[\s\S]{0,120}generate_api_docs[\s\S]{0,120}generate_diagram[\s\S]{0,220}(?:provider credential|API billing)/i,
+      /(?:legacy\/direct|direct)[\s\S]{0,220}provider-backed[\s\S]{0,220}(?:generate_readme|readme)[\s\S]{0,180}(?:generate_api_docs|api)[\s\S]{0,180}(?:generate_diagram|diagram)[\s\S]{0,260}(?:provider credential|API billing)/i,
     );
     expect(corpus).toMatch(
       /MCP[\s\S]{0,220}(?:pinned|restricted to|startup)[\s\S]{0,160}Git worktree/i,
@@ -434,14 +439,13 @@ describe("public beta repository configuration", () => {
     expect(corpus).not.toMatch(
       /MCP directory allowlisting[\s\S]{0,80}unimplemented/i,
     );
-    expect(mcpScope).toMatch(/startup cwd[\s\S]{0,260}another\s+repository/i);
+    expect(mcpScope).toMatch(/startup\s+cwd[\s\S]{0,260}another\s+repository/i);
     expect(mcpScope).toMatch(/declarative[\s\S]{0,180}executable JavaScript/i);
     expect(mcpScope).toMatch(/not an operating-system sandbox/i);
     expect(roadmap).toContain("Pinned MCP read scope");
     expect(roadmap).not.toContain("MCP directory allowlisting");
-    expect(quickStart).toMatch(
-      /bare `aidoc`[\s\S]{0,220}provider-free plan[\s\S]{0,300}(?:direct-provider|host-managed MCP)/i,
-    );
+    expect(quickStart).toMatch(/bare `aidoc`[\s\S]{0,220}plan provider-free/i);
+    expect(quickStart).toMatch(/(?:direct\s+provider|host-managed MCP)/i);
     expect(quickStart).not.toMatch(
       /bare `aidoc`[\s\S]{0,260}(?:credential-free|without a model credential)[\s\S]{0,180}update/i,
     );
@@ -478,6 +482,12 @@ describe("public beta repository configuration", () => {
     expect(corpus).not.toMatch(
       /ChatGPT web[\s\S]{0,160}(?:supports|can use|is available|use local)/i,
     );
+    expect(actionGuide).toMatch(/generate[\s\S]{0,120}check/iu);
+    expect(actionGuide).toMatch(/v0\.2\.0-beta\.5/iu);
+    expect(actionGuide).not.toMatch(
+      /v0\.2\.0-beta\.6[\s\S]{0,120}(?:published|public|released)/iu,
+    );
+    expect(cliGuide).toMatch(/plan[\s\S]{0,120}provider-free/iu);
   });
 
   it("keeps the beta.5 post-publication state truthful and preserves beta-only installation", () => {
