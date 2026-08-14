@@ -47,6 +47,20 @@ const SOURCE_ARTIFACTS = {
     "dist/core/update-preparation.js",
     "dist/templates/update.hbs",
   ],
+  storefrontStatic: [
+    "docs/assets/brand/aidoc-mark.svg",
+    "docs/assets/brand/aidoc-wordmark.svg",
+    "docs/assets/brand/aidoc-mark-on-dark.svg",
+    "docs/assets/brand/aidoc-mark-on-light.svg",
+    "docs/assets/brand/aidoc-mark-dark.png",
+    "docs/assets/brand/aidoc-mark-light.png",
+    "docs/assets/brand/aidoc-avatar.png",
+    "docs/assets/brand/README.md",
+    "docs/assets/social/aidoc-social-preview.svg",
+    "docs/assets/social/aidoc-social-preview.png",
+    "docs/assets/demo/aidoc-flow-poster.svg",
+    "docs/assets/demo/aidoc-flow-poster.png",
+  ],
 };
 
 async function git(repositoryRoot, args) {
@@ -155,15 +169,12 @@ async function createSourceArtifacts(repositoryRoot) {
     ...SOURCE_ARTIFACTS.docs,
     ...SOURCE_ARTIFACTS.demo,
     ...SOURCE_ARTIFACTS.compiledMcp,
+    ...SOURCE_ARTIFACTS.storefrontStatic,
   ];
   for (const relativePath of files) {
     const absolutePath = path.join(repositoryRoot, relativePath);
     await mkdir(path.dirname(absolutePath), { recursive: true });
-    await writeFile(
-      absolutePath,
-      await readFile(path.resolve(relativePath), "utf8"),
-      "utf8",
-    );
+    await writeFile(absolutePath, await readFile(path.resolve(relativePath)));
   }
 }
 
@@ -762,6 +773,11 @@ test("detects missing and present beta source artifacts when requested", async (
   );
   assert.equal(findCheck(missingReport, "hybrid-demo-source").status, "fail");
   assert.equal(findCheck(missingReport, "compiled-mcp").status, "fail");
+  assert.equal(findCheck(missingReport, "storefront-static").status, "fail");
+  assert.equal(
+    findCheck(missingReport, "storefront-static").summary,
+    "Storefront static assets are missing.",
+  );
   assertValueSafe(missingReport, fixture);
 
   await createSourceArtifacts(fixture.repositoryRoot);
@@ -776,5 +792,11 @@ test("detects missing and present beta source artifacts when requested", async (
   );
   assert.equal(findCheck(presentReport, "hybrid-demo-source").status, "pass");
   assert.equal(findCheck(presentReport, "compiled-mcp").status, "pass");
+  assert.equal(findCheck(presentReport, "storefront-static").status, "pass");
+  assert.equal(
+    findCheck(presentReport, "storefront-static").summary,
+    "Storefront static assets are present.",
+  );
+  assert.equal(presentReport.counts.sourceArtifacts, 33);
   assertValueSafe(presentReport, fixture);
 });
