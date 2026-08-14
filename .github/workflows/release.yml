@@ -128,8 +128,6 @@ jobs:
           --access public
           --tag beta
           --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   github-release:
     needs: publish
