@@ -1,27 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:aidoc="urn:aidoc:assets" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc" data-safe-margin="64" data-protected-margin="80" data-step="3" data-visual-system="dimensional-code-to-docs-v1">
   <title id="title">AiDoc demo step 3: Bounded draft</title>
   <desc id="desc">The stable scene focuses on the README and API documentation sheets prepared from bounded context.</desc>
-  <metadata><aidoc:evidence><aidoc:fact>README.md</aidoc:fact><aidoc:fact>docs/API.md</aidoc:fact><aidoc:fact>bounded host draft</aidoc:fact></aidoc:evidence></metadata>
+  <metadata>
+    <aidoc:copy><aidoc:line>AiDoc</aidoc:line><aidoc:line>Bounded draft</aidoc:line><aidoc:line>README.md + docs/API.md</aidoc:line><aidoc:line>3 / 5</aidoc:line><aidoc:line>No provider calls</aidoc:line><aidoc:line>No repository writes</aidoc:line><aidoc:line>You decide what is applied</aidoc:line></aidoc:copy>
+    <aidoc:evidence><aidoc:fact>README.md</aidoc:fact><aidoc:fact>docs/API.md</aidoc:fact><aidoc:fact>bounded host draft</aidoc:fact></aidoc:evidence>
+  </metadata>
   <rect width="1280" height="720" fill="#F4F1EA"/>
   <g data-content-area="safe" transform="translate(64 64)">
-    <rect width="1152" height="592" rx="32" fill="#FAF7F0" stroke="#D7D1C7" stroke-width="2"/>
-    <image href="aidoc-flow-scene.png" x="0" y="16" width="1152" height="576" preserveAspectRatio="xMidYMid slice"/>
-    <rect x="0" y="204" width="432" height="316" fill="#FAF7F0" fill-opacity="0.52"/>
-    <rect x="964" y="204" width="188" height="316" fill="#FAF7F0" fill-opacity="0.44"/>
-    <rect x="454" y="216" width="510" height="296" rx="24" fill="#20B8F4" fill-opacity="0.035" stroke="#20B8F4" stroke-width="4"/>
-    <rect x="0" y="0" width="1152" height="202" rx="32" fill="#FAF7F0"/>
-    <path d="M32 190H1120" stroke="#D7D1C7" stroke-width="2"/>
-    <circle cx="36" cy="44" r="10" fill="#2AC769"/>
-    <text x="60" y="56" fill="#202933" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="36" font-weight="700">AiDoc</text>
-    <text x="32" y="124" fill="#202933" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="48" font-weight="760">Bounded draft</text>
-    <text x="32" y="170" fill="#108CC5" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="30" font-weight="650">README.md + docs/API.md</text>
-    <text x="1120" y="56" fill="#7D868D" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="32" font-weight="650" text-anchor="end">3 / 5</text>
-    <rect x="0" y="520" width="1152" height="72" fill="#111922" fill-opacity="0.97"/>
-    <circle cx="36" cy="556" r="8" fill="#2AC769"/>
-    <text x="56" y="566" fill="#FAF7F0" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="650">No provider calls</text>
-    <circle cx="362" cy="556" r="8" fill="#20B8F4"/>
-    <text x="382" y="566" fill="#FAF7F0" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="650">No repository writes</text>
-    <circle cx="744" cy="556" r="8" fill="#2AC769"/>
-    <text x="764" y="566" fill="#FAF7F0" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="650">You decide what is applied</text>
+    <image href="frame-03-targets.png" x="-64" y="-64" width="1280" height="720" preserveAspectRatio="xMidYMid meet"/>
   </g>
 </svg>
