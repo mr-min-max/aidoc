@@ -200,6 +200,7 @@ async function createSourceArtifacts(repositoryRoot) {
     await mkdir(path.dirname(absolutePath), { recursive: true });
     await writeFile(absolutePath, await readFile(path.resolve(relativePath)));
   }
+  return files;
 }
 
 function findCheck(report, id) {
@@ -817,7 +818,54 @@ test("detects missing and present beta source artifacts when requested", async (
   );
   assertValueSafe(missingReport, fixture);
 
-  await createSourceArtifacts(fixture.repositoryRoot);
+  await git(fixture.repositoryRoot, ["checkout", fixture.candidateRef]);
+  const sourceArtifactPaths = await createSourceArtifacts(
+    fixture.repositoryRoot,
+  );
+  const untrackedReport = await runPreflight({
+    ...fixture,
+    includeSourceArtifacts: true,
+  });
+  for (const checkId of [
+    "codex-plugin-source",
+    "integration-documentation",
+    "storefront-documentation",
+    "hybrid-demo-source",
+    "compiled-mcp",
+    "storefront-static",
+    "storefront-media",
+  ]) {
+    assert.equal(
+      findCheck(untrackedReport, checkId).status,
+      "fail",
+      `${checkId} must ignore untracked worktree files`,
+    );
+  }
+
+  await git(fixture.repositoryRoot, ["add", "--", ...sourceArtifactPaths]);
+  await git(fixture.repositoryRoot, [
+    "commit",
+    "-m",
+    "add beta source artifacts",
+  ]);
+  const modifiedStaticSource =
+    "docs/assets/social/aidoc-social-preview-source.png";
+  await writeFile(
+    path.join(fixture.repositoryRoot, modifiedStaticSource),
+    "worktree-only replacement\n",
+    "utf8",
+  );
+  const modifiedReport = await runPreflight({
+    ...fixture,
+    includeSourceArtifacts: true,
+  });
+  assert.equal(
+    findCheck(modifiedReport, "storefront-static").status,
+    "fail",
+    "source artifacts must match the selected candidate tree",
+  );
+  await git(fixture.repositoryRoot, ["restore", "--", modifiedStaticSource]);
+
   const presentReport = await runPreflight({
     ...fixture,
     includeSourceArtifacts: true,

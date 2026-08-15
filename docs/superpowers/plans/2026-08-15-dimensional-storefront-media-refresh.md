@@ -15,7 +15,7 @@
 - Do not push, create a pull request, tag, upload GitHub media, publish beta.6, or change package versions.
 - Preserve the canonical `createUser(email)` to `createUser(email, role)` story and the `README.md` plus `docs/API.md` targets.
 - Preserve `No provider calls`, `No repository writes`, and `You decide what is applied`.
-- Keep final dimensions and budgets at 1280x640 / 1.5 MiB, 1280x720 / 500 KiB, and 960x540 / 6 MiB.
+- Keep final dimensions and budgets at 1280x640 / 1.5 MiB, 1280x720 / 1.25 MiB, and 960x540 / 6 MiB. The poster budget intentionally preserves clean true-color typography, shadows, and graphite gradients after indexed quantization failed visual review.
 - Reject private paths, credentials, raw digests, provider or third-party logos, synthetic adoption claims, and Unicode em dashes.
 
 ---
@@ -82,7 +82,7 @@
 
 - [ ] **Step 4: Render and optimize the final PNGs**
 
-  Rasterize each wrapper at its native canvas, resize only when necessary, and use indexed PNG optimization only if required to meet the existing budgets without visibly damaging typography or shadows.
+  Rasterize each wrapper at its native canvas and resize only when necessary. Keep the poster as a clean true-color PNG; do not use indexed optimization when it visibly damages typography, shadows, or gradients.
 
 - [ ] **Step 5: Run GREEN and inspect**
 

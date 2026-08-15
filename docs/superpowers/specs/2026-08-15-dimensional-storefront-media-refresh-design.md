@@ -71,10 +71,12 @@ continue to reject scripts, remote resources, event handlers, and unsafe SVG
 features.
 
 Final PNG and GIF exports are derived locally from these tracked sources. The
-existing final-size and performance budgets remain unchanged:
+social and animation budgets remain unchanged. The poster uses a bounded
+true-color export because indexed quantization visibly damaged its small type,
+soft shadows, and graphite gradients during independent review:
 
 - social preview: 1280 by 640 and no more than 1.5 MiB;
-- static poster: 1280 by 720 and no more than 500 KiB;
+- static poster: 1280 by 720 and no more than 1.25 MiB;
 - README GIF: 960 by 540, approximately 15 seconds, and no more than 6 MiB.
 
 ## Truth and safety contract
