@@ -15,8 +15,10 @@ const requiredAssets = [
   "docs/assets/brand/aidoc-avatar-source.png",
   "docs/assets/brand/aidoc-avatar.png",
   "docs/assets/brand/README.md",
+  "docs/assets/social/aidoc-social-preview-source.png",
   "docs/assets/social/aidoc-social-preview.svg",
   "docs/assets/social/aidoc-social-preview.png",
+  "docs/assets/demo/aidoc-flow-poster-source.png",
   "docs/assets/demo/aidoc-flow-poster.svg",
   "docs/assets/demo/aidoc-flow-poster.png",
 ];
@@ -36,6 +38,7 @@ const productionKit = [
   "docs/demo/recording-checklist.md",
 ];
 const task4Assets = [
+  "docs/assets/demo/aidoc-flow-scene.png",
   ...animationFrames,
   "docs/assets/demo/aidoc-flow.gif",
   ...productionKit,
@@ -54,6 +57,20 @@ function readText(relativePath) {
 
 function readPng(relativePath) {
   return readFileSync(absolutePath(relativePath));
+}
+
+function localImageReferences(source) {
+  return [...source.matchAll(/<image\b[^>]*\bhref="([^"]+)"/gu)].map(
+    ([, href]) => href,
+  );
+}
+
+function metadataValues(source, elementName) {
+  return [
+    ...source.matchAll(
+      new RegExp(`<aidoc:${elementName}>([^<]+)</aidoc:${elementName}>`, "gu"),
+    ),
+  ].map(([, value]) => value);
 }
 
 function pngDimensions(relativePath) {
@@ -143,9 +160,17 @@ test(
         height: 1254,
       },
       "docs/assets/brand/aidoc-avatar.png": { width: 512, height: 512 },
+      "docs/assets/social/aidoc-social-preview-source.png": {
+        width: 1774,
+        height: 887,
+      },
       "docs/assets/social/aidoc-social-preview.png": {
         width: 1280,
         height: 640,
+      },
+      "docs/assets/demo/aidoc-flow-poster-source.png": {
+        width: 1774,
+        height: 887,
       },
       "docs/assets/demo/aidoc-flow-poster.png": {
         width: 1280,
@@ -162,6 +187,8 @@ test(
     const budgets = {
       "docs/assets/brand/aidoc-mark.svg": 50 * 1024,
       "docs/assets/brand/aidoc-avatar-source.png": 2 * 1024 * 1024,
+      "docs/assets/social/aidoc-social-preview-source.png": 2 * 1024 * 1024,
+      "docs/assets/demo/aidoc-flow-poster-source.png": 2 * 1024 * 1024,
       "docs/assets/demo/aidoc-flow-poster.png": 500 * 1024,
       "docs/assets/social/aidoc-social-preview.png": 1.5 * 1024 * 1024,
     };
@@ -202,7 +229,7 @@ test(
 
     assert.doesNotMatch(
       allSvg,
-      /<script|javascript:|(?:href|src)=["']https?:\/\/|xlink:href|@import|url\(/iu,
+      /<script|javascript:|(?:href|src)=["'](?:https?:\/\/|data:)|xlink:href|@import|url\(|<foreignObject|\son[a-z]+=/iu,
     );
     assert.doesNotMatch(allSvg, /OpenAI|Anthropic|GitHub|Claude logo/iu);
     assert.doesNotMatch(
@@ -211,14 +238,43 @@ test(
       "static storefront assets must not contain a Unicode em dash",
     );
 
+    assert.match(
+      socialSvg,
+      /data-visual-system="dimensional-code-to-docs-v1"/u,
+    );
+    assert.deepEqual(localImageReferences(socialSvg), [
+      "aidoc-social-preview-source.png",
+    ]);
+    assert.deepEqual(metadataValues(socialSvg, "line"), [
+      "AiDoc",
+      "Documentation that keeps up with your code.",
+      "Code change -> Impact plan -> Reviewable docs update",
+    ]);
+    assert.deepEqual(metadataValues(posterSvg, "fact"), [
+      "createUser(email)",
+      "createUser(email, role)",
+      "README.md",
+      "docs/API.md",
+      "Validated",
+      "No provider calls",
+      "No repository writes",
+      "You decide what is applied",
+    ]);
+    assert.match(
+      posterSvg,
+      /data-visual-system="dimensional-code-to-docs-v1"/u,
+    );
+    assert.deepEqual(localImageReferences(posterSvg), [
+      "aidoc-flow-poster-source.png",
+    ]);
     assert.deepEqual(
-      [...socialSvg.matchAll(/<text\b[^>]*>([^<]+)<\/text>/gu)].map(
+      [...posterSvg.matchAll(/<text\b[^>]*>([^<]+)<\/text>/gu)].map(
         ([, textContent]) => textContent,
       ),
       [
-        "AiDoc",
-        "Documentation that keeps up with your code.",
-        "Code change -> Impact plan -> Reviewable docs update",
+        "No provider calls",
+        "No repository writes",
+        "You decide what is applied",
       ],
     );
     assert.match(socialSvg, /viewBox="0 0 1280 640"/u);
@@ -232,6 +288,12 @@ test(
       assert.match(posterSvg, new RegExp(escapedText, "u"));
     }
     assert.match(posterSvg, /viewBox="0 0 1280 720"/u);
+
+    const approvedRasterSources = [
+      readPng("docs/assets/social/aidoc-social-preview-source.png"),
+      readPng("docs/assets/demo/aidoc-flow-poster-source.png"),
+    ];
+    assert.notDeepEqual(approvedRasterSources[0], approvedRasterSources[1]);
 
     assert.match(
       brandReadme,
@@ -278,6 +340,7 @@ test(
 
     frameSources.forEach((source, index) => {
       assert.match(source, /<svg\b[^>]*viewBox="0 0 1280 720"/u);
+      assert.match(source, /data-visual-system="dimensional-code-to-docs-v1"/u);
       assert.match(source, /data-safe-margin="64"/u);
       assert.match(source, /data-protected-margin="80"/u);
       assert.match(source, new RegExp(`data-step="${index + 1}"`, "u"));
@@ -288,6 +351,7 @@ test(
       assert.match(source, /width="1152" height="592"/u);
       assert.match(source, new RegExp(`${index + 1} / 5`, "u"));
       assert.match(source, new RegExp(`>${plainHeadlines[index]}<`, "u"));
+      assert.deepEqual(localImageReferences(source), ["aidoc-flow-scene.png"]);
       const textElements = [
         ...source.matchAll(/<text\b([^>]*)>([\s\S]*?)<\/text>/gu),
       ];
@@ -316,9 +380,18 @@ test(
       }
       assert.doesNotMatch(
         source,
-        /<script\b|<image\b|<foreignObject\b|<use\b|javascript:|(?:href|xlink:href|src)=|@import|url\(|\son[a-z]+=/iu,
+        /<script\b|<foreignObject\b|<use\b|javascript:|(?:href|src)=["'](?:https?:\/\/|data:)|xlink:href|@import|url\(|\son[a-z]+=/iu,
       );
     });
+
+    assert.deepEqual(pngDimensions("docs/assets/demo/aidoc-flow-scene.png"), {
+      width: 1774,
+      height: 887,
+    });
+    assert.ok(
+      statSync(absolutePath("docs/assets/demo/aidoc-flow-scene.png")).size <=
+        2 * 1024 * 1024,
+    );
 
     for (const evidence of [
       "prepare_documentation_update",
