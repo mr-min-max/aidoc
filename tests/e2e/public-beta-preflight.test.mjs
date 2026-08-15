@@ -64,12 +64,15 @@ const SOURCE_ARTIFACTS = {
     "docs/assets/brand/aidoc-avatar-source.png",
     "docs/assets/brand/aidoc-avatar.png",
     "docs/assets/brand/README.md",
+    "docs/assets/social/aidoc-social-preview-source.png",
     "docs/assets/social/aidoc-social-preview.svg",
     "docs/assets/social/aidoc-social-preview.png",
+    "docs/assets/demo/aidoc-flow-poster-source.png",
     "docs/assets/demo/aidoc-flow-poster.svg",
     "docs/assets/demo/aidoc-flow-poster.png",
   ],
   storefrontMedia: [
+    "docs/assets/demo/aidoc-flow-scene.png",
     "docs/assets/demo/frame-01-change.svg",
     "docs/assets/demo/frame-02-plan.svg",
     "docs/assets/demo/frame-03-targets.svg",
@@ -840,6 +843,6 @@ test("detects missing and present beta source artifacts when requested", async (
     findCheck(presentReport, "storefront-documentation").summary,
     "Storefront documentation artifacts are present.",
   );
-  assert.equal(presentReport.counts.sourceArtifacts, 48);
+  assert.equal(presentReport.counts.sourceArtifacts, 51);
   assertValueSafe(presentReport, fixture);
 });

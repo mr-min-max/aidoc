@@ -1,40 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc" data-safe-margin="64" data-protected-margin="80" data-step="4">
-  <title id="title">AiDoc frame 4: draft validated</title>
-  <desc id="desc">README.md and docs/API.md both replace createUser(email) with createUser(email, role), then the host draft is validated.</desc>
-  <rect width="1280" height="720" fill="#0D1117"/>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:aidoc="urn:aidoc:assets" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc" data-safe-margin="64" data-protected-margin="80" data-step="4" data-visual-system="dimensional-code-to-docs-v1">
+  <title id="title">AiDoc demo step 4: Draft validated</title>
+  <desc id="desc">AiDoc validates the bounded host draft without writing to the repository.</desc>
+  <metadata><aidoc:evidence><aidoc:fact>validate_documentation_draft</aidoc:fact><aidoc:fact>No repository writes</aidoc:fact></aidoc:evidence></metadata>
+  <rect width="1280" height="720" fill="#F4F1EA"/>
   <g data-content-area="safe" transform="translate(64 64)">
-    <rect width="1152" height="592" rx="28" fill="#161B22" stroke="#30363D" stroke-width="2"/>
-    <g transform="translate(28 18) scale(0.68)">
-      <path d="M14 7h25l11 11v39H14z" fill="#161B22" stroke="#F0F6FC" stroke-width="3" stroke-linejoin="round"/>
-      <path d="M39 7v12h11" fill="none" stroke="#F0F6FC" stroke-width="3" stroke-linejoin="round"/>
-      <path d="M24 29v14m0-7h15m0-7v14" fill="none" stroke="#58A6FF" stroke-width="3" stroke-linecap="round"/>
-      <circle cx="24" cy="29" r="4" fill="#58A6FF"/>
-      <circle cx="24" cy="43" r="4" fill="#3FB950"/>
-      <circle cx="39" cy="29" r="4" fill="#58A6FF"/>
-      <circle cx="39" cy="43" r="4" fill="#3FB950"/>
-    </g>
-    <text x="80" y="50" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="32" font-weight="700">AiDoc</text>
-    <text x="1104" y="50" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="28" text-anchor="end">4 / 5</text>
-    <path d="M32 82H1120" stroke="#30363D" stroke-width="2"/>
-
-    <text x="40" y="142" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="46" font-weight="750">Draft validated</text>
-    <text x="40" y="184" fill="#8B949E" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28">Both files contain the same focused update.</text>
-
-    <rect x="48" y="226" width="504" height="238" rx="20" fill="#0D1117" stroke="#30363D" stroke-width="2"/>
-    <text x="80" y="272" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="30" font-weight="700">README.md</text>
-    <path d="M80 296H520" stroke="#30363D" stroke-width="2"/>
-    <text x="80" y="348" fill="#F85149" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="28">- createUser(email)</text>
-    <text x="80" y="402" fill="#3FB950" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="28">+ createUser(email, role)</text>
-
-    <rect x="600" y="226" width="504" height="238" rx="20" fill="#0D1117" stroke="#30363D" stroke-width="2"/>
-    <text x="632" y="272" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="30" font-weight="700">docs/API.md</text>
-    <path d="M632 296H1072" stroke="#30363D" stroke-width="2"/>
-    <text x="632" y="348" fill="#F85149" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="28">- createUser(email)</text>
-    <text x="632" y="402" fill="#3FB950" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="28">+ createUser(email, role)</text>
-
-    <text x="48" y="522" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="28">validate_documentation_draft</text>
-    <circle cx="994" cy="514" r="34" fill="#12261A" stroke="#3FB950" stroke-width="3"/>
-    <path d="M978 514l11 11 22-25" fill="none" stroke="#3FB950" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="1044" y="524" fill="#3FB950" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="30" font-weight="700">Valid</text>
+    <rect width="1152" height="592" rx="32" fill="#FAF7F0" stroke="#D7D1C7" stroke-width="2"/>
+    <image href="aidoc-flow-scene.png" x="0" y="16" width="1152" height="576" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="0" y="204" width="430" height="316" fill="#FAF7F0" fill-opacity="0.42"/>
+    <rect x="452" y="216" width="690" height="296" rx="24" fill="#2AC769" fill-opacity="0.025" stroke="#2AC769" stroke-width="4"/>
+    <path d="M864 470H1060" fill="none" stroke="#2AC769" stroke-width="8" stroke-linecap="round"/>
+    <rect x="0" y="0" width="1152" height="202" rx="32" fill="#FAF7F0"/>
+    <path d="M32 190H1120" stroke="#D7D1C7" stroke-width="2"/>
+    <circle cx="36" cy="44" r="10" fill="#2AC769"/>
+    <text x="60" y="56" fill="#202933" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="36" font-weight="700">AiDoc</text>
+    <text x="32" y="124" fill="#202933" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="48" font-weight="760">Draft validated</text>
+    <text x="32" y="170" fill="#168E47" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="30" font-weight="650">validate_documentation_draft</text>
+    <text x="1120" y="56" fill="#7D868D" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="32" font-weight="650" text-anchor="end">4 / 5</text>
+    <rect x="0" y="520" width="1152" height="72" fill="#111922" fill-opacity="0.97"/>
+    <circle cx="36" cy="556" r="8" fill="#2AC769"/>
+    <text x="56" y="566" fill="#FAF7F0" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="650">No provider calls</text>
+    <circle cx="362" cy="556" r="8" fill="#20B8F4"/>
+    <text x="382" y="566" fill="#FAF7F0" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="650">No repository writes</text>
+    <circle cx="744" cy="556" r="8" fill="#2AC769"/>
+    <text x="764" y="566" fill="#FAF7F0" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="650">You decide what is applied</text>
   </g>
 </svg>

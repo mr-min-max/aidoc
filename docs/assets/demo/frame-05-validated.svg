@@ -1,47 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc" data-safe-margin="64" data-protected-margin="80" data-step="5">
-  <title id="title">AiDoc frame 5: you review</title>
-  <desc id="desc">Validation stops before the repository. No repository writes occur and the maintainer decides what is applied.</desc>
-  <rect width="1280" height="720" fill="#0D1117"/>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:aidoc="urn:aidoc:assets" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc" data-safe-margin="64" data-protected-margin="80" data-step="5" data-visual-system="dimensional-code-to-docs-v1">
+  <title id="title">AiDoc demo step 5: You review</title>
+  <desc id="desc">The green validated node hands a focused documentation draft to the maintainer, who decides what is applied.</desc>
+  <metadata><aidoc:evidence><aidoc:fact>You decide what is applied</aidoc:fact><aidoc:fact>Review the diff</aidoc:fact><aidoc:fact>Public beta</aidoc:fact></aidoc:evidence></metadata>
+  <rect width="1280" height="720" fill="#F4F1EA"/>
   <g data-content-area="safe" transform="translate(64 64)">
-    <rect width="1152" height="592" rx="28" fill="#161B22" stroke="#30363D" stroke-width="2"/>
-    <g transform="translate(28 18) scale(0.68)">
-      <path d="M14 7h25l11 11v39H14z" fill="#161B22" stroke="#F0F6FC" stroke-width="3" stroke-linejoin="round"/>
-      <path d="M39 7v12h11" fill="none" stroke="#F0F6FC" stroke-width="3" stroke-linejoin="round"/>
-      <path d="M24 29v14m0-7h15m0-7v14" fill="none" stroke="#58A6FF" stroke-width="3" stroke-linecap="round"/>
-      <circle cx="24" cy="29" r="4" fill="#58A6FF"/>
-      <circle cx="24" cy="43" r="4" fill="#3FB950"/>
-      <circle cx="39" cy="29" r="4" fill="#58A6FF"/>
-      <circle cx="39" cy="43" r="4" fill="#3FB950"/>
-    </g>
-    <text x="80" y="50" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="32" font-weight="700">AiDoc</text>
-    <text x="1104" y="50" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="28" text-anchor="end">5 / 5</text>
-    <path d="M32 82H1120" stroke="#30363D" stroke-width="2"/>
-
-    <text x="40" y="142" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="46" font-weight="750">You review</text>
-    <text x="40" y="184" fill="#8B949E" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28">Validation stops before any repository write.</text>
-
-    <rect x="48" y="250" width="304" height="188" rx="20" fill="#0D1117" stroke="#3FB950" stroke-width="3"/>
-    <circle cx="88" cy="294" r="12" fill="#3FB950"/>
-    <path d="M82 294l5 5 10-12" fill="none" stroke="#0D1117" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="116" y="305" fill="#3FB950" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="30" font-weight="700">Validated draft</text>
-    <text x="80" y="376" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="30">Review the diff</text>
-
-    <path d="M376 344H468" stroke="#58A6FF" stroke-width="5" stroke-linecap="round"/>
-    <path d="M450 326l20 18-20 18" fill="none" stroke="#58A6FF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
-
-    <rect x="492" y="246" width="196" height="196" rx="98" fill="#231A1B" stroke="#F85149" stroke-width="4"/>
-    <path d="M542 344H638" stroke="#F85149" stroke-width="10" stroke-linecap="round"/>
-    <text x="590" y="410" fill="#F85149" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="750" text-anchor="middle">STOP</text>
-
-    <path d="M712 344H788" stroke="#8B949E" stroke-width="4" stroke-dasharray="10 12" stroke-linecap="round"/>
-    <rect x="812" y="250" width="292" height="188" rx="20" fill="#0D1117" stroke="#30363D" stroke-width="2"/>
-    <path d="M864 294h188v100H864z" fill="#161B22" stroke="#8B949E" stroke-width="3"/>
-    <path d="M864 326h188" stroke="#8B949E" stroke-width="3"/>
-    <text x="958" y="376" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="30" text-anchor="middle">Repository</text>
-
-    <rect x="48" y="478" width="328" height="58" rx="29" fill="#231A1B" stroke="#F85149" stroke-width="2"/>
-    <circle cx="82" cy="507" r="8" fill="#F85149"/>
-    <text x="106" y="517" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="650">No repository writes</text>
-    <text x="1104" y="524" fill="#3FB950" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="36" font-weight="750" text-anchor="end">You decide what is applied</text>
+    <rect width="1152" height="592" rx="32" fill="#FAF7F0" stroke="#D7D1C7" stroke-width="2"/>
+    <image href="aidoc-flow-scene.png" x="0" y="16" width="1152" height="576" preserveAspectRatio="xMidYMid slice"/>
+    <rect x="0" y="204" width="940" height="316" fill="#FAF7F0" fill-opacity="0.26"/>
+    <path d="M842 470H936" fill="none" stroke="#2AC769" stroke-width="8" stroke-linecap="round"/>
+    <rect x="930" y="392" width="198" height="124" rx="28" fill="#2AC769" fill-opacity="0.04" stroke="#2AC769" stroke-width="5"/>
+    <rect x="0" y="0" width="1152" height="202" rx="32" fill="#FAF7F0"/>
+    <path d="M32 190H1120" stroke="#D7D1C7" stroke-width="2"/>
+    <circle cx="36" cy="44" r="10" fill="#2AC769"/>
+    <text x="60" y="56" fill="#202933" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="36" font-weight="700">AiDoc</text>
+    <text x="32" y="124" fill="#202933" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="48" font-weight="760">You review</text>
+    <text x="32" y="170" fill="#168E47" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="30" font-weight="700">You decide what is applied</text>
+    <text x="1120" y="56" fill="#7D868D" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="32" font-weight="650" text-anchor="end">5 / 5</text>
+    <rect x="0" y="520" width="1152" height="72" fill="#111922" fill-opacity="0.97"/>
+    <circle cx="36" cy="556" r="8" fill="#2AC769"/>
+    <text x="56" y="566" fill="#FAF7F0" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="650">No provider calls</text>
+    <circle cx="362" cy="556" r="8" fill="#20B8F4"/>
+    <text x="382" y="566" fill="#FAF7F0" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="650">No repository writes</text>
+    <circle cx="744" cy="556" r="8" fill="#2AC769"/>
+    <text x="764" y="566" fill="#FAF7F0" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="650">You decide what is applied</text>
   </g>
 </svg>
