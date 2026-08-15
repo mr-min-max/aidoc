@@ -47,7 +47,25 @@ const missingTask4Assets = task4Assets.filter(
   (relativePath) => !existsSync(path.join(root, relativePath)),
 );
 const unsafeSvgPattern =
-  /<script\b|<foreignObject\b|<use\b|javascript:|(?:href|src)\s*=\s*["']\s*(?:https?:\/\/|data:)|xlink:href\s*=|@import|url\(|\son[a-z]+\s*=/iu;
+  /javascript:|(?:href|src)\s*=\s*["']\s*(?:https?:\/\/|data:)|xlink:href\s*=|xml:base\s*=|@import|url\(|\s(?:on[a-z]+|style)\s*=/iu;
+const allowedStaticSvgElements = new Set([
+  "aidoc:contract",
+  "aidoc:copy",
+  "aidoc:evidence",
+  "aidoc:fact",
+  "aidoc:line",
+  "circle",
+  "desc",
+  "g",
+  "image",
+  "metadata",
+  "path",
+  "rect",
+  "svg",
+  "text",
+  "title",
+  "tspan",
+]);
 
 function absolutePath(relativePath) {
   return path.join(root, relativePath);
@@ -73,6 +91,33 @@ function localImageReferences(source) {
     }
   }
   return references;
+}
+
+function staticSvgViolations(source, approvedReferences) {
+  const violations = [];
+  if (/<\?|<!/u.test(source)) {
+    violations.push("processing instructions and declarations are forbidden");
+  }
+  const elementNames = new Set(
+    [...source.matchAll(/<\s*\/?\s*([A-Za-z][\w:.-]*)\b/gu)].map(
+      ([, elementName]) => elementName.toLowerCase(),
+    ),
+  );
+  for (const elementName of elementNames) {
+    if (!allowedStaticSvgElements.has(elementName)) {
+      violations.push(`unsupported SVG element: ${elementName}`);
+    }
+  }
+  if (unsafeSvgPattern.test(source)) {
+    violations.push("unsafe SVG attribute or resource syntax");
+  }
+  if (
+    JSON.stringify(localImageReferences(source)) !==
+    JSON.stringify(approvedReferences)
+  ) {
+    violations.push("resource references differ from the approved allowlist");
+  }
+  return violations;
 }
 
 function metadataValues(source, elementName) {
@@ -184,7 +229,7 @@ test("requires the reproducible animation and walkthrough production kit", () =>
   assert.deepEqual(missingTask4Assets, []);
 });
 
-test("enumerates SVG resource attributes across quoted syntax variants", () => {
+test("enforces a static SVG profile across resource syntax variants", () => {
   const source = `<svg>
     <image href = 'https://example.invalid/remote.png' />
     <image href="local.png" />
@@ -196,7 +241,22 @@ test("enumerates SVG resource attributes across quoted syntax variants", () => {
     "local.png",
     "#mark",
   ]);
-  assert.match(source, unsafeSvgPattern);
+  assert.notDeepEqual(staticSvgViolations(source, ["local.png"]), []);
+
+  const hostileSources = [
+    `<?xml-stylesheet href="unapproved.css"?><svg />`,
+    `<!DOCTYPE svg [<!ENTITY remote SYSTEM "https://example.invalid/x">]><svg />`,
+    `<svg><image href="approved.png"><animate attributeName="href" values="approved.png;https://example.invalid/x.png" /></image></svg>`,
+    `<svg><set attributeName="href" to="https://example.invalid/x.png" /></svg>`,
+    `<svg xml:base="https://example.invalid/"><image href="approved.png" /></svg>`,
+    `<svg style="background-image: url(https://example.invalid/x.png)" />`,
+  ];
+  for (const hostileSource of hostileSources) {
+    assert.notDeepEqual(
+      staticSvgViolations(hostileSource, ["approved.png"]),
+      [],
+    );
+  }
 });
 
 test("decodes the GIF loop extension instead of checking its label only", () => {
@@ -316,13 +376,15 @@ test(
     }
     for (const relativePath of svgPaths) {
       assert.deepEqual(
-        localImageReferences(readText(relativePath)),
-        approvedSvgReferences.get(relativePath) ?? [],
-        `${relativePath} must use only its exact approved local resources`,
+        staticSvgViolations(
+          readText(relativePath),
+          approvedSvgReferences.get(relativePath) ?? [],
+        ),
+        [],
+        `${relativePath} must use the strict static SVG profile`,
       );
     }
 
-    assert.doesNotMatch(allSvg, unsafeSvgPattern);
     assert.doesNotMatch(allSvg, /OpenAI|Anthropic|GitHub|Claude logo/iu);
     assert.doesNotMatch(
       `${allSvg}\n${brandReadme}`,
@@ -457,7 +519,11 @@ test(
       assert.match(source, /width="1152" height="592"/u);
       assert.match(source, new RegExp(`${index + 1} / 5`, "u"));
       assert.match(source, new RegExp(`>${plainHeadlines[index]}<`, "u"));
-      assert.deepEqual(localImageReferences(source), ["aidoc-flow-scene.png"]);
+      assert.deepEqual(
+        staticSvgViolations(source, ["aidoc-flow-scene.png"]),
+        [],
+        "animation frames must use the strict static SVG profile",
+      );
       const textElements = [
         ...source.matchAll(/<text\b([^>]*)>([\s\S]*?)<\/text>/gu),
       ];
@@ -484,7 +550,6 @@ test(
           `visible frame text is too long: ${visibleText}`,
         );
       }
-      assert.doesNotMatch(source, unsafeSvgPattern);
     });
 
     assert.deepEqual(pngDimensions("docs/assets/demo/aidoc-flow-scene.png"), {
