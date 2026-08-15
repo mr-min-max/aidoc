@@ -23,4 +23,29 @@
     height="640"
     preserveAspectRatio="xMidYMid slice"
   />
+  <g data-visible-code="before">
+    <rect x="176" y="228" width="198" height="44" fill="#202A34" />
+    <text
+      x="188"
+      y="258"
+      fill="#FAF7F0"
+      font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+      font-size="18"
+      font-weight="650"
+      textLength="166"
+      lengthAdjust="spacingAndGlyphs"
+    ><tspan>createUser(</tspan><tspan fill="#20B8F4">email</tspan><tspan>)</tspan></text>
+  </g>
+  <g data-visible-code="after">
+    <rect x="176" y="353" width="205" height="44" fill="#202A34" />
+    <text
+      x="188"
+      y="383"
+      fill="#FAF7F0"
+      font-family="ui-monospace, SFMono-Regular, Menlo, monospace"
+      font-size="16.5"
+      font-weight="650"
+      letter-spacing="-1.8"
+    ><tspan>createUser(</tspan><tspan fill="#20B8F4">email</tspan><tspan>, </tspan><tspan fill="#2AC769">role</tspan><tspan>)</tspan></text>
+  </g>
 </svg>

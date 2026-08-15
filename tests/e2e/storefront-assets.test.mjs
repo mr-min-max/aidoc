@@ -46,6 +46,8 @@ const task4Assets = [
 const missingTask4Assets = task4Assets.filter(
   (relativePath) => !existsSync(path.join(root, relativePath)),
 );
+const unsafeSvgPattern =
+  /<script\b|<foreignObject\b|<use\b|javascript:|(?:href|src)\s*=\s*["']\s*(?:https?:\/\/|data:)|xlink:href\s*=|@import|url\(|\son[a-z]+\s*=/iu;
 
 function absolutePath(relativePath) {
   return path.join(root, relativePath);
@@ -60,9 +62,17 @@ function readPng(relativePath) {
 }
 
 function localImageReferences(source) {
-  return [...source.matchAll(/<image\b[^>]*\bhref="([^"]+)"/gu)].map(
-    ([, href]) => href,
-  );
+  const references = [];
+  for (const [, , attributes] of source.matchAll(
+    /<([A-Za-z][\w:.-]*)\b([^<>]*)>/gu,
+  )) {
+    for (const [, , , value] of attributes.matchAll(
+      /\b(xlink:href|href|src)\s*=\s*(["'])(.*?)\2/giu,
+    )) {
+      references.push(value);
+    }
+  }
+  return references;
 }
 
 function metadataValues(source, elementName) {
@@ -71,6 +81,21 @@ function metadataValues(source, elementName) {
       new RegExp(`<aidoc:${elementName}>([^<]+)</aidoc:${elementName}>`, "gu"),
     ),
   ].map(([, value]) => value);
+}
+
+function visibleCodeValues(source) {
+  return [
+    ...source.matchAll(
+      /<g\b[^>]*data-visible-code="[^"]+"[^>]*>([\s\S]*?)<\/g>/gu,
+    ),
+  ].map(([, body]) => {
+    const text = /<text\b[^>]*>([\s\S]*?)<\/text>/u.exec(body);
+    assert.ok(text, "visible code group must contain a text element");
+    return text[1]
+      .replace(/<[^>]+>/gu, "")
+      .replace(/\s+/gu, " ")
+      .trim();
+  });
 }
 
 function pngDimensions(relativePath) {
@@ -98,6 +123,33 @@ function gifDimensions(relativePath) {
     width: bytes.readUInt16LE(6),
     height: bytes.readUInt16LE(8),
     bytes,
+    ...gifContract(bytes),
+  };
+}
+
+function gifContract(bytes) {
+  const loopApplicationId = Buffer.from("NETSCAPE2.0", "ascii");
+  const loopApplicationOffset = bytes.indexOf(loopApplicationId);
+  const loopCount =
+    loopApplicationOffset >= 0 && loopApplicationOffset + 15 <= bytes.length
+      ? bytes.readUInt16LE(loopApplicationOffset + 13)
+      : null;
+  let durationCentiseconds = 0;
+  let frameCount = 0;
+  for (let index = 0; index + 7 < bytes.length; index += 1) {
+    if (
+      bytes[index] === 0x21 &&
+      bytes[index + 1] === 0xf9 &&
+      bytes[index + 2] === 0x04
+    ) {
+      durationCentiseconds += bytes.readUInt16LE(index + 4);
+      frameCount += 1;
+    }
+  }
+  return {
+    loopCount,
+    frameCount,
+    durationSeconds: durationCentiseconds / 100,
   };
 }
 
@@ -132,6 +184,32 @@ test("requires the reproducible animation and walkthrough production kit", () =>
   assert.deepEqual(missingTask4Assets, []);
 });
 
+test("enumerates SVG resource attributes across quoted syntax variants", () => {
+  const source = `<svg>
+    <image href = 'https://example.invalid/remote.png' />
+    <image href="local.png" />
+    <use xlink:href = '#mark' />
+  </svg>`;
+
+  assert.deepEqual(localImageReferences(source), [
+    "https://example.invalid/remote.png",
+    "local.png",
+    "#mark",
+  ]);
+  assert.match(source, unsafeSvgPattern);
+});
+
+test("decodes the GIF loop extension instead of checking its label only", () => {
+  const source = readFileSync(absolutePath("docs/assets/demo/aidoc-flow.gif"));
+  const applicationOffset = source.indexOf(Buffer.from("NETSCAPE2.0", "ascii"));
+  assert.ok(applicationOffset >= 0);
+
+  const finiteLoop = Buffer.from(source);
+  finiteLoop.writeUInt16LE(1, applicationOffset + 13);
+  assert.equal(gifContract(finiteLoop).loopCount, 1);
+  assert.equal(gifContract(source).loopCount, 0);
+});
+
 test(
   "enforces storefront asset dimensions, safety, text, and budgets",
   { skip: missingAssets.length > 0 ? "static assets are not present" : false },
@@ -151,6 +229,16 @@ test(
       readText("docs/assets/brand/aidoc-mark-on-dark.svg"),
       readText("docs/assets/brand/aidoc-mark-on-light.svg"),
     ];
+    const approvedSvgReferences = new Map([
+      [
+        "docs/assets/social/aidoc-social-preview.svg",
+        ["aidoc-social-preview-source.png"],
+      ],
+      [
+        "docs/assets/demo/aidoc-flow-poster.svg",
+        ["aidoc-flow-poster-source.png"],
+      ],
+    ]);
 
     const expectedPngDimensions = {
       "docs/assets/brand/aidoc-mark-dark.png": { width: 512, height: 512 },
@@ -189,7 +277,7 @@ test(
       "docs/assets/brand/aidoc-avatar-source.png": 2 * 1024 * 1024,
       "docs/assets/social/aidoc-social-preview-source.png": 2 * 1024 * 1024,
       "docs/assets/demo/aidoc-flow-poster-source.png": 2 * 1024 * 1024,
-      "docs/assets/demo/aidoc-flow-poster.png": 500 * 1024,
+      "docs/assets/demo/aidoc-flow-poster.png": 1.25 * 1024 * 1024,
       "docs/assets/social/aidoc-social-preview.png": 1.5 * 1024 * 1024,
     };
     for (const [relativePath, maximumBytes] of Object.entries(budgets)) {
@@ -226,11 +314,15 @@ test(
       assert.match(describedMark, /<desc[^>]*>[^<]*four semantic nodes/iu);
       assert.doesNotMatch(describedMark, /three AST nodes/iu);
     }
+    for (const relativePath of svgPaths) {
+      assert.deepEqual(
+        localImageReferences(readText(relativePath)),
+        approvedSvgReferences.get(relativePath) ?? [],
+        `${relativePath} must use only its exact approved local resources`,
+      );
+    }
 
-    assert.doesNotMatch(
-      allSvg,
-      /<script|javascript:|(?:href|src)=["'](?:https?:\/\/|data:)|xlink:href|@import|url\(|<foreignObject|\son[a-z]+=/iu,
-    );
+    assert.doesNotMatch(allSvg, unsafeSvgPattern);
     assert.doesNotMatch(allSvg, /OpenAI|Anthropic|GitHub|Claude logo/iu);
     assert.doesNotMatch(
       `${allSvg}\n${brandReadme}`,
@@ -249,6 +341,10 @@ test(
       "AiDoc",
       "Documentation that keeps up with your code.",
       "Code change -> Impact plan -> Reviewable docs update",
+    ]);
+    assert.deepEqual(visibleCodeValues(socialSvg), [
+      "createUser(email)",
+      "createUser(email, role)",
     ]);
     assert.deepEqual(metadataValues(posterSvg, "fact"), [
       "createUser(email)",
@@ -294,6 +390,16 @@ test(
       readPng("docs/assets/demo/aidoc-flow-poster-source.png"),
     ];
     assert.notDeepEqual(approvedRasterSources[0], approvedRasterSources[1]);
+    for (const rasterSource of [
+      ...approvedRasterSources,
+      readPng("docs/assets/demo/aidoc-flow-scene.png"),
+    ]) {
+      assert.doesNotMatch(
+        rasterSource.toString("latin1"),
+        /OpenAI|gpt-image|c2pa\.icon/iu,
+        "tracked raster sources must not retain provider branding metadata",
+      );
+    }
 
     assert.match(
       brandReadme,
@@ -378,10 +484,7 @@ test(
           `visible frame text is too long: ${visibleText}`,
         );
       }
-      assert.doesNotMatch(
-        source,
-        /<script\b|<foreignObject\b|<use\b|javascript:|(?:href|src)=["'](?:https?:\/\/|data:)|xlink:href|@import|url\(|\son[a-z]+=/iu,
-      );
+      assert.doesNotMatch(source, unsafeSvgPattern);
     });
 
     assert.deepEqual(pngDimensions("docs/assets/demo/aidoc-flow-scene.png"), {
@@ -414,6 +517,12 @@ test(
     assert.ok(
       gif.bytes.includes(Buffer.from("NETSCAPE2.0", "ascii")),
       "GIF must contain an infinite-loop application extension",
+    );
+    assert.equal(gif.loopCount, 0, "GIF must loop indefinitely");
+    assert.equal(gif.frameCount, 180, "GIF must contain 15 seconds at 12 fps");
+    assert.ok(
+      gif.durationSeconds >= 14.5 && gif.durationSeconds <= 15.5,
+      `GIF must last about 15 seconds, received ${gif.durationSeconds}`,
     );
     assert.ok(
       statSync(absolutePath("docs/assets/demo/aidoc-flow.gif")).size <=

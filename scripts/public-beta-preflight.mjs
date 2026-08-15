@@ -584,7 +584,51 @@ function makeCheck(id, status, summary) {
   return { id, status, summary };
 }
 
-function sourceArtifactFilesPresent(repositoryRoot, relativePaths) {
+async function sourceArtifactFilesPresent(
+  repositoryRoot,
+  candidateRef,
+  relativePaths,
+) {
+  let candidatePaths;
+  try {
+    const treeId = (
+      await gitText(repositoryRoot, [
+        "rev-parse",
+        "--verify",
+        "--end-of-options",
+        `${candidateRef}^{tree}`,
+      ])
+    ).trim();
+    if (!/^[a-f0-9]{40,64}$/u.test(treeId)) {
+      return false;
+    }
+    const output = await gitBuffer(repositoryRoot, [
+      "ls-tree",
+      "-r",
+      "-z",
+      "--name-only",
+      treeId,
+      "--",
+      ...relativePaths,
+    ]);
+    candidatePaths = new Set(
+      output.toString("utf8").split("\0").filter(Boolean),
+    );
+    const worktreeMatchesCandidate =
+      (await gitExitCode(repositoryRoot, [
+        "diff",
+        "--quiet",
+        treeId,
+        "--",
+        ...relativePaths,
+      ])) === 0;
+    if (!worktreeMatchesCandidate) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+
   return relativePaths.every((relativePath) => {
     try {
       const candidate = path.resolve(repositoryRoot, relativePath);
@@ -593,6 +637,7 @@ function sourceArtifactFilesPresent(repositoryRoot, relativePaths) {
         relative.length > 0 &&
         !relative.startsWith(`..${path.sep}`) &&
         relative !== ".." &&
+        candidatePaths.has(relativePath) &&
         lstatSync(candidate).isFile()
       );
     } catch {
@@ -601,9 +646,10 @@ function sourceArtifactFilesPresent(repositoryRoot, relativePaths) {
   });
 }
 
-async function sourceArtifactChecks(repositoryRoot) {
-  const codexFilesPresent = sourceArtifactFilesPresent(
+async function sourceArtifactChecks(repositoryRoot, candidateRef) {
+  const codexFilesPresent = await sourceArtifactFilesPresent(
     repositoryRoot,
+    candidateRef,
     BETA_SOURCE_ARTIFACTS.codexPlugin,
   );
   let codexShapeValid = false;
@@ -660,16 +706,19 @@ async function sourceArtifactChecks(repositoryRoot) {
     }
   }
 
-  const docsPresent = sourceArtifactFilesPresent(
+  const docsPresent = await sourceArtifactFilesPresent(
     repositoryRoot,
+    candidateRef,
     BETA_SOURCE_ARTIFACTS.integrationDocumentation,
   );
-  const storefrontDocumentationPresent = sourceArtifactFilesPresent(
+  const storefrontDocumentationPresent = await sourceArtifactFilesPresent(
     repositoryRoot,
+    candidateRef,
     BETA_SOURCE_ARTIFACTS.storefrontDocumentation,
   );
-  const demoFilesPresent = sourceArtifactFilesPresent(
+  const demoFilesPresent = await sourceArtifactFilesPresent(
     repositoryRoot,
+    candidateRef,
     BETA_SOURCE_ARTIFACTS.hybridDemo,
   );
   let demoShapeValid = false;
@@ -687,16 +736,19 @@ async function sourceArtifactChecks(repositoryRoot) {
       demoShapeValid = false;
     }
   }
-  const compiledMcpPresent = sourceArtifactFilesPresent(
+  const compiledMcpPresent = await sourceArtifactFilesPresent(
     repositoryRoot,
+    candidateRef,
     BETA_SOURCE_ARTIFACTS.compiledMcp,
   );
-  const storefrontStaticPresent = sourceArtifactFilesPresent(
+  const storefrontStaticPresent = await sourceArtifactFilesPresent(
     repositoryRoot,
+    candidateRef,
     BETA_SOURCE_ARTIFACTS.storefrontStatic,
   );
-  const storefrontMediaPresent = sourceArtifactFilesPresent(
+  const storefrontMediaPresent = await sourceArtifactFilesPresent(
     repositoryRoot,
+    candidateRef,
     BETA_SOURCE_ARTIFACTS.storefrontMedia,
   );
 
@@ -1085,7 +1137,9 @@ export async function runPreflight({
   }
 
   if (includeSourceArtifacts) {
-    checks.push(...(await sourceArtifactChecks(repositoryRoot)));
+    checks.push(
+      ...(await sourceArtifactChecks(repositoryRoot, selectedCandidateRef)),
+    );
   }
 
   checks.sort((left, right) => left.id.localeCompare(right.id));
