@@ -30,7 +30,7 @@ Code signature change -> impact plan -> focused README/API draft ->
 validation -> maintainer review.
 
 > [!NOTE]
-> npm `beta` still resolves to `0.2.0-beta.5`. This branch prepares the unpublished `0.2.0-beta.6` storefront candidate.
+> This source targets `0.2.0-beta.6`. The `@beta` install command resolves to the currently published npm beta; the [Public Beta guide](./docs/PUBLIC_BETA.md) records the verified release state.
 
 ## Create docs and keep them current
 
@@ -123,9 +123,12 @@ Provider calls: none
 Repository writes: none
 ```
 
-Run it from the repository checkout:
+Run it from a clean repository checkout:
 
 ```bash
+git clone https://github.com/mr-min-max/aidoc.git
+cd aidoc
+npm ci
 npm run demo:storefront
 ```
 
@@ -180,7 +183,8 @@ The comparison is between workflow patterns, not named competitors:
 
 ### Seeded demo: no provider required
 
-From this checkout, run the fixed provider-free fixture:
+After completing the checkout and `npm ci` steps in **See the workflow**, run
+the fixed provider-free fixture:
 
 ```bash
 npm run demo:storefront
@@ -318,6 +322,6 @@ Start with [CONTRIBUTING.md](./CONTRIBUTING.md), review the
 questions, and focused feature requests. For beta access boundaries and
 version truth, read [Public Beta](./docs/PUBLIC_BETA.md).
 
-The current published beta remains beta.5 while this storefront branch prepares
-the unpublished beta.6 candidate. The project is MIT licensed; see
+This source targets beta.6. For verified publication state, use
+[Public Beta](./docs/PUBLIC_BETA.md). The project is MIT licensed; see
 [LICENSE](./LICENSE).

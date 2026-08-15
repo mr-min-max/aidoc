@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
   <title id="title">AiDoc mark on light</title>
-  <desc id="desc">A document page connected to three AST nodes on a white background.</desc>
+  <desc id="desc">A document page connected to four semantic nodes on a white background.</desc>
   <rect width="64" height="64" fill="#FFFFFF"/>
   <path d="M14 7h25l11 11v39H14z" fill="#FFFFFF" stroke="#0D1117" stroke-width="3" stroke-linejoin="round"/>
   <path d="M39 7v12h11" fill="none" stroke="#0D1117" stroke-width="3" stroke-linejoin="round"/>

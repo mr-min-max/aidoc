@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { Buffer } from "node:buffer";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
@@ -126,6 +127,12 @@ test(
     const socialSvg = readText("docs/assets/social/aidoc-social-preview.svg");
     const posterSvg = readText("docs/assets/demo/aidoc-flow-poster.svg");
     const brandReadme = readText("docs/assets/brand/README.md");
+    const describedMarkSvgs = [
+      markSvg,
+      wordmarkSvg,
+      readText("docs/assets/brand/aidoc-mark-on-dark.svg"),
+      readText("docs/assets/brand/aidoc-mark-on-light.svg"),
+    ];
 
     const expectedPngDimensions = {
       "docs/assets/brand/aidoc-mark-dark.png": { width: 512, height: 512 },
@@ -163,7 +170,7 @@ test(
     assert.match(markSvg, /<title id="title">AiDoc mark<\/title>/u);
     assert.match(
       markSvg,
-      /<desc id="desc">A document page connected to three AST nodes\.<\/desc>/u,
+      /<desc id="desc">A document page connected to four semantic nodes\.<\/desc>/u,
     );
     for (const geometry of [
       'd="M14 7h25l11 11v39H14z"',
@@ -182,10 +189,10 @@ test(
     assert.match(wordmarkSvg, /AiDoc/u);
     assert.match(wordmarkSvg, /font-family="(?:system-ui|ui-monospace)/u);
     assert.match(wordmarkSvg, /<title[^>]*>AiDoc wordmark<\/title>/u);
-    assert.match(
-      wordmarkSvg,
-      /<desc[^>]*>[^<]*document[^<]*AST[^<]*<\/desc>/iu,
-    );
+    for (const describedMark of describedMarkSvgs) {
+      assert.match(describedMark, /<desc[^>]*>[^<]*four semantic nodes/iu);
+      assert.doesNotMatch(describedMark, /three AST nodes/iu);
+    }
 
     assert.doesNotMatch(
       allSvg,
@@ -222,7 +229,7 @@ test(
 
     assert.match(
       brandReadme,
-      /Alt text:[^\n]*document page connected to three AST nodes/iu,
+      /Alt text:[^\n]*document page connected to four semantic nodes/iu,
     );
     assert.match(brandReadme, /clear space[^\n]*8 viewBox units/iu);
     assert.match(brandReadme, /minimum[^\n]*32[- ]pixel/iu);
@@ -246,35 +253,71 @@ test(
     const vtt = readText(productionKit[1]);
     const checklist = readText(productionKit[2]);
     const combinedText = [...frameSources, script, vtt, checklist].join("\n");
+    const combinedFrames = frameSources.join("\n");
+    const plainHeadlines = [
+      "Code changed",
+      "Two docs affected",
+      "Bounded draft",
+      "Draft validated",
+      "You review",
+    ];
 
     frameSources.forEach((source, index) => {
       assert.match(source, /<svg\b[^>]*viewBox="0 0 1280 720"/u);
       assert.match(source, /data-safe-margin="64"/u);
+      assert.match(source, /data-protected-margin="80"/u);
+      assert.match(source, new RegExp(`data-step="${index + 1}"`, "u"));
       assert.match(
         source,
         /<g\b[^>]*data-content-area="safe"[^>]*transform="translate\(64 64\)"[^>]*>/u,
       );
       assert.match(source, /width="1152" height="592"/u);
       assert.match(source, new RegExp(`${index + 1} / 5`, "u"));
-      const textElements = source.match(/<text\b/gu) ?? [];
-      const fontSizes = [...source.matchAll(/font-size="(\d+)"/gu)].map(
-        ([, value]) => Number(value),
-      );
-      assert.equal(
-        textElements.length,
-        fontSizes.length,
-        "every visible frame text element must declare a font size",
-      );
-      assert.ok(fontSizes.length > 0, "frame text must declare font sizes");
-      assert.ok(
-        Math.min(...fontSizes) >= 24,
-        "frame body text must be at least 24px",
-      );
+      assert.match(source, new RegExp(`>${plainHeadlines[index]}<`, "u"));
+      const textElements = [
+        ...source.matchAll(/<text\b([^>]*)>([\s\S]*?)<\/text>/gu),
+      ];
+      assert.ok(textElements.length > 0, "frame must contain visible text");
+      for (const [, attributes, body] of textElements) {
+        const x = /\bx="(\d+(?:\.\d+)?)"/u.exec(attributes);
+        const y = /\by="(\d+(?:\.\d+)?)"/u.exec(attributes);
+        const fontSize = /\bfont-size="(\d+(?:\.\d+)?)"/u.exec(attributes);
+        assert.ok(x, "every visible frame text element must declare x");
+        assert.ok(y, "every visible frame text element must declare y");
+        assert.ok(
+          fontSize,
+          "every visible frame text element must declare a font size",
+        );
+        assert.ok(Number(x[1]) >= 24 && Number(x[1]) <= 1128);
+        assert.ok(Number(y[1]) >= 24 && Number(y[1]) <= 568);
+        assert.ok(
+          Number(fontSize[1]) >= 28,
+          "frame text must be at least 28px",
+        );
+        const visibleText = body.replace(/<[^>]+>/gu, "").trim();
+        assert.ok(
+          visibleText.length <= 48,
+          `visible frame text is too long: ${visibleText}`,
+        );
+      }
       assert.doesNotMatch(
         source,
         /<script\b|<image\b|<foreignObject\b|<use\b|javascript:|(?:href|xlink:href|src)=|@import|url\(|\son[a-z]+=/iu,
       );
     });
+
+    for (const evidence of [
+      "prepare_documentation_update",
+      "validate_documentation_draft",
+      "No provider calls",
+      "No repository writes",
+      "You decide what is applied",
+    ]) {
+      assert.match(
+        combinedFrames,
+        new RegExp(evidence.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), "u"),
+      );
+    }
 
     const gif = gifDimensions("docs/assets/demo/aidoc-flow.gif");
     assert.deepEqual(

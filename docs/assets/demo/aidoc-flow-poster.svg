@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
-  <title id="title">AiDoc canonical storefront demo</title>
-  <desc id="desc">A code signature change maps to README.md and docs/API.md, then reaches a validated state without provider calls or repository writes.</desc>
+  <title id="title">AiDoc code-to-docs review flow</title>
+  <desc id="desc">A createUser signature change maps to README.md and docs/API.md, a host-owned draft is validated, and the maintainer reviews it before any repository write.</desc>
   <rect width="1280" height="720" fill="#0D1117"/>
-  <rect x="80" y="64" width="1120" height="592" rx="28" fill="#161B22" stroke="#8B949E" stroke-opacity="0.28" stroke-width="2"/>
-  <path d="M112 168H1168" stroke="#8B949E" stroke-opacity="0.28" stroke-width="2"/>
-  <g transform="translate(112 98) scale(0.75)">
+  <rect x="64" y="64" width="1152" height="592" rx="30" fill="#161B22" stroke="#30363D" stroke-width="2"/>
+
+  <g transform="translate(92 92) scale(0.72)">
     <path d="M14 7h25l11 11v39H14z" fill="#161B22" stroke="#F0F6FC" stroke-width="3" stroke-linejoin="round"/>
     <path d="M39 7v12h11" fill="none" stroke="#F0F6FC" stroke-width="3" stroke-linejoin="round"/>
     <path d="M24 29v14m0-7h15m0-7v14" fill="none" stroke="#58A6FF" stroke-width="3" stroke-linecap="round"/>
@@ -13,48 +13,52 @@
     <circle cx="39" cy="29" r="4" fill="#58A6FF"/>
     <circle cx="39" cy="43" r="4" fill="#3FB950"/>
   </g>
-  <text x="180" y="132" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="30" font-weight="600">AiDoc</text>
-  <text x="180" y="156" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="14" letter-spacing="1">CANONICAL STOREFRONT DEMO</text>
+  <text x="148" y="126" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="32" font-weight="750">AiDoc</text>
+  <text x="1168" y="126" fill="#8B949E" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="24" text-anchor="end">Code change to reviewed docs</text>
+  <path d="M96 158H1184" stroke="#30363D" stroke-width="2"/>
 
-  <g>
-    <rect x="112" y="212" width="312" height="346" rx="20" fill="#0D1117" stroke="#58A6FF" stroke-width="2"/>
-    <text x="144" y="258" fill="#58A6FF" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="16" font-weight="600" letter-spacing="1">CODE CHANGE</text>
-    <path d="M144 290H392" stroke="#8B949E" stroke-opacity="0.28" stroke-width="2"/>
-    <text x="144" y="340" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="19">createUser(email)</text>
-    <path d="M144 374H392" stroke="#8B949E" stroke-opacity="0.28" stroke-width="2"/>
-    <path d="M168 408H352" stroke="#58A6FF" stroke-width="2" stroke-linecap="round"/>
-    <path d="M334 398l18 10-18 10" fill="none" stroke="#58A6FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-    <text x="144" y="464" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="19">createUser(email, role)</text>
-    <circle cx="152" cy="514" r="6" fill="#58A6FF"/>
-    <text x="172" y="520" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">signature updated</text>
-  </g>
+  <rect x="88" y="198" width="328" height="328" rx="22" fill="#0D1117" stroke="#58A6FF" stroke-width="3"/>
+  <text x="120" y="246" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="32" font-weight="750">Code changed</text>
+  <text x="120" y="294" fill="#8B949E" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="22">Before</text>
+  <text x="120" y="332" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19">createUser(email)</text>
+  <path d="M120 360H384" stroke="#30363D" stroke-width="2"/>
+  <text x="120" y="406" fill="#58A6FF" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="22">After</text>
+  <text x="120" y="448" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19">createUser(email, role)</text>
+  <circle cx="128" cy="488" r="7" fill="#58A6FF"/>
+  <text x="148" y="496" fill="#8B949E" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="21">one public contract</text>
 
-  <g>
-    <rect x="452" y="212" width="312" height="346" rx="20" fill="#0D1117" stroke="#58A6FF" stroke-width="2"/>
-    <text x="484" y="258" fill="#58A6FF" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="16" font-weight="600" letter-spacing="1">IMPACT PLAN</text>
-    <path d="M484 290H732" stroke="#8B949E" stroke-opacity="0.28" stroke-width="2"/>
-    <rect x="484" y="322" width="248" height="58" rx="12" fill="#161B22" stroke="#8B949E" stroke-opacity="0.28" stroke-width="2"/>
-    <circle cx="510" cy="351" r="7" fill="#58A6FF"/>
-    <text x="532" y="358" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="20">README.md</text>
-    <rect x="484" y="402" width="248" height="58" rx="12" fill="#161B22" stroke="#8B949E" stroke-opacity="0.28" stroke-width="2"/>
-    <circle cx="510" cy="431" r="7" fill="#58A6FF"/>
-    <text x="532" y="438" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="20">docs/API.md</text>
-    <text x="484" y="510" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">two affected documents</text>
-  </g>
+  <path d="M424 362H448" stroke="#58A6FF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M436 352l12 10-12 10" fill="none" stroke="#58A6FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
 
-  <g>
-    <rect x="792" y="212" width="344" height="346" rx="20" fill="#0D1117" stroke="#3FB950" stroke-width="2"/>
-    <text x="824" y="258" fill="#3FB950" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="16" font-weight="600" letter-spacing="1">VALIDATION</text>
-    <path d="M824 290H1104" stroke="#8B949E" stroke-opacity="0.28" stroke-width="2"/>
-    <path d="M824 332H1090" stroke="#8B949E" stroke-width="2" stroke-linecap="round"/>
-    <path d="M824 362H1048" stroke="#8B949E" stroke-width="2" stroke-linecap="round"/>
-    <path d="M824 392H1074" stroke="#8B949E" stroke-width="2" stroke-linecap="round"/>
-    <circle cx="1100" cy="332" r="7" fill="#3FB950"/>
-    <circle cx="1058" cy="362" r="7" fill="#3FB950"/>
-    <circle cx="1084" cy="392" r="7" fill="#3FB950"/>
-    <text x="824" y="464" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="14">prepare -&gt; host draft -&gt; validate</text>
-    <text x="824" y="500" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Provider calls: none</text>
-    <text x="824" y="526" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="15">Repository writes: none</text>
-    <text x="824" y="548" fill="#3FB950" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="22" font-weight="600">Validated</text>
-  </g>
+  <rect x="456" y="198" width="328" height="328" rx="22" fill="#0D1117" stroke="#58A6FF" stroke-width="3"/>
+  <text x="488" y="246" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="32" font-weight="750">Two docs affected</text>
+  <rect x="488" y="294" width="264" height="74" rx="14" fill="#161B22" stroke="#30363D" stroke-width="2"/>
+  <circle cx="520" cy="331" r="8" fill="#58A6FF"/>
+  <text x="544" y="341" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24">README.md</text>
+  <rect x="488" y="390" width="264" height="74" rx="14" fill="#161B22" stroke="#30363D" stroke-width="2"/>
+  <circle cx="520" cy="427" r="8" fill="#58A6FF"/>
+  <text x="544" y="437" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="24">docs/API.md</text>
+  <text x="488" y="498" fill="#8B949E" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="21">bounded context only</text>
+
+  <path d="M792 362H816" stroke="#58A6FF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M804 352l12 10-12 10" fill="none" stroke="#58A6FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <rect x="824" y="198" width="368" height="328" rx="22" fill="#0D1117" stroke="#3FB950" stroke-width="3"/>
+  <text x="856" y="246" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="30" font-weight="750">Validated, you review</text>
+  <text x="856" y="300" fill="#8B949E" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="22">Host draft</text>
+  <path d="M856 332H1060" stroke="#58A6FF" stroke-width="4" stroke-linecap="round"/>
+  <path d="M1048 322l12 10-12 10" fill="none" stroke="#58A6FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="1112" cy="332" r="30" fill="#12261A" stroke="#3FB950" stroke-width="3"/>
+  <path d="M1098 332l10 10 20-23" fill="none" stroke="#3FB950" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="856" y="402" fill="#3FB950" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="750">Validated</text>
+  <text x="856" y="448" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="24">Review before write</text>
+  <text x="856" y="492" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">prepare -&gt; host draft -&gt; validate</text>
+
+  <rect x="88" y="560" width="1104" height="64" rx="20" fill="#101820" stroke="#30363D" stroke-width="2"/>
+  <circle cx="128" cy="592" r="8" fill="#3FB950"/>
+  <text x="150" y="601" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="24">No provider calls</text>
+  <circle cx="466" cy="592" r="8" fill="#F85149"/>
+  <text x="488" y="601" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="24">No repository writes</text>
+  <circle cx="842" cy="592" r="8" fill="#58A6FF"/>
+  <text x="864" y="601" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="24">You decide what is applied</text>
 </svg>

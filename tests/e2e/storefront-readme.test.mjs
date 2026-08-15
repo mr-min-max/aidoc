@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
@@ -86,10 +86,6 @@ function localReferences() {
   });
 }
 
-function assertCorpusContains(pattern, message) {
-  assert.match(corpus, pattern, message);
-}
-
 test("uses the exact progressive storefront section order", () => {
   const actualSections = [...readme.matchAll(/^##\s+(.+)$/gmu)].map(
     ([, title]) => title.trim(),
@@ -156,12 +152,25 @@ test("keeps the exact hero, beta notice, install, badges, and demo flow contract
   );
   assert.match(
     firstScreen,
-    /> \[!NOTE\]\s*> npm `beta` still resolves to `0\.2\.0-beta\.5`\. This branch prepares the unpublished `0\.2\.0-beta\.6` storefront candidate\./u,
+    /> \[!NOTE\]\s*> This source targets `0\.2\.0-beta\.6`\. The `@beta` install command resolves to the currently published npm beta; the \[Public Beta guide\]\(\.\/docs\/PUBLIC_BETA\.md\) records the verified release state\./u,
   );
   assert.doesNotMatch(
     firstScreen,
-    /0\.2\.0-beta\.6[\s\S]{0,100}(?:published|public|available|released)/iu,
+    /beta\.6[^\n]*(?:unpublished|forthcoming)/iu,
   );
+
+  const cleanDemo = [
+    "git clone https://github.com/mr-min-max/aidoc.git",
+    "cd aidoc",
+    "npm ci",
+    "npm run demo:storefront",
+  ];
+  let cleanDemoIndex = -1;
+  for (const command of cleanDemo) {
+    const nextIndex = readme.indexOf(command);
+    assert.ok(nextIndex > cleanDemoIndex, `${command} must appear in order`);
+    cleanDemoIndex = nextIndex;
+  }
 });
 
 test("resolves every local Markdown and HTML reference and validates local images", () => {

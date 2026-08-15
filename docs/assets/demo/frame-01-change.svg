@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc" data-safe-margin="64">
-  <title id="title">AiDoc frame 1: signature change</title>
-  <desc id="desc">The createUser signature changes from one argument to an email and role pair.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc" data-safe-margin="64" data-protected-margin="80" data-step="1">
+  <title id="title">AiDoc frame 1: code changed</title>
+  <desc id="desc">The createUser function changes from createUser(email) to createUser(email, role).</desc>
   <rect width="1280" height="720" fill="#0D1117"/>
   <g data-content-area="safe" transform="translate(64 64)">
-    <rect width="1152" height="592" rx="28" fill="#161B22" stroke="#8B949E" stroke-opacity="0.32" stroke-width="2"/>
-    <g transform="translate(36 24) scale(0.68)">
+    <rect width="1152" height="592" rx="28" fill="#161B22" stroke="#30363D" stroke-width="2"/>
+    <g transform="translate(28 18) scale(0.68)">
       <path d="M14 7h25l11 11v39H14z" fill="#161B22" stroke="#F0F6FC" stroke-width="3" stroke-linejoin="round"/>
       <path d="M39 7v12h11" fill="none" stroke="#F0F6FC" stroke-width="3" stroke-linejoin="round"/>
       <path d="M24 29v14m0-7h15m0-7v14" fill="none" stroke="#58A6FF" stroke-width="3" stroke-linecap="round"/>
@@ -13,30 +13,27 @@
       <circle cx="39" cy="29" r="4" fill="#58A6FF"/>
       <circle cx="39" cy="43" r="4" fill="#3FB950"/>
     </g>
-    <text x="92" y="56" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="30" font-weight="600">AiDoc</text>
-    <text x="92" y="86" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24" letter-spacing="2">CHANGE-DRIVEN DOCS</text>
-    <text x="1032" y="58" fill="#58A6FF" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24" text-anchor="end">1 / 5</text>
-    <path d="M32 110H1120" stroke="#8B949E" stroke-opacity="0.32" stroke-width="2"/>
+    <text x="80" y="50" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="32" font-weight="700">AiDoc</text>
+    <text x="1104" y="50" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="28" text-anchor="end">1 / 5</text>
+    <path d="M32 82H1120" stroke="#30363D" stroke-width="2"/>
 
-    <text x="40" y="172" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="44" font-weight="600">Signature change</text>
-    <text x="40" y="214" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24">One code change starts a reviewable docs update.</text>
+    <text x="40" y="142" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="46" font-weight="750">Code changed</text>
+    <text x="40" y="184" fill="#8B949E" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28">One function now requires a role.</text>
 
-    <rect x="40" y="260" width="470" height="238" rx="20" fill="#0D1117" stroke="#8B949E" stroke-opacity="0.42" stroke-width="2"/>
-    <text x="72" y="306" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24" letter-spacing="2">BEFORE</text>
-    <path d="M72 330H478" stroke="#8B949E" stroke-opacity="0.32" stroke-width="2"/>
-    <text x="72" y="394" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="32">createUser(email)</text>
-    <text x="72" y="454" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24">public API</text>
+    <rect x="40" y="224" width="472" height="252" rx="20" fill="#0D1117" stroke="#30363D" stroke-width="2"/>
+    <text x="72" y="270" fill="#8B949E" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="650">Before</text>
+    <path d="M72 294H480" stroke="#30363D" stroke-width="2"/>
+    <text x="72" y="376" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="28">createUser(email)</text>
 
-    <path d="M548 378H604" stroke="#58A6FF" stroke-width="4" stroke-linecap="round"/>
-    <path d="M590 362L608 378L590 394" fill="none" stroke="#58A6FF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M548 348H604" stroke="#58A6FF" stroke-width="5" stroke-linecap="round"/>
+    <path d="M588 331l18 17-18 17" fill="none" stroke="#58A6FF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
 
-    <rect x="642" y="260" width="470" height="238" rx="20" fill="#0D1117" stroke="#58A6FF" stroke-width="2"/>
-    <text x="674" y="306" fill="#58A6FF" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24" letter-spacing="2">AFTER</text>
-    <path d="M674 330H1080" stroke="#8B949E" stroke-opacity="0.32" stroke-width="2"/>
-    <text x="674" y="394" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="32">createUser(email, role)</text>
-    <text x="674" y="454" fill="#58A6FF" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24">role is now explicit</text>
+    <rect x="640" y="224" width="472" height="252" rx="20" fill="#0D1117" stroke="#58A6FF" stroke-width="3"/>
+    <text x="672" y="270" fill="#58A6FF" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="28" font-weight="650">After</text>
+    <path d="M672 294H1080" stroke="#30363D" stroke-width="2"/>
+    <text x="672" y="376" fill="#F0F6FC" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="28">createUser(email, <tspan fill="#58A6FF" font-weight="700">role</tspan>)</text>
 
-    <circle cx="48" cy="552" r="8" fill="#58A6FF"/>
-    <text x="72" y="560" fill="#8B949E" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" font-size="24">source signature changed</text>
+    <circle cx="48" cy="536" r="8" fill="#58A6FF"/>
+    <text x="72" y="546" fill="#F0F6FC" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="30">One public contract changed.</text>
   </g>
 </svg>
