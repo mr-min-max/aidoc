@@ -101,13 +101,14 @@ test("keeps the exact hero, beta notice, install, badges, and demo flow contract
 
   assert.match(
     firstScreen,
-    /<p align="center">\s*<img src="\.\/docs\/assets\/brand\/aidoc-wordmark\.svg" alt="AiDoc" width="240">\s*<\/p>/u,
+    /<p align="center">\s*<img src="\.\/docs\/assets\/demo\/aidoc-flow-poster-source\.png" alt="AiDoc: Documentation that keeps up with your code\. A code change becomes an impact plan and a reviewable documentation update\." width="900">\s*<\/p>/u,
   );
+  assert.doesNotMatch(firstScreen, /aidoc-wordmark\.svg/u);
   assert.match(
     firstScreen,
     /<p align="center"><strong>Public beta<\/strong><\/p>/u,
   );
-  assert.match(
+  assert.doesNotMatch(
     firstScreen,
     /<p align="center"><strong>Documentation that keeps up with your code\.<\/strong><\/p>/u,
   );
@@ -140,10 +141,7 @@ test("keeps the exact hero, beta notice, install, badges, and demo flow contract
     firstScreen,
     /!\[AiDoc turns a code signature change into a validated documentation update\]\(\.\/docs\/assets\/demo\/aidoc-flow\.gif\)/u,
   );
-  assert.match(
-    firstScreen,
-    /\[Static demo poster\]\(\.\/docs\/assets\/demo\/aidoc-flow-poster\.png\)/u,
-  );
+  assert.doesNotMatch(firstScreen, /\[Static demo poster\]/u);
   assert.ok(
     collapseWhitespace(firstScreen).includes(
       "Code signature change -> impact plan -> focused README/API draft -> validation -> maintainer review.",
