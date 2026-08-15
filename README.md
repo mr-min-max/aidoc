@@ -1,9 +1,8 @@
 <p align="center">
-  <img src="./docs/assets/brand/aidoc-wordmark.svg" alt="AiDoc" width="240">
+  <img src="./docs/assets/demo/aidoc-flow-poster-source.png" alt="AiDoc: Documentation that keeps up with your code. A code change becomes an impact plan and a reviewable documentation update." width="900">
 </p>
 
 <p align="center"><strong>Public beta</strong></p>
-<p align="center"><strong>Documentation that keeps up with your code.</strong></p>
 
 <p align="center">
   AiDoc helps Codex, Claude, or a supported model create READMEs, API docs,
@@ -23,8 +22,6 @@ aidoc
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.12-58A6FF.svg)](https://nodejs.org/)
 
 ![AiDoc turns a code signature change into a validated documentation update](./docs/assets/demo/aidoc-flow.gif)
-
-[Static demo poster](./docs/assets/demo/aidoc-flow-poster.png)
 
 Code signature change -> impact plan -> focused README/API draft ->
 validation -> maintainer review.
