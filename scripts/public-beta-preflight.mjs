@@ -588,7 +588,26 @@ async function sourceArtifactFilesPresent(
   repositoryRoot,
   candidateRef,
   relativePaths,
+  { matchCandidateTree = true } = {},
 ) {
+  const worktreeFilesPresent = relativePaths.every((relativePath) => {
+    try {
+      const candidate = path.resolve(repositoryRoot, relativePath);
+      const relative = path.relative(repositoryRoot, candidate);
+      return (
+        relative.length > 0 &&
+        !relative.startsWith(`..${path.sep}`) &&
+        relative !== ".." &&
+        lstatSync(candidate).isFile()
+      );
+    } catch {
+      return false;
+    }
+  });
+  if (!worktreeFilesPresent || !matchCandidateTree) {
+    return worktreeFilesPresent;
+  }
+
   let candidatePaths;
   try {
     const treeId = (
@@ -629,21 +648,9 @@ async function sourceArtifactFilesPresent(
     return false;
   }
 
-  return relativePaths.every((relativePath) => {
-    try {
-      const candidate = path.resolve(repositoryRoot, relativePath);
-      const relative = path.relative(repositoryRoot, candidate);
-      return (
-        relative.length > 0 &&
-        !relative.startsWith(`..${path.sep}`) &&
-        relative !== ".." &&
-        candidatePaths.has(relativePath) &&
-        lstatSync(candidate).isFile()
-      );
-    } catch {
-      return false;
-    }
-  });
+  return relativePaths.every((relativePath) =>
+    candidatePaths.has(relativePath),
+  );
 }
 
 async function sourceArtifactChecks(repositoryRoot, candidateRef) {
@@ -736,10 +743,13 @@ async function sourceArtifactChecks(repositoryRoot, candidateRef) {
       demoShapeValid = false;
     }
   }
+  // dist/ is intentionally ignored and built before this gate, so compiled
+  // MCP outputs are worktree evidence rather than candidate-tree sources.
   const compiledMcpPresent = await sourceArtifactFilesPresent(
     repositoryRoot,
     candidateRef,
     BETA_SOURCE_ARTIFACTS.compiledMcp,
+    { matchCandidateTree: false },
   );
   const storefrontStaticPresent = await sourceArtifactFilesPresent(
     repositoryRoot,
