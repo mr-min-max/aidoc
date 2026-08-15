@@ -46,26 +46,80 @@ const task4Assets = [
 const missingTask4Assets = task4Assets.filter(
   (relativePath) => !existsSync(path.join(root, relativePath)),
 );
-const unsafeSvgPattern =
-  /javascript:|(?:href|src)\s*=\s*["']\s*(?:https?:\/\/|data:)|xlink:href\s*=|xml:base\s*=|@import|url\(|\s(?:on[a-z]+|style)\s*=/iu;
-const allowedStaticSvgElements = new Set([
-  "aidoc:contract",
-  "aidoc:copy",
-  "aidoc:evidence",
-  "aidoc:fact",
-  "aidoc:line",
-  "circle",
-  "desc",
-  "g",
-  "image",
-  "metadata",
-  "path",
-  "rect",
-  "svg",
-  "text",
-  "title",
-  "tspan",
+const unsafeSvgTextPattern = /javascript:|@import|url\(/iu;
+const allowedStaticSvgAttributes = new Map([
+  ["aidoc:contract", new Set()],
+  ["aidoc:copy", new Set()],
+  ["aidoc:evidence", new Set()],
+  ["aidoc:fact", new Set()],
+  ["aidoc:line", new Set()],
+  ["circle", new Set(["cx", "cy", "r", "fill"])],
+  ["desc", new Set(["id"])],
+  ["g", new Set(["data-content-area", "data-visible-code", "transform"])],
+  [
+    "image",
+    new Set(["href", "x", "y", "width", "height", "preserveaspectratio"]),
+  ],
+  ["metadata", new Set()],
+  [
+    "path",
+    new Set([
+      "d",
+      "fill",
+      "stroke",
+      "stroke-linecap",
+      "stroke-linejoin",
+      "stroke-width",
+    ]),
+  ],
+  [
+    "rect",
+    new Set([
+      "x",
+      "y",
+      "width",
+      "height",
+      "rx",
+      "fill",
+      "fill-opacity",
+      "stroke",
+      "stroke-width",
+    ]),
+  ],
+  [
+    "svg",
+    new Set([
+      "xmlns",
+      "xmlns:aidoc",
+      "viewbox",
+      "role",
+      "aria-labelledby",
+      "data-safe-margin",
+      "data-protected-margin",
+      "data-step",
+      "data-visual-system",
+    ]),
+  ],
+  [
+    "text",
+    new Set([
+      "x",
+      "y",
+      "fill",
+      "font-family",
+      "font-size",
+      "font-weight",
+      "text-anchor",
+      "textlength",
+      "lengthadjust",
+      "letter-spacing",
+    ]),
+  ],
+  ["title", new Set(["id"])],
+  ["tspan", new Set(["fill"])],
 ]);
+const displayFont = "system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
+const monospaceFont = "ui-monospace, SFMono-Regular, Menlo, monospace";
 
 function absolutePath(relativePath) {
   return path.join(root, relativePath);
@@ -79,37 +133,164 @@ function readPng(relativePath) {
   return readFileSync(absolutePath(relativePath));
 }
 
-function localImageReferences(source) {
-  const references = [];
-  for (const [, , attributes] of source.matchAll(
-    /<([A-Za-z][\w:.-]*)\b([^<>]*)>/gu,
-  )) {
-    for (const [, , , value] of attributes.matchAll(
-      /\b(xlink:href|href|src)\s*=\s*(["'])(.*?)\2/giu,
-    )) {
-      references.push(value);
+function parseStaticSvgStartTags(source) {
+  const tags = [];
+  const errors = [];
+  let cursor = 0;
+
+  while (cursor < source.length) {
+    const opening = source.indexOf("<", cursor);
+    if (opening < 0) {
+      break;
     }
+    if (source.startsWith("<?", opening) || source.startsWith("<!", opening)) {
+      errors.push("processing instructions and declarations are forbidden");
+      cursor = opening + 2;
+      continue;
+    }
+    if (source.startsWith("</", opening)) {
+      const closing = source.indexOf(">", opening + 2);
+      if (closing < 0) {
+        errors.push("unterminated closing tag");
+        break;
+      }
+      cursor = closing + 1;
+      continue;
+    }
+
+    const elementMatch = /^[A-Za-z_][A-Za-z0-9_.:-]*/u.exec(
+      source.slice(opening + 1),
+    );
+    if (!elementMatch) {
+      errors.push("invalid element name");
+      cursor = opening + 1;
+      continue;
+    }
+
+    const name = elementMatch[0].toLowerCase();
+    const attributes = [];
+    let index = opening + 1 + elementMatch[0].length;
+    while (index < source.length) {
+      const whitespaceStart = index;
+      while (/[\t\n\r ]/u.test(source[index] ?? "")) {
+        index += 1;
+      }
+      const hadSeparator = index > whitespaceStart;
+      if (source[index] === ">") {
+        index += 1;
+        break;
+      }
+      if (source[index] === "/" && source[index + 1] === ">") {
+        index += 2;
+        break;
+      }
+      if (!hadSeparator) {
+        errors.push(`attributes on ${name} must be whitespace-separated`);
+      }
+
+      const attributeMatch = /^[A-Za-z_][A-Za-z0-9_.:-]*/u.exec(
+        source.slice(index),
+      );
+      if (!attributeMatch) {
+        errors.push(`invalid attribute on ${name}`);
+        index += 1;
+        continue;
+      }
+      const attributeName = attributeMatch[0].toLowerCase();
+      index += attributeMatch[0].length;
+      while (/[\t\n\r ]/u.test(source[index] ?? "")) {
+        index += 1;
+      }
+      if (source[index] !== "=") {
+        errors.push(`attribute ${attributeName} on ${name} must have a value`);
+        continue;
+      }
+      index += 1;
+      while (/[\t\n\r ]/u.test(source[index] ?? "")) {
+        index += 1;
+      }
+      const quote = source[index];
+      if (quote !== '"' && quote !== "'") {
+        errors.push(`attribute ${attributeName} on ${name} must be quoted`);
+        continue;
+      }
+      const valueStart = index + 1;
+      const valueEnd = source.indexOf(quote, valueStart);
+      if (valueEnd < 0) {
+        errors.push(`attribute ${attributeName} on ${name} is unterminated`);
+        index = source.length;
+        break;
+      }
+      const rawValue = source.slice(valueStart, valueEnd);
+      if (rawValue.includes("<")) {
+        errors.push(`attribute ${attributeName} on ${name} contains markup`);
+      }
+      attributes.push({
+        name: attributeName,
+        value: rawValue.replace(/[\t\n\r ]+/gu, " ").trim(),
+      });
+      index = valueEnd + 1;
+    }
+    tags.push({ name, attributes });
+    cursor = Math.max(index, opening + 1);
   }
-  return references;
+
+  return { tags, errors };
+}
+
+function localImageReferences(source) {
+  return parseStaticSvgStartTags(source).tags.flatMap(({ attributes }) =>
+    attributes
+      .filter(({ name }) => ["href", "src", "xlink:href"].includes(name))
+      .map(({ value }) => value),
+  );
+}
+
+function attributeObject(tag) {
+  return Object.fromEntries(
+    tag.attributes.map(({ name, value }) => [name, value]),
+  );
 }
 
 function staticSvgViolations(source, approvedReferences) {
-  const violations = [];
-  if (/<\?|<!/u.test(source)) {
-    violations.push("processing instructions and declarations are forbidden");
-  }
-  const elementNames = new Set(
-    [...source.matchAll(/<\s*\/?\s*([A-Za-z][\w:.-]*)\b/gu)].map(
-      ([, elementName]) => elementName.toLowerCase(),
-    ),
-  );
-  for (const elementName of elementNames) {
-    if (!allowedStaticSvgElements.has(elementName)) {
+  const parsed = parseStaticSvgStartTags(source);
+  const violations = [...parsed.errors];
+  for (const { name: elementName, attributes } of parsed.tags) {
+    const allowedAttributes = allowedStaticSvgAttributes.get(elementName);
+    if (!allowedAttributes) {
       violations.push(`unsupported SVG element: ${elementName}`);
+      continue;
+    }
+    const attributeNames = new Set();
+    for (const { name: attributeName, value } of attributes) {
+      if (attributeNames.has(attributeName)) {
+        violations.push(
+          `duplicate ${attributeName} attribute on ${elementName}`,
+        );
+      }
+      attributeNames.add(attributeName);
+      if (!allowedAttributes.has(attributeName)) {
+        violations.push(
+          `unsupported ${attributeName} attribute on ${elementName}`,
+        );
+      }
+      if (
+        ["href", "src", "xlink:href"].includes(attributeName) &&
+        (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/u.test(value) ||
+          value.split("/").includes(".."))
+      ) {
+        violations.push(`unsafe resource reference on ${elementName}`);
+      }
+      if (attributeName === "xmlns" && value !== "http://www.w3.org/2000/svg") {
+        violations.push("unexpected default SVG namespace");
+      }
+      if (attributeName === "xmlns:aidoc" && value !== "urn:aidoc:assets") {
+        violations.push("unexpected AiDoc metadata namespace");
+      }
     }
   }
-  if (unsafeSvgPattern.test(source)) {
-    violations.push("unsafe SVG attribute or resource syntax");
+  if (unsafeSvgTextPattern.test(source)) {
+    violations.push("unsafe active SVG text");
   }
   if (
     JSON.stringify(localImageReferences(source)) !==
@@ -243,6 +424,19 @@ test("enforces a static SVG profile across resource syntax variants", () => {
   ]);
   assert.notDeepEqual(staticSvgViolations(source, ["local.png"]), []);
 
+  const multilineRemote = `<svg>
+    <image data-href="approved.png"
+           href="
+//example.invalid/remote.png" />
+  </svg>`;
+  assert.deepEqual(localImageReferences(multilineRemote), [
+    "//example.invalid/remote.png",
+  ]);
+  assert.notDeepEqual(
+    staticSvgViolations(multilineRemote, ["approved.png"]),
+    [],
+  );
+
   const hostileSources = [
     `<?xml-stylesheet href="unapproved.css"?><svg />`,
     `<!DOCTYPE svg [<!ENTITY remote SYSTEM "https://example.invalid/x">]><svg />`,
@@ -250,6 +444,8 @@ test("enforces a static SVG profile across resource syntax variants", () => {
     `<svg><set attributeName="href" to="https://example.invalid/x.png" /></svg>`,
     `<svg xml:base="https://example.invalid/"><image href="approved.png" /></svg>`,
     `<svg style="background-image: url(https://example.invalid/x.png)" />`,
+    `<svg><image href="file:///private/example.png" /></svg>`,
+    `<svg><image href="ftp://example.invalid/x.png" /></svg>`,
   ];
   for (const hostileSource of hostileSources) {
     assert.notDeepEqual(
@@ -408,6 +604,28 @@ test(
       "createUser(email)",
       "createUser(email, role)",
     ]);
+    const socialTextAttributes = parseStaticSvgStartTags(socialSvg)
+      .tags.filter(({ name }) => name === "text")
+      .map(attributeObject);
+    assert.deepEqual(
+      socialTextAttributes.map((attributes) => attributes["font-family"]),
+      [monospaceFont, monospaceFont],
+    );
+    assert.ok(
+      Number(socialTextAttributes[0].x) +
+        Number(socialTextAttributes[0].textlength) <=
+        374,
+      "before code must remain inside its dark code row",
+    );
+    const afterCode = "createUser(email, role)";
+    const afterCodeWidth =
+      afterCode.length * Number(socialTextAttributes[1]["font-size"]) * 0.61 +
+      (afterCode.length - 1) *
+        Number(socialTextAttributes[1]["letter-spacing"]);
+    assert.ok(
+      Number(socialTextAttributes[1].x) + afterCodeWidth <= 381,
+      "after code must remain inside its dark code row",
+    );
     assert.deepEqual(metadataValues(posterSvg, "fact"), [
       "createUser(email)",
       "createUser(email, role)",
@@ -435,6 +653,27 @@ test(
         "You decide what is applied",
       ],
     );
+    const posterTextAttributes = parseStaticSvgStartTags(posterSvg)
+      .tags.filter(({ name }) => name === "text")
+      .map(attributeObject);
+    assert.deepEqual(
+      posterTextAttributes.map((attributes) => attributes["font-family"]),
+      [displayFont, displayFont, displayFont],
+    );
+    for (const [index, textContent] of [
+      "No provider calls",
+      "No repository writes",
+      "You decide what is applied",
+    ].entries()) {
+      const attributes = posterTextAttributes[index];
+      const estimatedRight =
+        Number(attributes.x) +
+        textContent.length * Number(attributes["font-size"]) * 0.5;
+      assert.ok(
+        estimatedRight <= 1240,
+        `${textContent} exceeds the proof strip`,
+      );
+    }
     assert.match(socialSvg, /viewBox="0 0 1280 640"/u);
     for (const textContent of [
       "createUser(email, role)",
@@ -505,6 +744,13 @@ test(
       "Draft validated",
       "You review",
     ];
+    const plainSubheads = [
+      "createUser(email) -> createUser(email, role)",
+      "prepare_documentation_update",
+      "README.md + docs/API.md",
+      "validate_documentation_draft",
+      "You decide what is applied",
+    ];
 
     frameSources.forEach((source, index) => {
       assert.match(source, /<svg\b[^>]*viewBox="0 0 1280 720"/u);
@@ -527,16 +773,42 @@ test(
       const textElements = [
         ...source.matchAll(/<text\b([^>]*)>([\s\S]*?)<\/text>/gu),
       ];
-      assert.ok(textElements.length > 0, "frame must contain visible text");
+      const visibleTexts = textElements.map(([, , body]) =>
+        body.replace(/<[^>]+>/gu, "").trim(),
+      );
+      assert.deepEqual(visibleTexts, [
+        "AiDoc",
+        plainHeadlines[index],
+        plainSubheads[index],
+        `${index + 1} / 5`,
+        "No provider calls",
+        "No repository writes",
+        "You decide what is applied",
+      ]);
+      const expectedFonts = [
+        monospaceFont,
+        displayFont,
+        index === 4 ? displayFont : monospaceFont,
+        monospaceFont,
+        displayFont,
+        displayFont,
+        displayFont,
+      ];
       for (const [, attributes, body] of textElements) {
         const x = /\bx="(\d+(?:\.\d+)?)"/u.exec(attributes);
         const y = /\by="(\d+(?:\.\d+)?)"/u.exec(attributes);
         const fontSize = /\bfont-size="(\d+(?:\.\d+)?)"/u.exec(attributes);
+        const fontFamily = /\bfont-family="([^"]+)"/u.exec(attributes);
+        const textAnchor = /\btext-anchor="([^"]+)"/u.exec(attributes);
         assert.ok(x, "every visible frame text element must declare x");
         assert.ok(y, "every visible frame text element must declare y");
         assert.ok(
           fontSize,
           "every visible frame text element must declare a font size",
+        );
+        assert.ok(
+          fontFamily,
+          "every visible frame text element must declare a font family",
         );
         assert.ok(Number(x[1]) >= 24 && Number(x[1]) <= 1128);
         assert.ok(Number(y[1]) >= 24 && Number(y[1]) <= 568);
@@ -548,6 +820,33 @@ test(
         assert.ok(
           visibleText.length <= 48,
           `visible frame text is too long: ${visibleText}`,
+        );
+        const familyIndex = visibleTexts.indexOf(visibleText);
+        assert.equal(fontFamily[1], expectedFonts[familyIndex]);
+        const estimatedWidth =
+          visibleText.length *
+          Number(fontSize[1]) *
+          (fontFamily[1] === monospaceFont ? 0.61 : 0.5);
+        const left =
+          textAnchor?.[1] === "end"
+            ? Number(x[1]) - estimatedWidth
+            : Number(x[1]);
+        const right =
+          textAnchor?.[1] === "end"
+            ? Number(x[1])
+            : Number(x[1]) + estimatedWidth;
+        assert.ok(left >= 24, `${visibleText} crosses the left content edge`);
+        assert.ok(
+          right <= 1136,
+          `${visibleText} crosses the right content edge`,
+        );
+        assert.ok(
+          Number(y[1]) - Number(fontSize[1]) * 0.82 >= 24,
+          `${visibleText} crosses the top content edge`,
+        );
+        assert.ok(
+          Number(y[1]) + Number(fontSize[1]) * 0.25 <= 584,
+          `${visibleText} crosses the bottom content edge`,
         );
       }
     });
