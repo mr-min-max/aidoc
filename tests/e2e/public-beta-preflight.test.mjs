@@ -831,7 +831,6 @@ test("detects missing and present beta source artifacts when requested", async (
     "integration-documentation",
     "storefront-documentation",
     "hybrid-demo-source",
-    "compiled-mcp",
     "storefront-static",
     "storefront-media",
   ]) {
@@ -841,6 +840,11 @@ test("detects missing and present beta source artifacts when requested", async (
       `${checkId} must ignore untracked worktree files`,
     );
   }
+  assert.equal(
+    findCheck(untrackedReport, "compiled-mcp").status,
+    "pass",
+    "ignored compiled outputs are verified from the worktree after build",
+  );
 
   await git(fixture.repositoryRoot, ["add", "--", ...sourceArtifactPaths]);
   await git(fixture.repositoryRoot, [
