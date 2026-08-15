@@ -12,6 +12,7 @@ const requiredAssets = [
   "docs/assets/brand/aidoc-mark-on-light.svg",
   "docs/assets/brand/aidoc-mark-dark.png",
   "docs/assets/brand/aidoc-mark-light.png",
+  "docs/assets/brand/aidoc-avatar-source.png",
   "docs/assets/brand/aidoc-avatar.png",
   "docs/assets/brand/README.md",
   "docs/assets/social/aidoc-social-preview.svg",
@@ -137,6 +138,10 @@ test(
     const expectedPngDimensions = {
       "docs/assets/brand/aidoc-mark-dark.png": { width: 512, height: 512 },
       "docs/assets/brand/aidoc-mark-light.png": { width: 512, height: 512 },
+      "docs/assets/brand/aidoc-avatar-source.png": {
+        width: 1254,
+        height: 1254,
+      },
       "docs/assets/brand/aidoc-avatar.png": { width: 512, height: 512 },
       "docs/assets/social/aidoc-social-preview.png": {
         width: 1280,
@@ -156,6 +161,7 @@ test(
 
     const budgets = {
       "docs/assets/brand/aidoc-mark.svg": 50 * 1024,
+      "docs/assets/brand/aidoc-avatar-source.png": 2 * 1024 * 1024,
       "docs/assets/demo/aidoc-flow-poster.png": 500 * 1024,
       "docs/assets/social/aidoc-social-preview.png": 1.5 * 1024 * 1024,
     };
@@ -236,6 +242,14 @@ test(
     assert.match(brandReadme, /original design[^\n]*third-party logo/iu);
     assert.notDeepEqual(
       readPng("docs/assets/brand/aidoc-mark-dark.png"),
+      readPng("docs/assets/brand/aidoc-mark-light.png"),
+    );
+    assert.notDeepEqual(
+      readPng("docs/assets/brand/aidoc-avatar.png"),
+      readPng("docs/assets/brand/aidoc-mark-dark.png"),
+    );
+    assert.notDeepEqual(
+      readPng("docs/assets/brand/aidoc-avatar.png"),
       readPng("docs/assets/brand/aidoc-mark-light.png"),
     );
   },

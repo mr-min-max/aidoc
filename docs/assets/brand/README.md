@@ -14,14 +14,16 @@ Every alignment and export must look meticulously crafted, repeatedly refined, a
 
 - Palette: background `#0D1117`, surface `#161B22`, text `#F0F6FC`, secondary `#8B949E`, analysis `#58A6FF`, validated `#3FB950`, warning `#D29922`.
 - Alt text: `AiDoc mark: a document page connected to four semantic nodes.`
+- Avatar alt text: `AiDoc avatar: a numbered code document connected to a three-step repository graph.`
 - Clear space: reserve one node diameter, 8 viewBox units, around the 64-unit mark on every side.
 - Minimum size: use the mark at 32-pixel minimum when it is a standalone identifier.
 - Dark use: place `aidoc-mark-on-dark.svg` or `aidoc-mark-dark.png` on graphite surfaces such as `#0D1117` or `#161B22`.
 - Light use: place `aidoc-mark-on-light.svg` or `aidoc-mark-light.png` on a white surface when a light GitHub or document context needs stronger contrast.
 - Wordmark: use `aidoc-wordmark.svg` for horizontal repository and storefront placements. Keep the label plain and let the mark carry the semantic detail.
+- Repository avatar: use `aidoc-avatar.png` as the 512-pixel platform export. Preserve its square white canvas, graphite repository layer, numbered code page, AiDoc label, and green current-state indicator without recropping.
 - Semantic color: cyan indicates AST analysis or navigation, green indicates a validated state, and amber indicates a warning only.
 - Accessibility: preserve the title and description in the SVG sources, provide the alt text above for rendered images, and do not rely on color alone to communicate state.
 - Original design: these assets are repository-owned original work and must not include a third-party logo, remote font, remote image, or borrowed brand shape.
 - Typography: use the system monospace stacks declared by the wordmark and keep text sparse, legible, and subordinate to the geometry.
 
-The source SVGs are the canonical assets. PNGs are fixed exports for platforms that need raster artwork. Re-export from the source SVG when dimensions or theme treatment change. Do not patch PNG bytes or add decorative metrics, graphs without data, robots, wands, sparkles, or provider marks.
+The source SVGs remain canonical for the scalable mark and wordmark. `aidoc-avatar-source.png` is the maintainer-selected 1254-pixel source for the repository avatar, and `aidoc-avatar.png` is its 512-pixel platform export. Re-export the avatar with `sips -s format png --resampleHeightWidth 512 512 docs/assets/brand/aidoc-avatar-source.png --out docs/assets/brand/aidoc-avatar.png`; re-export the other PNGs from their corresponding SVG sources. Do not patch PNG bytes or add decorative metrics, graphs without data, robots, wands, sparkles, or provider marks.
