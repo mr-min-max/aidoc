@@ -58,6 +58,7 @@ const BETA_SOURCE_ARTIFACTS = Object.freeze({
     "docs/assets/brand/aidoc-mark-on-light.svg",
     "docs/assets/brand/aidoc-mark-dark.png",
     "docs/assets/brand/aidoc-mark-light.png",
+    "docs/assets/brand/aidoc-avatar-source.png",
     "docs/assets/brand/aidoc-avatar.png",
     "docs/assets/brand/README.md",
     "docs/assets/social/aidoc-social-preview.svg",
