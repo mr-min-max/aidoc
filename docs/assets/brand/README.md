@@ -13,7 +13,7 @@ Every alignment and export must look meticulously crafted, repeatedly refined, a
 ## Usage rules
 
 - Palette: background `#0D1117`, surface `#161B22`, text `#F0F6FC`, secondary `#8B949E`, analysis `#58A6FF`, validated `#3FB950`, warning `#D29922`.
-- Alt text: `AiDoc mark: a document page connected to three AST nodes.`
+- Alt text: `AiDoc mark: a document page connected to four semantic nodes.`
 - Clear space: reserve one node diameter, 8 viewBox units, around the 64-unit mark on every side.
 - Minimum size: use the mark at 32-pixel minimum when it is a standalone identifier.
 - Dark use: place `aidoc-mark-on-dark.svg` or `aidoc-mark-dark.png` on graphite surfaces such as `#0D1117` or `#161B22`.

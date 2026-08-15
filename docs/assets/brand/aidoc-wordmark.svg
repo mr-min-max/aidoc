@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 80" role="img" aria-labelledby="title desc">
   <title id="title">AiDoc wordmark</title>
-  <desc id="desc">AiDoc wordmark with a document page connected to three AST nodes.</desc>
+  <desc id="desc">AiDoc wordmark with a document page connected to four semantic nodes.</desc>
   <rect x="1" y="1" width="254" height="78" rx="16" fill="#161B22" stroke="#0D1117" stroke-width="2"/>
   <g transform="translate(8 8)">
     <path d="M14 7h25l11 11v39H14z" fill="#161B22" stroke="#F0F6FC" stroke-width="3" stroke-linejoin="round"/>

@@ -94,7 +94,14 @@ async function createFixture({ documents, noImpact = false }) {
     await mkdir(path.dirname(path.join(cwd, document)), { recursive: true });
     await writeFile(
       path.join(cwd, document),
-      `# Hybrid fixture\n\n## API\n\nUse \`createUser\` from the source module.\n`,
+      [
+        "# Hybrid fixture",
+        "",
+        "## API",
+        "",
+        "Use `createUser(email)` from the source module.",
+        "",
+      ].join("\n"),
       "utf8",
     );
   }
@@ -195,7 +202,14 @@ async function runMcpEvidence(fixture) {
       preparations.push(preparation);
     }
 
-    const candidate = "# Hybrid fixture\n\nValidated by the host.\n";
+    const candidate = [
+      "# Hybrid fixture",
+      "",
+      "## API",
+      "",
+      "Use `createUser(email, role)` from the source module.",
+      "",
+    ].join("\n");
     const approvedTargets = [];
     for (const preparation of preparations) {
       const beforeValidation = await snapshotRepositoryTree(fixture.cwd);
@@ -213,7 +227,12 @@ async function runMcpEvidence(fixture) {
         throw new Error("MCP validation failed");
       const validation = parseToolText(validationResult);
       approvedTargets.push(
-        validation.valid === true && validation.approved_markdown === candidate,
+        validation.valid === true &&
+          validation.approved_markdown === candidate &&
+          validation.approved_markdown.includes("createUser(email, role)") &&
+          !validation.approved_markdown.includes(
+            ["Validated by", "the host"].join(" "),
+          ),
       );
     }
 

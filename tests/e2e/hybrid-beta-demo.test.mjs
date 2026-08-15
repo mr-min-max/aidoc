@@ -116,6 +116,16 @@ test("demo source keeps the canonical schema and credential-free contract visibl
   assert.match(source, /createUser/u);
   assert.match(source, /README\.md/u);
   assert.match(source, /docs\/API\.md/u);
+  assert.match(source, /Use `createUser\(email\)` from the source module\./u);
+  assert.match(
+    source,
+    /Use `createUser\(email, role\)` from the source module\./u,
+  );
+  assert.match(
+    source,
+    /approvedTargets\.push[\s\S]{0,500}createUser\(email, role\)/u,
+  );
+  assert.doesNotMatch(source, /Validated by the host/u);
   assert.doesNotMatch(source, /formatName/u);
   assert.match(source, /snapshotRepositoryTree/u);
   assert.match(

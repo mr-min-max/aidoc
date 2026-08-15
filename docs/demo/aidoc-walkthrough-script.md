@@ -1,80 +1,74 @@
 # AiDoc walkthrough production script
 
 This is the reviewed 80-second narrative for a future full walkthrough. The
-timing matches `docs/demo/aidoc-walkthrough.vtt`.
+timing matches `docs/demo/aidoc-walkthrough.vtt` and the five checked-in
+animation frames.
 
 The checked-in README animation is deterministic and does not claim to invoke
-Codex. It is a five-frame rendering of the accepted `createUser` story, not a
-recorded model run, provider call, or repository write. The future full
-recording is a live Codex host workflow recorded in a fresh disposable
-repository. The live recording must follow this script and the checklist.
+Codex. It renders the accepted `createUser` fixture, not a recorded model run,
+provider call, or repository write. A future full recording may show a live
+Codex host workflow in a fresh disposable repository, but that recording must
+follow this script and the checklist.
 
-## 0-10s: show the code change
+## 0-10s: code changed
 
-On screen, show the small source diff:
+Show the exact source change:
 
 ```text
 createUser(email) -> createUser(email, role)
 ```
 
-Say or caption: "The code changed. README.md and docs/API.md may now be
-stale, so the documentation needs a focused review."
+Say or caption: "One public function now requires a role. This is the only
+code change in the example."
 
 Do not show a personal terminal, account details, or a private repository.
 
-## 10-25s: install the beta and run `aidoc plan`
+## 10-25s: two docs affected
 
-Show the public installation and planning path:
+Show the changed function leading only to `README.md` and `docs/API.md`.
 
-```text
-npm install -g @mr-min-max/aidoc-gen@beta
-aidoc plan
-```
+Say or caption: "AiDoc analyzes the change first and narrows the documentation
+work to two files. It does not send an unbounded repository through this
+demonstration path."
 
-Say or caption: "Install the public beta, then run `aidoc plan`. AiDoc compares
-the code change through its AST-backed analysis and identifies the affected
-documentation targets."
+Do not add invented counts, scores, timing, or quality claims.
 
-Keep the output focused on `README.md` and `docs/API.md`. Do not add invented
-counts, scores, or timing claims.
+## 25-50s: bounded host draft
 
-## 25-50s: host the bounded prepare and validate workflow
+Show relevant context entering a host-owned Markdown draft. Keep
+`prepare_documentation_update` visible as secondary evidence and show
+`No provider calls`.
 
-Show the live Codex host receiving AiDoc's bounded preparation. The host calls
-`prepare_documentation_update`, drafts the relevant Markdown, and then calls
-`validate_documentation_draft` with that candidate. Keep the tools and their
-order visible without exposing a raw preparation digest or private prompt.
+Say or caption: "AiDoc prepares bounded context. The host owns the draft. In
+this deterministic animation, AiDoc makes no provider call and does not claim
+to invoke Codex. A live Codex host workflow would use the same boundary."
 
-Say or caption: "Codex uses AiDoc's bounded prepare and validate tools. The
-host owns the draft. AiDoc checks the candidate and keeps the repository
-unchanged while the host workflow is in progress."
+Do not present the host-owned draft as an automatic AiDoc write.
 
-The provider-free host path must not be presented as an AiDoc provider call or
-as an automatic write.
+## 50-70s: draft validated
 
-## 50-70s: review the focused diff before writing
-
-Show only the focused changes in `README.md` and `docs/API.md`:
+Show the focused change in both `README.md` and `docs/API.md`:
 
 ```diff
 - createUser(email)
 + createUser(email, role)
 ```
 
-Say or caption: "Review the diff. Both documents align the same role
-signature, and the maintainer decides whether anything should be written."
+Keep `validate_documentation_draft` visible and show one green validation
+mark.
 
-Do not present the diff as a Codex response or claim that validation replaces
-maintainer review.
+Say or caption: "AiDoc validates the exact candidate for both files. Validation
+checks the bounded draft; it does not replace maintainer review."
 
-## 70-80s: invite public-beta use
+## 70-80s: you review
 
-End on the validated state and the words `Public beta`.
+Show the validated draft stopping before the repository. Keep
+`No repository writes`, `You decide what is applied`, `Review the diff`, and
+`Public beta` available in the final presentation or captions.
 
-Say or caption: "AiDoc is an open source public beta for maintainers. Try the
-workflow on a real code change, inspect the diff, and keep the final write
-under your control."
+Say or caption: "Review the diff. Nothing is written by this provider-free
+workflow. You decide whether the approved Markdown is applied."
 
-The MP4 is an optional future recording. The checked-in animation remains the
-small deterministic README asset, while the live full recording is reviewed
-separately before upload.
+The MP4 remains an optional future recording. The checked-in animation is the
+small deterministic README asset; any live recording is reviewed separately
+before upload.

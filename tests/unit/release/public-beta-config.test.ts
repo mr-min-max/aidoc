@@ -224,6 +224,17 @@ describe("public beta repository configuration", () => {
     expect(packageJson.scripts["test:public-beta"]).toBe(
       "node --test tests/e2e/public-beta-preflight.test.mjs && npm run test:npm-unpublished && node scripts/verify-npm-unpublished.mjs && npm run test:npm-published && jest tests/unit/release/public-beta-config.test.ts --runInBand",
     );
+    const packedReadme = fs.readFileSync(path.resolve("README.md"), "utf8");
+    expect(packedReadme).toContain(
+      "This source targets `0.2.0-beta.6`. The `@beta` install command resolves to the currently published npm beta; the [Public Beta guide](./docs/PUBLIC_BETA.md) records the verified release state.",
+    );
+    expect(packedReadme).not.toContain(
+      "npm `beta` still resolves to `0.2.0-beta.5`. This branch prepares the unpublished `0.2.0-beta.6` storefront candidate.",
+    );
+    expect(packedReadme).not.toMatch(
+      /beta\.6[^\n]*(?:unpublished|forthcoming)/i,
+    );
+    expect(packedReadme).not.toContain("0.2.0-beta.5");
     const verifyRelease = packageJson.scripts["verify:release"];
     expect(verifyRelease).toBe(
       "npm run lint && npm test -- --runInBand && npm run test:provider-contracts && npm run build && npm run test:impact-demo && npm run test:check && npm run test:package && npm run test:action && npm run test:mcp && npm run test:codex-plugin && npm run test:hybrid-beta && npm run test:storefront",
@@ -238,7 +249,6 @@ describe("public beta repository configuration", () => {
     }
 
     for (const currentSurface of [
-      "README.md",
       "ROADMAP.md",
       "CHANGELOG.md",
       "docs/PUBLIC_BETA.md",
@@ -289,8 +299,15 @@ describe("public beta repository configuration", () => {
     ]
       .map((file) => fs.readFileSync(path.resolve(file), "utf8"))
       .join("\n");
-    expect(storefrontCorpus.replace(/\s+/gu, " ")).toContain(
-      "npm `beta` still resolves to `0.2.0-beta.5`",
+    const publicBetaGuide = fs.readFileSync(
+      path.resolve("docs/PUBLIC_BETA.md"),
+      "utf8",
+    );
+    expect(publicBetaGuide.replace(/\s+/gu, " ")).toContain(
+      "`0.2.0-beta.5` is published to npm",
+    );
+    expect(publicBetaGuide.replace(/\s+/gu, " ")).toContain(
+      "npm `beta` and public Action examples remain beta.5",
     );
     expect(storefrontCorpus).toContain(
       "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.5",

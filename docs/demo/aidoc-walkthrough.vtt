@@ -1,21 +1,21 @@
 WEBVTT
 
 00:00.000 --> 00:10.000
-The code changed from createUser(email) to createUser(email, role).
-README.md and docs/API.md may now be stale.
+Code changed: createUser(email) now requires createUser(email, role).
+One public contract changed.
 
 00:10.000 --> 00:25.000
-Install the public beta and run aidoc plan.
-AiDoc uses AST-backed analysis to identify the affected documentation targets.
+AiDoc narrows the change to README.md and docs/API.md.
+Only those two documentation files enter the update path.
 
 00:25.000 --> 00:50.000
-Codex uses AiDoc's bounded prepare_documentation_update and
-validate_documentation_draft tools. The host owns the draft.
+prepare_documentation_update provides bounded context for a host-owned draft.
+This deterministic animation makes no provider calls and does not invoke Codex.
 
 00:50.000 --> 01:10.000
-Review the diff in README.md and docs/API.md.
-The role signature aligns before the maintainer decides whether to write.
+validate_documentation_draft checks the focused update for both files.
+Validation does not replace maintainer review.
 
 01:10.000 --> 01:20.000
-AiDoc is an open source Public beta.
-Try the workflow on a real code change and keep the final write under your control.
+Review the diff. There are no repository writes in this workflow.
+You decide what is applied during the Public beta.
