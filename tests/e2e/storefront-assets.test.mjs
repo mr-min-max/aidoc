@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
@@ -32,6 +33,20 @@ const animationFrames = [
   "docs/assets/demo/frame-04-diff.svg",
   "docs/assets/demo/frame-05-validated.svg",
 ];
+const animationRasterFrames = [
+  "docs/assets/demo/frame-01-change.png",
+  "docs/assets/demo/frame-02-plan.png",
+  "docs/assets/demo/frame-03-targets.png",
+  "docs/assets/demo/frame-04-diff.png",
+  "docs/assets/demo/frame-05-validated.png",
+];
+const animationRasterFrameHashes = [
+  "04f5f3a52517404c82f53ba6bdf27fc480b69c28844cb1c1baa2f91ea6e42b59",
+  "050a0d825b7d80eb584ae0806ff428868630ddda152d9ab2586335902c4cde2a",
+  "ba25796d9eb51a11fb39503c5c51ebc308f570f30f7c6259b36f961cc433e625",
+  "0936131e536cf252e497d59e8efc73bf9453bba203be51b03e8dcc1309c6bb11",
+  "eeda2ad870735deff49ce73d25b00724dc43bfb617173b7108a798cd4cef52a2",
+];
 const productionKit = [
   "docs/demo/aidoc-walkthrough-script.md",
   "docs/demo/aidoc-walkthrough.vtt",
@@ -40,6 +55,7 @@ const productionKit = [
 const task4Assets = [
   "docs/assets/demo/aidoc-flow-scene.png",
   ...animationFrames,
+  ...animationRasterFrames,
   "docs/assets/demo/aidoc-flow.gif",
   ...productionKit,
 ];
@@ -762,21 +778,14 @@ test(
         source,
         /<g\b[^>]*data-content-area="safe"[^>]*transform="translate\(64 64\)"[^>]*>/u,
       );
-      assert.match(source, /width="1152" height="592"/u);
-      assert.match(source, new RegExp(`${index + 1} / 5`, "u"));
-      assert.match(source, new RegExp(`>${plainHeadlines[index]}<`, "u"));
       assert.deepEqual(
-        staticSvgViolations(source, ["aidoc-flow-scene.png"]),
+        staticSvgViolations(source, [
+          path.basename(animationRasterFrames[index]),
+        ]),
         [],
         "animation frames must use the strict static SVG profile",
       );
-      const textElements = [
-        ...source.matchAll(/<text\b([^>]*)>([\s\S]*?)<\/text>/gu),
-      ];
-      const visibleTexts = textElements.map(([, , body]) =>
-        body.replace(/<[^>]+>/gu, "").trim(),
-      );
-      assert.deepEqual(visibleTexts, [
+      assert.deepEqual(metadataValues(source, "line"), [
         "AiDoc",
         plainHeadlines[index],
         plainSubheads[index],
@@ -785,70 +794,17 @@ test(
         "No repository writes",
         "You decide what is applied",
       ]);
-      const expectedFonts = [
-        monospaceFont,
-        displayFont,
-        index === 4 ? displayFont : monospaceFont,
-        monospaceFont,
-        displayFont,
-        displayFont,
-        displayFont,
-      ];
-      for (const [, attributes, body] of textElements) {
-        const x = /\bx="(\d+(?:\.\d+)?)"/u.exec(attributes);
-        const y = /\by="(\d+(?:\.\d+)?)"/u.exec(attributes);
-        const fontSize = /\bfont-size="(\d+(?:\.\d+)?)"/u.exec(attributes);
-        const fontFamily = /\bfont-family="([^"]+)"/u.exec(attributes);
-        const textAnchor = /\btext-anchor="([^"]+)"/u.exec(attributes);
-        assert.ok(x, "every visible frame text element must declare x");
-        assert.ok(y, "every visible frame text element must declare y");
-        assert.ok(
-          fontSize,
-          "every visible frame text element must declare a font size",
-        );
-        assert.ok(
-          fontFamily,
-          "every visible frame text element must declare a font family",
-        );
-        assert.ok(Number(x[1]) >= 24 && Number(x[1]) <= 1128);
-        assert.ok(Number(y[1]) >= 24 && Number(y[1]) <= 568);
-        assert.ok(
-          Number(fontSize[1]) >= 28,
-          "frame text must be at least 28px",
-        );
-        const visibleText = body.replace(/<[^>]+>/gu, "").trim();
-        assert.ok(
-          visibleText.length <= 48,
-          `visible frame text is too long: ${visibleText}`,
-        );
-        const familyIndex = visibleTexts.indexOf(visibleText);
-        assert.equal(fontFamily[1], expectedFonts[familyIndex]);
-        const estimatedWidth =
-          visibleText.length *
-          Number(fontSize[1]) *
-          (fontFamily[1] === monospaceFont ? 0.61 : 0.5);
-        const left =
-          textAnchor?.[1] === "end"
-            ? Number(x[1]) - estimatedWidth
-            : Number(x[1]);
-        const right =
-          textAnchor?.[1] === "end"
-            ? Number(x[1])
-            : Number(x[1]) + estimatedWidth;
-        assert.ok(left >= 24, `${visibleText} crosses the left content edge`);
-        assert.ok(
-          right <= 1136,
-          `${visibleText} crosses the right content edge`,
-        );
-        assert.ok(
-          Number(y[1]) - Number(fontSize[1]) * 0.82 >= 24,
-          `${visibleText} crosses the top content edge`,
-        );
-        assert.ok(
-          Number(y[1]) + Number(fontSize[1]) * 0.25 <= 584,
-          `${visibleText} crosses the bottom content edge`,
-        );
-      }
+      const imageTag = parseStaticSvgStartTags(source).tags.find(
+        ({ name }) => name === "image",
+      );
+      assert.deepEqual(attributeObject(imageTag), {
+        href: path.basename(animationRasterFrames[index]),
+        x: "-64",
+        y: "-64",
+        width: "1280",
+        height: "720",
+        preserveaspectratio: "xMidYMid meet",
+      });
     });
 
     assert.deepEqual(pngDimensions("docs/assets/demo/aidoc-flow-scene.png"), {
@@ -859,6 +815,37 @@ test(
       statSync(absolutePath("docs/assets/demo/aidoc-flow-scene.png")).size <=
         2 * 1024 * 1024,
     );
+
+    const rasterFrameSources = animationRasterFrames.map(readPng);
+    animationRasterFrames.forEach((relativePath, index) => {
+      assert.deepEqual(pngDimensions(relativePath), {
+        width: 1280,
+        height: 720,
+      });
+      assert.ok(
+        statSync(absolutePath(relativePath)).size <= 1024 * 1024,
+        `${relativePath} exceeds the 1 MiB frame-source budget`,
+      );
+      assert.equal(
+        createHash("sha256").update(readPng(relativePath)).digest("hex"),
+        animationRasterFrameHashes[index],
+        `${relativePath} differs from the reviewed Photoshop export`,
+      );
+    });
+    for (const rasterFrameSource of rasterFrameSources) {
+      assert.doesNotMatch(
+        rasterFrameSource.toString("latin1"),
+        /OpenAI|gpt-image|c2pa\.icon|\/Users\/|Adobe Photoshop/iu,
+        "tracked animation frames must not retain provider or private metadata",
+      );
+    }
+    for (let index = 1; index < rasterFrameSources.length; index += 1) {
+      assert.notDeepEqual(
+        rasterFrameSources[index - 1],
+        rasterFrameSources[index],
+        "each animation stage must have distinct visual focus",
+      );
+    }
 
     for (const evidence of [
       "prepare_documentation_update",
