@@ -12,7 +12,7 @@ body:
     attributes:
       label: aidoc version
       description: "Run `aidoc --version`, or provide the Git commit for a source checkout"
-      placeholder: "0.2.0-beta.5, 0.2.0-beta.6 candidate, or commit SHA"
+      placeholder: "0.2.0-beta.6 or commit SHA"
     validations:
       required: true
   - type: dropdown

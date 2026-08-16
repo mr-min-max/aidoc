@@ -27,7 +27,7 @@ Code signature change -> impact plan -> focused README/API draft ->
 validation -> maintainer review.
 
 > [!NOTE]
-> This source targets `0.2.0-beta.6`. The `@beta` install command resolves to the currently published npm beta; the [Public Beta guide](./docs/PUBLIC_BETA.md) records the verified release state.
+> The current public beta is `0.2.0-beta.6`. The `@beta` install command resolves to this verified release; the [Public Beta guide](./docs/PUBLIC_BETA.md) records the release evidence.
 
 ## Create docs and keep them current
 
@@ -319,6 +319,6 @@ Start with [CONTRIBUTING.md](./CONTRIBUTING.md), review the
 questions, and focused feature requests. For beta access boundaries and
 version truth, read [Public Beta](./docs/PUBLIC_BETA.md).
 
-This source targets beta.6. For verified publication state, use
+The current public beta is beta.6. For registry and release evidence, use
 [Public Beta](./docs/PUBLIC_BETA.md). The project is MIT licensed; see
 [LICENSE](./LICENSE).

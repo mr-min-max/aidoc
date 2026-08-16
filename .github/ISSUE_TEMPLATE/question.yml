@@ -12,7 +12,7 @@ body:
     attributes:
       label: AiDoc version or commit
       description: Use the package version or exact source-checkout commit.
-      placeholder: "0.2.0-beta.5, 0.2.0-beta.6 candidate, or commit SHA"
+      placeholder: "0.2.0-beta.6 or commit SHA"
     validations:
       required: true
   - type: input

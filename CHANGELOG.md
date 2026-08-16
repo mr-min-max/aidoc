@@ -4,17 +4,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-## [0.2.0-beta.6] - Forthcoming candidate
+## [0.2.0-beta.6] - 2026-08-16
 
-### Candidate
+### Changed
 
-- Prepare aligned AST-first storefront copy and a deterministic provider-free
-  `createUser` demo for review.
-- Include the original logo, poster, social preview, short GIF, and progressive
-  CLI and Action documentation in the candidate evidence.
+- Align AST-first storefront copy and add a deterministic provider-free
+  `createUser` demo.
+- Add the original logo, poster, social preview, short GIF, and progressive CLI
+  and Action documentation.
 - Keep runtime, provider, MCP, security, and model behavior unchanged.
-- Reserve intended beta publication for the OIDC-only workflow; `latest` remains
-  `0.2.0-beta.4` while the current public beta remains `0.2.0-beta.5`.
+- Publish through npm Trusted Publishing (OIDC) with matching npm and GitHub
+  prerelease artifacts. npm `beta` is `0.2.0-beta.6`; `latest` remains
+  `0.2.0-beta.4`.
 
 ## [0.2.0-beta.5] - 2026-08-14
 
