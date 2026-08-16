@@ -188,7 +188,7 @@ describe("public beta repository configuration", () => {
     expect(tagIndex).toBeGreaterThan(preTagRegistryIndex);
   });
 
-  it("keeps the beta.6 local candidate split from current-public beta.5 surfaces", () => {
+  it("records beta.6 as the externally verified public beta", () => {
     const packageJson = JSON.parse(
       fs.readFileSync(path.resolve("package.json"), "utf8"),
     ) as { name: string; version: string; scripts: Record<string, string> };
@@ -216,17 +216,17 @@ describe("public beta repository configuration", () => {
         "node --test tests/e2e/storefront-demo.test.mjs tests/e2e/storefront-assets.test.mjs tests/e2e/storefront-readme.test.mjs && jest tests/unit/release/storefront-copy.test.ts --runInBand",
       "test:npm-unpublished": "node --test tests/e2e/npm-unpublished.test.mjs",
       "test:npm-published":
-        "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs --version 0.2.0-beta.5 --latest 0.2.0-beta.4",
+        "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs --version 0.2.0-beta.6 --latest 0.2.0-beta.4",
     });
     expect(packageJson.scripts["test:public-beta"]).toContain(
       "npm run test:npm-published",
     );
     expect(packageJson.scripts["test:public-beta"]).toBe(
-      "node --test tests/e2e/public-beta-preflight.test.mjs && npm run test:npm-unpublished && node scripts/verify-npm-unpublished.mjs && npm run test:npm-published && jest tests/unit/release/public-beta-config.test.ts --runInBand",
+      "node --test tests/e2e/public-beta-preflight.test.mjs && npm run test:npm-published && jest tests/unit/release/public-beta-config.test.ts --runInBand",
     );
     const packedReadme = fs.readFileSync(path.resolve("README.md"), "utf8");
     expect(packedReadme).toContain(
-      "This source targets `0.2.0-beta.6`. The `@beta` install command resolves to the currently published npm beta; the [Public Beta guide](./docs/PUBLIC_BETA.md) records the verified release state.",
+      "The current public beta is `0.2.0-beta.6`. The `@beta` install command resolves to this verified release; the [Public Beta guide](./docs/PUBLIC_BETA.md) records the release evidence.",
     );
     expect(packedReadme).not.toContain(
       "npm `beta` still resolves to `0.2.0-beta.5`. This branch prepares the unpublished `0.2.0-beta.6` storefront candidate.",
@@ -249,44 +249,55 @@ describe("public beta repository configuration", () => {
     }
 
     for (const currentSurface of [
+      "README.md",
       "ROADMAP.md",
       "CHANGELOG.md",
       "docs/PUBLIC_BETA.md",
       "docs/RELEASING.md",
+      "docs/GITHUB_ACTION.md",
+      "docs/releases/v0.2.0-beta.6.md",
+    ]) {
+      const source = fs.readFileSync(path.resolve(currentSurface), "utf8");
+      expect(source).toContain("0.2.0-beta.6");
+      expect(source).not.toContain("0.2.0-beta.2");
+      const beta6Lines = source
+        .split("\n")
+        .filter((line) => line.includes("0.2.0-beta.6"))
+        .join("\n");
+      expect(beta6Lines).not.toMatch(/candidate|forthcoming/i);
+    }
+
+    for (const issueTemplate of [
       ".github/ISSUE_TEMPLATE/bug_report.yml",
       ".github/ISSUE_TEMPLATE/feature_request.yml",
       ".github/ISSUE_TEMPLATE/question.yml",
     ]) {
-      const source = fs.readFileSync(path.resolve(currentSurface), "utf8");
-      expect(source).toContain("0.2.0-beta.5");
-      expect(source).toContain("0.2.0-beta.6");
-      expect(source).not.toContain("0.2.0-beta.2");
-      if (currentSurface.startsWith(".github/ISSUE_TEMPLATE/")) {
-        expect(source).toContain(
-          "0.2.0-beta.5, 0.2.0-beta.6 candidate, or commit SHA",
-        );
-      }
+      const source = fs.readFileSync(path.resolve(issueTemplate), "utf8");
+      expect(source).toContain("0.2.0-beta.6 or commit SHA");
+      expect(source).not.toMatch(/beta\.6 candidate/i);
     }
 
-    const candidateReleaseNote = fs.readFileSync(
+    const publishedReleaseNote = fs.readFileSync(
       path.resolve("docs/releases/v0.2.0-beta.6.md"),
       "utf8",
     );
-    expect(candidateReleaseNote).toContain("Status: Forthcoming candidate");
+    expect(publishedReleaseNote).toContain("Status: Published public beta");
     for (const phrase of [
       "aligned AST-first storefront copy",
       "deterministic `createUser` provider-free demo",
       "original logo, poster, social preview, and short GIF",
       "progressive CLI and Action documentation",
       "No runtime, provider, MCP, security, or model change",
-      "intended OIDC-only beta publication",
+      "npm Trusted Publishing (OIDC)",
+      "https://github.com/mr-min-max/aidoc",
+      "https://github.com/mr-min-max/aidoc/actions/runs/31914951538",
+      "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.6",
+      "npm `beta` resolves to `0.2.0-beta.6`",
       "`latest` remains `0.2.0-beta.4`",
     ]) {
-      expect(candidateReleaseNote).toContain(phrase);
+      expect(publishedReleaseNote).toContain(phrase);
     }
-    expect(candidateReleaseNote).not.toMatch(
-      /(?:is|was|has been)\s+(?:published|released|available|installable)[\s\S]{0,80}0\.2\.0-beta\.6/i,
-    );
+    expect(publishedReleaseNote).not.toMatch(/candidate|forthcoming/i);
 
     const storefrontCorpus = [
       "README.md",
@@ -295,7 +306,7 @@ describe("public beta repository configuration", () => {
       "docs/PUBLIC_BETA.md",
       "docs/integrations/codex.md",
       "docs/integrations/claude.md",
-      "docs/releases/v0.2.0-beta.5.md",
+      "docs/releases/v0.2.0-beta.6.md",
     ]
       .map((file) => fs.readFileSync(path.resolve(file), "utf8"))
       .join("\n");
@@ -304,30 +315,30 @@ describe("public beta repository configuration", () => {
       "utf8",
     );
     expect(publicBetaGuide.replace(/\s+/gu, " ")).toContain(
-      "`0.2.0-beta.5` is published to npm",
+      "`0.2.0-beta.6` is published to npm",
     );
     expect(publicBetaGuide.replace(/\s+/gu, " ")).toContain(
-      "npm `beta` and public Action examples remain beta.5",
+      "npm `beta` and public Action examples use beta.6",
     );
     expect(storefrontCorpus).toContain(
-      "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.5",
+      "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.6",
     );
 
-    const publishedReleaseNote = fs.readFileSync(
+    const historicalReleaseNote = fs.readFileSync(
       path.resolve("docs/releases/v0.2.0-beta.5.md"),
       "utf8",
     );
-    expect(publishedReleaseNote).toMatch(
+    expect(historicalReleaseNote).toMatch(
       /published[\s\S]{0,120}(?:npm|GitHub prerelease)/i,
     );
-    expect(publishedReleaseNote).toContain("npm Trusted Publishing");
-    expect(publishedReleaseNote).toContain(
+    expect(historicalReleaseNote).toContain("npm Trusted Publishing");
+    expect(historicalReleaseNote).toContain(
       "https://github.com/mr-min-max/aidoc/actions/runs/31825128025",
     );
-    expect(publishedReleaseNote).toContain(
+    expect(historicalReleaseNote).toContain(
       "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.5",
     );
-    expect(publishedReleaseNote).toMatch(
+    expect(historicalReleaseNote).toMatch(
       /OIDC[\s\S]{0,240}(?:without|no)[\s\S]{0,160}(?:NPM_TOKEN|reusable npm credential)/i,
     );
 
@@ -339,8 +350,8 @@ describe("public beta repository configuration", () => {
     expect(mcpServer).not.toContain("npx aidoc-gen");
   });
 
-  it("keeps the candidate release note separate from current-public beta.5", () => {
-    const candidateReleaseNote = fs.readFileSync(
+  it("keeps the beta.5 publication record as history after beta.6", () => {
+    const currentReleaseNote = fs.readFileSync(
       path.resolve("docs/releases/v0.2.0-beta.6.md"),
       "utf8",
     );
@@ -349,15 +360,13 @@ describe("public beta repository configuration", () => {
       "utf8",
     );
 
-    expect(candidateReleaseNote).toContain("Forthcoming candidate");
-    expect(candidateReleaseNote).toContain(
-      "`0.2.0-beta.5` remains the current public beta",
-    );
+    expect(currentReleaseNote).toContain("Status: Published public beta");
+    expect(currentReleaseNote).not.toMatch(/candidate|forthcoming/i);
     expect(publishedReleaseNote).toContain("# v0.2.0-beta.5");
     expect(publishedReleaseNote).not.toContain("Forthcoming candidate");
   });
 
-  it("documents the published beta.5 hybrid access boundaries across the progressive storefront corpus", () => {
+  it("documents the published beta.6 hybrid access boundaries across the progressive storefront corpus", () => {
     const documentationPaths = [
       "README.md",
       "docs/CLI.md",
@@ -365,7 +374,7 @@ describe("public beta repository configuration", () => {
       "docs/PUBLIC_BETA.md",
       "docs/integrations/codex.md",
       "docs/integrations/claude.md",
-      "docs/releases/v0.2.0-beta.5.md",
+      "docs/releases/v0.2.0-beta.6.md",
     ];
     const missingDocumentation = documentationPaths.filter(
       (file) => !fs.existsSync(path.resolve(file)),
@@ -547,14 +556,11 @@ describe("public beta repository configuration", () => {
       /ChatGPT web[\s\S]{0,160}(?:supports|can use|is available|use local)/i,
     );
     expect(actionGuide).toMatch(/generate[\s\S]{0,120}check/iu);
-    expect(actionGuide).toMatch(/v0\.2\.0-beta\.5/iu);
-    expect(actionGuide).not.toMatch(
-      /v0\.2\.0-beta\.6[\s\S]{0,120}(?:published|public|released)/iu,
-    );
+    expect(actionGuide).toMatch(/v0\.2\.0-beta\.6/iu);
     expect(cliGuide).toMatch(/plan[\s\S]{0,120}provider-free/iu);
   });
 
-  it("keeps the beta.5 post-publication state truthful and preserves beta-only installation", () => {
+  it("keeps the beta.6 post-publication state truthful and preserves beta-only installation", () => {
     const runbook = fs.readFileSync(path.resolve("docs/RELEASING.md"), "utf8");
     const readme = fs.readFileSync(path.resolve("README.md"), "utf8");
     const publicBeta = fs.readFileSync(
@@ -562,7 +568,7 @@ describe("public beta repository configuration", () => {
       "utf8",
     );
     const releaseNote = fs.readFileSync(
-      path.resolve("docs/releases/v0.2.0-beta.5.md"),
+      path.resolve("docs/releases/v0.2.0-beta.6.md"),
       "utf8",
     );
 
@@ -582,7 +588,7 @@ describe("public beta repository configuration", () => {
     expect(runbook).toContain("npm install -g @mr-min-max/aidoc-gen@beta");
     expect(runbook).toContain("node scripts/verify-npm-published.mjs");
     expect(runbook).toContain(
-      "https://github.com/mr-min-max/aidoc/actions/runs/31825128025",
+      "https://github.com/mr-min-max/aidoc/actions/runs/31914951538",
     );
     expect(runbook).toContain(
       "npm access set mfa=publish @mr-min-max/aidoc-gen",
@@ -606,9 +612,11 @@ describe("public beta repository configuration", () => {
     expect(readme).toContain("npm install -g @mr-min-max/aidoc-gen@beta");
     expect(publicBeta).toContain("npm install -g @mr-min-max/aidoc-gen@beta");
     expect(releaseNote).toContain(
-      "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.5",
+      "https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.6",
     );
     expect(releaseNote).toMatch(/published[\s\S]{0,80}npm/i);
-    expect(releaseNote).toContain("zero active npm tokens");
+    expect(releaseNote).toContain("npm Trusted Publishing (OIDC)");
+    expect(releaseNote).toContain("https://github.com/mr-min-max/aidoc");
+    expect(releaseNote).not.toMatch(/candidate|forthcoming/i);
   });
 });

@@ -3,21 +3,16 @@
 This roadmap separates the current public beta from shipped foundations and
 future work. We welcome community feedback and contributions.
 
-## Local candidate under review
-
-### v0.2.0-beta.6: Forthcoming candidate
-
-The source checkout carries a local `0.2.0-beta.6` candidate for later Gate A
-review. It aligns the AST-first storefront copy, deterministic provider-free
-`createUser` demo, original visual assets, progressive CLI and Action docs, and
-release evidence without changing runtime, provider, MCP, security, or model
-behavior. Publication is intended to use OIDC only after the candidate gates
-and a separate human decision. The current public beta remains beta.5, and
-`latest` remains beta.4.
-
 ## Current public beta
 
-### v0.2.0-beta.5 — OIDC-published hybrid provider and host integration
+### v0.2.0-beta.6: AST-first OSS storefront and verified release
+
+- Aligned AST-first product copy across the README, package, CLI, and Action
+- Deterministic provider-free `createUser` demo with bounded README/API impact
+- Original logo, social preview, poster, five-stage GIF, and walkthrough kit
+- Progressive CLI, Action, Codex, Claude, and public-beta documentation
+- OIDC-only publication with matching npm and GitHub release artifacts
+- No runtime, provider, MCP, security, or model behavior change from beta.5
 
 - Scoped npm identity `@mr-min-max/aidoc-gen` with the `aidoc` executable
 - Provider Trust Gate for rendered input and completed output
@@ -34,8 +29,10 @@ and a separate human decision. The current public beta remains beta.5, and
 - Packaged CLI, GitHub Action, and MCP release-integrity smoke coverage
 
 This beta is published on npm's explicit `beta` channel and as a matching
-GitHub prerelease. The npm package was published through Trusted Publishing
-(OIDC), and the verified npm and GitHub tarballs match byte-for-byte.
+[GitHub prerelease](https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.6).
+The npm package was published through Trusted Publishing (OIDC), and the
+verified npm and GitHub tarballs match byte-for-byte. npm `latest` remains
+`0.2.0-beta.4`.
 
 ### Additional current-branch capabilities
 
@@ -82,7 +79,7 @@ GitHub prerelease. The npm package was published through Trusted Publishing
 
 These bullets describe source-level foundations, not release-integrity-verified
 distribution paths. The v0.1.0 distributed template, Action, and MCP paths were
-not release-integrity verified. The current `v0.2.0-beta.5` public beta repairs
+not release-integrity verified. The current `v0.2.0-beta.6` public beta repairs
 those packaging, automation, and transport paths and ships with verification
 evidence.
 

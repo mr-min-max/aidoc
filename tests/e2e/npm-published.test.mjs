@@ -9,7 +9,7 @@ import {
 
 const candidate = Object.freeze({
   name: "@mr-min-max/aidoc-gen",
-  version: "0.2.0-beta.5",
+  version: "0.2.0-beta.6",
 });
 const expectedLatest = "0.2.0-beta.4";
 
@@ -36,7 +36,7 @@ function publishedMetadata(overrides = {}) {
         dist: {
           integrity: "sha512-c2FmZS1pbnRlZ3JpdHk=",
           tarball:
-            "https://registry.npmjs.org/@mr-min-max/aidoc-gen/-/aidoc-gen-0.2.0-beta.5.tgz",
+            "https://registry.npmjs.org/@mr-min-max/aidoc-gen/-/aidoc-gen-0.2.0-beta.6.tgz",
         },
       },
     },
@@ -57,22 +57,22 @@ test("selects explicit beta and latest versions without accepting extra argument
     versionOverride: undefined,
   });
   assert.deepEqual(
-    parsePublishedStateArguments(["--version", "0.2.0-beta.5"]),
+    parsePublishedStateArguments(["--version", "0.2.0-beta.6"]),
     {
       expectedLatest: undefined,
-      versionOverride: "0.2.0-beta.5",
+      versionOverride: "0.2.0-beta.6",
     },
   );
   assert.deepEqual(
     parsePublishedStateArguments([
       "--version",
-      "0.2.0-beta.5",
+      "0.2.0-beta.6",
       "--latest",
       "0.2.0-beta.4",
     ]),
     {
       expectedLatest: "0.2.0-beta.4",
-      versionOverride: "0.2.0-beta.5",
+      versionOverride: "0.2.0-beta.6",
     },
   );
 
@@ -80,13 +80,13 @@ test("selects explicit beta and latest versions without accepting extra argument
     ["--version"],
     ["--version", ""],
     ["--latest", "0.2.0-beta.4"],
-    ["--version", "0.2.0-beta.5", "extra"],
-    ["--other", "0.2.0-beta.5"],
-    ["--version", "../0.2.0-beta.5"],
-    ["--version", "0.2.0-beta.5\nseeded-secret"],
-    ["--version", "0.2.0-beta.5", "--latest", ""],
-    ["--version", "0.2.0-beta.5", "--latest", "../0.2.0-beta.4"],
-    ["--latest", "0.2.0-beta.4", "--version", "0.2.0-beta.5"],
+    ["--version", "0.2.0-beta.6", "extra"],
+    ["--other", "0.2.0-beta.6"],
+    ["--version", "../0.2.0-beta.6"],
+    ["--version", "0.2.0-beta.6\nseeded-secret"],
+    ["--version", "0.2.0-beta.6", "--latest", ""],
+    ["--version", "0.2.0-beta.6", "--latest", "../0.2.0-beta.4"],
+    ["--latest", "0.2.0-beta.4", "--version", "0.2.0-beta.6"],
   ]) {
     assert.throws(
       () => parsePublishedStateArguments(args),

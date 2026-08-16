@@ -150,7 +150,7 @@ test("keeps the exact hero, beta notice, install, badges, and demo flow contract
   );
   assert.match(
     firstScreen,
-    /> \[!NOTE\]\s*> This source targets `0\.2\.0-beta\.6`\. The `@beta` install command resolves to the currently published npm beta; the \[Public Beta guide\]\(\.\/docs\/PUBLIC_BETA\.md\) records the verified release state\./u,
+    /> \[!NOTE\]\s*> The current public beta is `0\.2\.0-beta\.6`\. The `@beta` install command resolves to this verified release; the \[Public Beta guide\]\(\.\/docs\/PUBLIC_BETA\.md\) records the release evidence\./u,
   );
   assert.doesNotMatch(
     firstScreen,

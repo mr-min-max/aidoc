@@ -7,21 +7,20 @@ changelogs, diagrams, and code comments, then keep them aligned as code
 changes. It analyzes code structure first, focuses the relevant context, and
 keeps change-driven updates reviewable.
 
-`0.2.0-beta.5` is published to npm as `@mr-min-max/aidoc-gen` and as a
-[GitHub prerelease](https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.5);
+`0.2.0-beta.6` is published to npm as `@mr-min-max/aidoc-gen` and as a
+[GitHub prerelease](https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.6);
 the executable remains `aidoc`. The release was published by GitHub Actions
 through npm Trusted Publishing (OIDC), without a reusable npm credential in
 the workflow. The repository-owned Codex plugin is not installed from a
 marketplace, and ChatGPT web does not read local STDIO.
 
-This source checkout also carries a forthcoming `0.2.0-beta.6` candidate for a
-separate Gate A review. It synchronizes the AST-first storefront copy,
-deterministic provider-free demo, original visual assets, progressive CLI and
-Action documentation, and candidate release evidence. It does not change
-runtime, provider, MCP, security, or model behavior. Until a separate human
-publication decision, npm `beta` and public Action examples remain beta.5,
-while `latest` remains beta.4. Any later beta publication is intended to use
-OIDC only.
+The [successful release workflow](https://github.com/mr-min-max/aidoc/actions/runs/31914951538)
+published the package from `mr-min-max/aidoc` and attached the same verified
+tarball plus checksum to the prerelease. npm `beta` and public Action examples
+use beta.6, while npm `latest` remains `0.2.0-beta.4`. The registry provenance,
+clean installation, packaged CLI, and MCP smoke were externally verified after
+publication. This release does not change runtime, provider, MCP, security, or
+model behavior from beta.5.
 
 AiDoc requires Node.js `>=22.12.0`.
 
@@ -131,7 +130,7 @@ does not call those provider-backed generation tools.
 
 ## GitHub Action
 
-The published beta.5 Action is used at the pinned `v0.2.0-beta.5` tag. Its
+The published beta.6 Action is used at the pinned `v0.2.0-beta.6` tag. Its
 `generate` mode invokes supported provider-backed CLI commands and its `check`
 mode runs the deterministic AST-backed source/document co-change guard. The
 Action does not turn a consumer subscription into an AiDoc API key. See the

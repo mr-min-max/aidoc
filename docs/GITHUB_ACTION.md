@@ -1,15 +1,15 @@
 # AiDoc GitHub Action
 
 This document describes the composite Action at the repository root. The
-examples use the currently published beta.5 tag:
+examples use the currently published beta.6 tag:
 
 ```yaml
-- uses: mr-min-max/aidoc@v0.2.0-beta.5
+- uses: mr-min-max/aidoc@v0.2.0-beta.6
 ```
 
 The Action's install step reads the AiDoc package version from the same Action
 ref and installs @mr-min-max/aidoc-gen at that version globally. This keeps the
-runtime package and Action source on one reviewed beta.5 ref.
+runtime package and Action source on one reviewed beta.6 ref.
 
 For the complete command catalogue, see [CLI.md](./CLI.md). For provider
 credentials, billing, Ollama discovery, Trust Gate details, and public beta
@@ -124,7 +124,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: mr-min-max/aidoc@v0.2.0-beta.5
+      - uses: mr-min-max/aidoc@v0.2.0-beta.6
         with:
           provider: openai
           api-key: ${{ secrets.OPENAI_API_KEY }}
@@ -157,7 +157,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: mr-min-max/aidoc@v0.2.0-beta.5
+      - uses: mr-min-max/aidoc@v0.2.0-beta.6
         with:
           mode: check
           since: ${{ github.event.pull_request.base.sha }}
@@ -216,7 +216,7 @@ package, or provide a provider credential.
 
 ## Security recommendations
 
-- Pin the Action to the reviewed beta.5 ref shown above rather than using a
+- Pin the Action to the reviewed beta.6 ref shown above rather than using a
   moving branch.
 - Store remote provider keys in GitHub Actions secrets and pass them only to
   api-key.

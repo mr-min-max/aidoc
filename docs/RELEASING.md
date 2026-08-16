@@ -245,20 +245,30 @@ Trusted Publishing requires a GitHub-hosted runner, `id-token: write`, Node
 `>=22.14.0`, and npm `>=11.5.1`. The release workflow checks the npm floor and
 grants OIDC only to its publish job.
 
-## Forthcoming beta.6 Candidate
+## OIDC-only beta.6 Publication Record
 
-The source checkout may carry `0.2.0-beta.6` as a local candidate for Gate A
-review. This candidate records the aligned AST-first storefront copy,
-deterministic provider-free `createUser` demo, original visual assets,
-progressive CLI and Action documentation, and no runtime, provider, MCP,
-security, or model change. The intended publication path is OIDC only, and it
-requires a separate human decision after the candidate gates pass.
+`0.2.0-beta.6` was published on 2026-08-16 from protected main commit
+`fd58309943a161aadce812bda43c60722abbf972`. The annotated tag points directly
+to that commit and uses the approved GitHub noreply identity.
 
-Before that decision, verify the candidate gate with `npm run test:public-beta`.
-It must prove the candidate version is absent from npm, the legacy unscoped
-beta.3 collision remains absent, npm `beta` remains `0.2.0-beta.5`, and npm
-`latest` remains `0.2.0-beta.4`. Do not create or push a tag, publish a package,
-move a dist-tag, or create a GitHub release during this candidate window.
+The [release workflow run](https://github.com/mr-min-max/aidoc/actions/runs/31914951538)
+passed Node 22 and 24 verification, packaged once, and published the verified
+tarball through npm Trusted Publishing (OIDC). npm provenance identifies
+`https://github.com/mr-min-max/aidoc`, `.github/workflows/release.yml`, and
+`refs/tags/v0.2.0-beta.6`. No `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or reusable npm
+credential was present in the workflow.
+
+npm `beta` resolves to `0.2.0-beta.6`; npm `latest` remains
+`0.2.0-beta.4`. The matching
+[GitHub prerelease](https://github.com/mr-min-max/aidoc/releases/tag/v0.2.0-beta.6)
+contains the exact npm tarball and its checksum. The registry tarball SHA-256
+is `b68ec3a879d5e84837bb98a868de9741d2c8a840c019f8f7a560396e998372c1`.
+A clean registry installation reported `0.2.0-beta.6`, and the exact registry
+bytes passed the packaged CLI and MCP smoke tests.
+
+The postpublication gate is `npm run test:public-beta`. It verifies the live
+published beta and pinned `latest` state; the mocked unpublished tests remain
+utility regression coverage and are no longer part of the active public gate.
 
 ## Failure Handling
 
