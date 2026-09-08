@@ -16,6 +16,11 @@ updates:
         update-types:
           - minor
           - patch
+      development-minor-and-patch:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: github-actions
     directory: "/"

@@ -56,6 +56,10 @@ describe("public beta repository configuration", () => {
               "dependency-type": "production",
               "update-types": ["minor", "patch"],
             },
+            "development-minor-and-patch": {
+              "dependency-type": "development",
+              "update-types": ["minor", "patch"],
+            },
           },
         },
         {

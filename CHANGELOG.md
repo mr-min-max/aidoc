@@ -3,6 +3,7 @@
 All notable changes to this project are documented in this file.
 
 ## [Unreleased]
+- Removed historical planning records from the public tree; Git history retains them.
 
 ## [0.2.0-beta.6] - 2026-08-16
 
