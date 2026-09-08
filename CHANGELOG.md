@@ -3,6 +3,8 @@
 All notable changes to this project are documented in this file.
 
 ## [Unreleased]
+
+- Parser: enumerate arrow-function, function-expression, default, aliased, and constant exports. New impact symbol kind `variable`.
 - Removed historical planning records from the public tree; Git history retains them.
 
 ## [0.2.0-beta.6] - 2026-08-16

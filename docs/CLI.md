@@ -166,8 +166,10 @@ Options:
 
 Creates a deterministic AST-backed documentation-impact plan from Git changes.
 It does not construct a provider, call a model, or write a file. Human output
-is intended for review. JSON output is a versioned
-`aidoc.impact-plan.v1` success or error envelope.
+is intended for review. Public symbols are exported functions (including
+`export const f = () => ...` and `export default`), classes and their public
+methods, interfaces, type aliases, enums, and exported constants. JSON output
+is a versioned `aidoc.impact-plan.v1` success or error envelope.
 
 ```bash
 aidoc plan
@@ -191,6 +193,10 @@ Options:
 The first commit is compared with Git's empty tree. A shallow repository must
 contain the selected base. A supported source file that cannot be parsed stops
 the plan before provider construction or a document write.
+
+Limitations: Python module-level constants are not enumerated. Re-exports from
+other modules (`export * from`, `export { x } from`) and CommonJS
+`module.exports` are not enumerated.
 
 ### `aidoc update`
 
@@ -281,7 +287,7 @@ status `2`.
 
 Calculates AST-derived documentation coverage for exported symbols. The score
 is a coverage measure, not a judgment of prose quality. It performs no provider
-request.
+request. Constants are enumerated but do not count toward the score.
 
 ```bash
 aidoc score
