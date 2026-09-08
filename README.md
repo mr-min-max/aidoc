@@ -163,9 +163,9 @@ profiles and Ollama are documented in [Public Beta](./docs/PUBLIC_BETA.md).
 ## Why AST-first matters
 
 AiDoc starts with deterministic structure: exported functions, classes, methods,
-types, and references. It then focuses the context passed to a model and keeps
-the resulting update reviewable. AST analysis is a boundary for relevance and
-change mapping; it is not a guarantee that generated prose is correct.
+types, exported constants, and references. It then focuses the context passed to a
+model and keeps the resulting update reviewable. AST analysis is a boundary for
+relevance and change mapping; it is not a guarantee that generated prose is correct.
 
 The comparison is between workflow patterns, not named competitors:
 
