@@ -195,11 +195,256 @@ describe("TypeScriptParser", () => {
         functions: [],
         classes: [],
         types: [],
+        variables: [],
         imports: [],
       });
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("enumerates modern exported bindings in both parser paths", async () => {
+    const fixture = await parser.parse(
+      path.resolve(__dirname, "../../fixtures/modern-exports.ts"),
+    );
+    expect(fixture.functions.map(({ name }) => name).sort()).toEqual([
+      "arrow",
+      "decl",
+      "default",
+      "exposed",
+      "fnExpr",
+    ]);
+    expect(fixture.functions).toHaveLength(5);
+    const arrow = fixture.functions.find(({ name }) => name === "arrow");
+    expect(arrow).toMatchObject({
+      lineRange: [5, 5],
+      existingDoc: "Fetches a thing.",
+      signature: "arrow(id: string): Promise<string>",
+    });
+    expect(fixture.variables.map(({ name }) => name).sort()).toEqual([
+      "CONFIG",
+      "VERSION",
+      "counter",
+    ]);
+    expect(fixture.variables).toHaveLength(3);
+    const source = await fs.promises.readFile(
+      path.resolve(__dirname, "../../fixtures/modern-exports.ts"),
+      "utf8",
+    );
+    const snapshot = await parser.snapshot(
+      "tests/fixtures/modern-exports.ts",
+      source,
+    );
+    expect(
+      snapshot.symbols.map(
+        ({ kind, qualifiedName }) => `${kind}:${qualifiedName}`,
+      ),
+    ).toEqual([
+      "class:Svc",
+      "enum:Mode",
+      "function:arrow",
+      "function:decl",
+      "function:default",
+      "function:exposed",
+      "function:fnExpr",
+      "interface:Opts",
+      "method:Svc.run",
+      "type:Id",
+      "variable:CONFIG",
+      "variable:VERSION",
+      "variable:counter",
+    ]);
+    expect(
+      snapshot.symbols.some(
+        ({ qualifiedName }) => qualifiedName === "internal",
+      ),
+    ).toBe(false);
+  });
+
+  it("tracks modern callable and variable contract versus implementation changes", async () => {
+    const base = `export const arrow = async (id: string): Promise<string> => id; export const CONFIG = { retries: 3 };`;
+    const parameterChanged = await parser.snapshot(
+      "src/modern.ts",
+      `export const arrow = async (id: string, locale?: string): Promise<string> => id; export const CONFIG = { retries: 3 };`,
+    );
+    const bodyChanged = await parser.snapshot(
+      "src/modern.ts",
+      `export const arrow = async (id: string): Promise<string> => id + "!"; export const CONFIG = { retries: 3 };`,
+    );
+    const configMembersChanged = await parser.snapshot(
+      "src/modern.ts",
+      `export const arrow = async (id: string): Promise<string> => id; export const CONFIG = { retries: 3, timeout: 1 };`,
+    );
+    const configValueChanged = await parser.snapshot(
+      "src/modern.ts",
+      `export const arrow = async (id: string): Promise<string> => id; export const CONFIG = { retries: 4 };`,
+    );
+    const original = await parser.snapshot("src/modern.ts", base);
+    const arrow = (s: typeof original) =>
+      s.symbols.find(({ qualifiedName }) => qualifiedName === "arrow");
+    const config = (s: typeof original) =>
+      s.symbols.find(({ qualifiedName }) => qualifiedName === "CONFIG");
+    expect(arrow(parameterChanged)?.contractFacets.parameters).not.toBe(
+      arrow(original)?.contractFacets.parameters,
+    );
+    expect(arrow(parameterChanged)?.contractFingerprint).not.toBe(
+      arrow(original)?.contractFingerprint,
+    );
+    expect(arrow(bodyChanged)?.contractFingerprint).toBe(
+      arrow(original)?.contractFingerprint,
+    );
+    expect(arrow(bodyChanged)?.implementationFingerprint).not.toBe(
+      arrow(original)?.implementationFingerprint,
+    );
+    expect(config(configMembersChanged)?.contractFacets.members).not.toBe(
+      config(original)?.contractFacets.members,
+    );
+    expect(config(configValueChanged)?.contractFacets.members).toBe(
+      config(original)?.contractFacets.members,
+    );
+    expect(config(configValueChanged)?.contractFingerprint).toBe(
+      config(original)?.contractFingerprint,
+    );
+    expect(config(configValueChanged)?.implementationFingerprint).not.toBe(
+      config(original)?.implementationFingerprint,
+    );
+  });
+
+  it("distinguishes named default declarations from anonymous default expressions", async () => {
+    const named = await parser.snapshot(
+      "src/named.ts",
+      "export default function main(argv: string[]): void {}",
+    );
+    const anonymous = await parser.snapshot(
+      "src/anonymous.ts",
+      "export default (argv: string[]) => argv.length;",
+    );
+    const namedLegacy = await parser.parseSource(
+      "src/named.ts",
+      "export default function main(argv: string[]): void {}",
+    );
+
+    expect(
+      named.symbols.map(
+        ({ kind, qualifiedName }) => `${kind}:${qualifiedName}`,
+      ),
+    ).toEqual(["function:main"]);
+    expect(
+      anonymous.symbols.map(
+        ({ kind, qualifiedName }) => `${kind}:${qualifiedName}`,
+      ),
+    ).toEqual(["function:default"]);
+    expect(namedLegacy.functions.map(({ name }) => name)).toEqual(["main"]);
+  });
+
+  it("keeps callable modifier tuples and variable contracts exact", async () => {
+    const snapshot = await parser.snapshot(
+      "src/facets.ts",
+      `
+        export const arrow = async (id: string): Promise<string> => id;
+        export const fnExpr = function* (id: string): Generator<string> { yield id; };
+        export let mutable = (id: string): string => id;
+        export const ORDERED = { z: 1, a: 2 };
+        export default 42;
+      `,
+    );
+    const byName = new Map(
+      snapshot.symbols.map((symbol) => [symbol.qualifiedName, symbol]),
+    );
+
+    expect(byName.get("arrow")?.contractFacets.modifiers).toBe(
+      "2aac82c351965e00c7c57e7ea41e523d7cf4bd0814c19a4e320f8c504f7b9238",
+    );
+    expect(byName.get("fnExpr")?.contractFacets.modifiers).toBe(
+      "3f248569452864596f24ea152f415950a574da02cf962784d1bb9f5283dd165a",
+    );
+    expect(byName.get("mutable")?.contractFacets.modifiers).toBe(
+      "b3d5fa1016dc91ea2e4cbeabf353ec5f22bcc0fe9a2c2b8cb0f99c2bf3e81e3a",
+    );
+    expect(byName.get("default")).toMatchObject({
+      kind: "variable",
+      contractFacets: { members: null },
+    });
+
+    const reordered = await parser.snapshot(
+      "src/facets.ts",
+      "export const ORDERED = { a: 2, z: 1 };",
+    );
+    expect(byName.get("ORDERED")?.contractFacets.members).toBe(
+      reordered.symbols[0].contractFacets.members,
+    );
+    const legacyDefault = await parser.parseSource(
+      "src/default-value.ts",
+      "export default 42;",
+    );
+    expect(legacyDefault.variables).toEqual([
+      {
+        name: "default",
+        type: undefined,
+        declarationKind: "const",
+        isExported: true,
+        lineRange: [1, 1],
+        existingDoc: undefined,
+      },
+    ]);
+  });
+
+  it("does not enumerate declarations resolved from another module", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-reexports-"));
+    const dependency = path.join(root, "dependency.ts");
+    const entry = path.join(root, "entry.ts");
+    fs.writeFileSync(
+      dependency,
+      "export const callable = () => 1; export const VALUE = 1;",
+    );
+    fs.writeFileSync(
+      entry,
+      'export { callable, VALUE } from "./dependency"; export * from "./dependency";',
+    );
+
+    try {
+      await parser.parse(dependency);
+      const parsed = await parser.parse(entry);
+      expect(parsed.functions).toEqual([]);
+      expect(parsed.variables).toEqual([]);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("snapshots TSX arrow exports with a parameter contract facet", async () => {
+    const source = await fs.promises.readFile(
+      path.resolve(__dirname, "../../fixtures/component.tsx"),
+      "utf8",
+    );
+    const snapshot = await parser.snapshot(
+      "tests/fixtures/component.tsx",
+      source,
+    );
+    expect(snapshot.symbols).toHaveLength(1);
+    expect(snapshot.symbols[0]).toMatchObject({
+      kind: "function",
+      qualifiedName: "Button",
+      contractFacets: { parameters: expect.any(String) },
+    });
+  });
+
+  it("keeps score totals unchanged when variable documentation changes", async () => {
+    const documented = await parser.parseSource(
+      "src/score.ts",
+      "/** Config docs */ export const CONFIG = { retries: 3 };",
+    );
+    const undocumented = await parser.parseSource(
+      "src/score.ts",
+      "export const CONFIG = { retries: 3 };",
+    );
+    const { scoreModules } = await import("../../../src/core/score");
+    expect(scoreModules([documented]).totalSymbols).toBe(
+      scoreModules([undocumented]).totalSymbols,
+    );
+    expect(scoreModules([documented]).documentedSymbols).toBe(
+      scoreModules([undocumented]).documentedSymbols,
+    );
   });
 
   // Break caught: snapshot normalization leaks source values or treats formatting as behavior.

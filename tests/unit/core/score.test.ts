@@ -7,6 +7,7 @@ const mod = (overrides: Partial<ParsedModule>): ParsedModule => ({
   functions: [],
   classes: [],
   types: [],
+  variables: [],
   imports: [],
   ...overrides,
 });

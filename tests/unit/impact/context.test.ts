@@ -144,6 +144,18 @@ function expectInvalidContextPayload(
 }
 
 describe("impact provider context budgeting", () => {
+  it("retains variable changes in provider context", () => {
+    const item = change("added", "CONFIG", {
+      kind: "variable",
+      id: "typescript:src/CONFIG.ts#variable:CONFIG",
+      qualifiedName: "CONFIG",
+    });
+    const result = build([item]);
+    expect(result.providerContext.changes).toEqual([
+      expect.objectContaining({ kind: "variable", qualifiedName: "CONFIG" }),
+    ]);
+  });
+
   it("orders complete records by category priority and path/kind/name ties", () => {
     const changes = [
       change("documentation-changed", "docs"),

@@ -52,6 +52,7 @@ const KINDS: readonly (SymbolKind | "module")[] = [
   "interface",
   "type",
   "enum",
+  "variable",
   "module",
 ];
 

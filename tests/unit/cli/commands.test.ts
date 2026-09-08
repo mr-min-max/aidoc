@@ -197,6 +197,7 @@ describe("annotate command diagnostics", () => {
         ],
         classes: [],
         types: [],
+        variables: [],
         imports: [],
       },
     ]);
@@ -278,6 +279,7 @@ describe("annotate command diagnostics", () => {
         ],
         classes: [],
         types: [],
+        variables: [],
         imports: [],
       },
     ]);

@@ -30,6 +30,7 @@ function moduleWithSecret(secret: string): ParsedModule {
     ],
     classes: [],
     types: [],
+    variables: [],
     imports: [],
   };
 }

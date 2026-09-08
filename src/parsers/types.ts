@@ -51,6 +51,15 @@ export interface TypeInfo {
   existingDoc?: string;
 }
 
+export interface VariableInfo {
+  name: string;
+  type?: string;
+  declarationKind: "const" | "let" | "var";
+  isExported: true;
+  lineRange: [number, number];
+  existingDoc?: string;
+}
+
 export interface ImportStatement {
   source: string;
   names: string[];
@@ -63,6 +72,7 @@ export interface ParsedModule {
   functions: FunctionInfo[];
   classes: ClassInfo[];
   types: TypeInfo[];
+  variables: VariableInfo[];
   imports: ImportStatement[];
 }
 
