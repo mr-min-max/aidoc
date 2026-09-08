@@ -23,6 +23,7 @@ publication. This release does not change runtime, provider, MCP, security, or
 model behavior from beta.5.
 
 AiDoc requires Node.js `>=22.12.0`.
+Python analysis runs the local `python3` interpreter (override with `AIDOC_PYTHON`). Its version must understand the syntax used by the analyzed project.
 
 For the complete command catalogue, see [CLI.md](./CLI.md). For the exact
 composite Action inputs and outputs, see [GITHUB_ACTION.md](./GITHUB_ACTION.md).

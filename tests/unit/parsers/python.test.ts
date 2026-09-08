@@ -147,6 +147,57 @@ class Service:
     );
   });
 
+  it("includes the local Python version and override hint on parse failure", async () => {
+    const original = process.env.AIDOC_PYTHON;
+    delete process.env.AIDOC_PYTHON;
+    const calls: Array<{ command: string; args: string[] }> = [];
+    const runner = async (command: string, args: string[]) => {
+      calls.push({ command, args });
+      if (args[1] === "import sys; print(sys.version_info[:2])") {
+        return { stdout: "(3, 9)\n", stderr: "" };
+      }
+      throw new Error("syntax failure");
+    };
+
+    try {
+      await expect(
+        new PythonParser(runner).parseSource(
+          "src/broken.py",
+          "def broken(:\n",
+        ),
+      ).rejects.toThrow(
+        "Failed to parse Python source (local python3 is 3.9; the project may need a newer interpreter; set AIDOC_PYTHON to choose one).",
+      );
+      expect(calls.map(({ command }) => command)).toEqual(["python3", "python3"]);
+    } finally {
+      if (original === undefined) delete process.env.AIDOC_PYTHON;
+      else process.env.AIDOC_PYTHON = original;
+    }
+  });
+
+  it("uses AIDOC_PYTHON as the Python executable override", async () => {
+    const original = process.env.AIDOC_PYTHON;
+    process.env.AIDOC_PYTHON = "/opt/py/bin/python3.12";
+    const commands: string[] = [];
+    const runner = async (command: string) => {
+      commands.push(command);
+      return {
+        stdout: JSON.stringify({ functions: [], classes: [], imports: [] }),
+        stderr: "",
+      };
+    };
+
+    try {
+      await expect(
+        new PythonParser(runner).parseSource("src/empty.py", ""),
+      ).resolves.toMatchObject({ language: "python" });
+      expect(commands).toEqual(["/opt/py/bin/python3.12"]);
+    } finally {
+      if (original === undefined) delete process.env.AIDOC_PYTHON;
+      else process.env.AIDOC_PYTHON = original;
+    }
+  });
+
   it("accepts a genuinely parsed empty Python source file", async () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-python-empty-"));
     const emptyFile = path.join(root, "empty.py");
@@ -181,7 +232,9 @@ class Service:
 
       expect(thrown).toBeInstanceOf(Error);
       expect((thrown as Error).message).not.toContain(fakeSourceSecret);
-      expect((thrown as Error).message).toBe("Failed to parse Python source.");
+      expect((thrown as Error).message).toMatch(
+        /^Failed to parse Python source \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\)\.$/u,
+      );
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }
@@ -201,7 +254,9 @@ class Service:
     }
 
     expect(thrown).toBeInstanceOf(Error);
-    expect((thrown as Error).message).toBe("Failed to parse Python source.");
+    expect((thrown as Error).message).toMatch(
+      /^Failed to parse Python source \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\)\.$/u,
+    );
     expect((thrown as Error).message).not.toContain(sourceSentinel);
   });
 
@@ -1432,7 +1487,9 @@ def request() -> int:
     }
 
     expect(thrown).toBeInstanceOf(Error);
-    expect((thrown as Error).message).toBe("Failed to parse Python source.");
+    expect((thrown as Error).message).toMatch(
+      /^Failed to parse Python source \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\)\.$/u,
+    );
     expect((thrown as Error).message).not.toContain(sourceSentinel);
     expect((thrown as Error).cause).toEqual(new Error("Python parser failed."));
   });
@@ -1495,7 +1552,9 @@ def request() -> int:
     }
 
     expect(thrown).toBeInstanceOf(Error);
-    expect((thrown as Error).message).toBe("Failed to parse Python source.");
+    expect((thrown as Error).message).toMatch(
+      /^Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\))?\.$/u,
+    );
     expect(String(thrown)).not.toContain(sourceSentinel);
     expect(String((thrown as Error).cause)).not.toContain(sourceSentinel);
   });
@@ -1643,7 +1702,9 @@ def request() -> int:
         thrown = new Error(`Accepted ${label}: ${sentinel}`);
       }
 
-      expect((thrown as Error).message).toBe("Failed to parse Python source.");
+      expect((thrown as Error).message).toMatch(
+        /^Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\))?\.$/u,
+      );
       expect(String(thrown)).not.toContain(sentinel);
       expect(String((thrown as Error).cause)).not.toContain(sentinel);
     }
@@ -1670,7 +1731,9 @@ def request() -> int:
     }
 
     expect(thrown).toBeInstanceOf(Error);
-    expect((thrown as Error).message).toBe("Failed to parse Python source.");
+    expect((thrown as Error).message).toMatch(
+      /^Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\))?\.$/u,
+    );
     expect(String(thrown)).not.toContain(sourceSentinel);
     expect(String(thrown)).not.toContain(stderrSentinel);
     expect(String((thrown as Error).cause)).not.toContain(sourceSentinel);

@@ -294,6 +294,7 @@ outputs, trust-policy behavior, dry-run, staged-change refusal, and permissions.
 ## Supported languages and current limits
 
 AiDoc currently has AST parser support for TypeScript, JavaScript, and Python.
+Python analysis runs the local `python3` interpreter (override with `AIDOC_PYTHON`). Its version must understand the syntax used by the analyzed project.
 Supported source is parsed before model generation. In the plan and
 change-targeted update paths, a supported-file parse failure stops before
 provider construction or a document write. During impact planning, unsupported

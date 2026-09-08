@@ -8,6 +8,7 @@ import {
 } from "./types";
 import { execFile } from "child_process";
 import * as fs from "fs";
+import { isAbsolute } from "node:path";
 import { getSafeAllowlistedErrorCode } from "../security/diagnostics";
 import {
   ContractFacet,
@@ -16,6 +17,10 @@ import {
 } from "../impact/types";
 
 const PYTHON_UNAVAILABLE_CODES = new Set(["ENOENT"]);
+const DEFAULT_PYTHON_EXECUTABLE = "python3";
+const PYTHON_VERSION_SCRIPT = "import sys; print(sys.version_info[:2])";
+const PYTHON_EXECUTION_TIMEOUT = 15000;
+const PYTHON_EXECUTION_MAX_BUFFER = 10 * 1024 * 1024;
 const SNAPSHOT_HASH_PATTERN = /^[0-9a-f]{64}$/u;
 const PYTHON_IDENTIFIER_PATTERN =
   /^(?!_)(?:_|\p{ID_Start})(?:_|\p{ID_Continue})*$/u;
@@ -78,6 +83,71 @@ type PythonProcessRunner = (
   options: PythonProcessOptions,
 ) => Promise<{ stdout: string; stderr: string }>;
 
+interface PythonVersion {
+  major: number;
+  minor: number;
+}
+
+const pythonVersionCache = new WeakMap<
+  PythonProcessRunner,
+  Map<string, Promise<PythonVersion | undefined>>
+>();
+
+function resolvePythonExecutable(): string {
+  const configured = process.env.AIDOC_PYTHON;
+  if (configured === undefined || configured.length === 0) {
+    return DEFAULT_PYTHON_EXECUTABLE;
+  }
+
+  const hasUnsafeCharacter = /[\s\p{Cc}]/u.test(configured);
+  const isBareExecutable =
+    !configured.includes("/") && !configured.includes("\\");
+  if (
+    hasUnsafeCharacter ||
+    (!isBareExecutable && !isAbsolute(configured))
+  ) {
+    throw createSafeParserError(
+      "Invalid AIDOC_PYTHON value.",
+      "Invalid Python executable override.",
+    );
+  }
+
+  return configured;
+}
+
+function readPythonVersion(
+  executePython: PythonProcessRunner,
+  executable: string,
+): Promise<PythonVersion | undefined> {
+  let executableCache = pythonVersionCache.get(executePython);
+  if (executableCache === undefined) {
+    executableCache = new Map();
+    pythonVersionCache.set(executePython, executableCache);
+  }
+
+  const cached = executableCache.get(executable);
+  if (cached !== undefined) return cached;
+
+  const version = executePython(
+    executable,
+    ["-c", PYTHON_VERSION_SCRIPT],
+    {
+      timeout: PYTHON_EXECUTION_TIMEOUT,
+      maxBuffer: PYTHON_EXECUTION_MAX_BUFFER,
+    },
+  )
+    .then(({ stdout }) => {
+      const match = /^\(\s*(\d+)\s*,\s*(\d+)\s*\)\s*$/u.exec(
+        stdout.trim(),
+      );
+      if (match === null) return undefined;
+      return { major: Number(match[1]), minor: Number(match[2]) };
+    })
+    .catch(() => undefined);
+  executableCache.set(executable, version);
+  return version;
+}
+
 /** Creates the process runner used by the parser's production constructor. */
 export function createPythonProcessRunner(): PythonProcessRunner {
   return (command, args, options) =>
@@ -109,12 +179,24 @@ export function createPythonProcessRunner(): PythonProcessRunner {
     });
 }
 
-const runPythonProcess = createPythonProcessRunner();
+/** Creates a safe parse-failure diagnostic with an optional interpreter version. */
+async function createParseFailure(
+  executePython: PythonProcessRunner,
+  executable: string,
+): Promise<Error> {
+  const version = await readPythonVersion(executePython, executable);
+  const message = version
+    ? `Failed to parse Python source (local ${executable === DEFAULT_PYTHON_EXECUTABLE ? DEFAULT_PYTHON_EXECUTABLE : "configured Python"} is ${version.major}.${version.minor}; the project may need a newer interpreter; set AIDOC_PYTHON to choose one).`
+    : "Failed to parse Python source.";
+  return createSafeParserError(message, "Python parser failed.");
+}
 
 /** Creates a fixed parser error without retaining untrusted process stderr as its cause. */
 function createSafeParserError(message: string, causeMessage: string): Error {
   return new Error(message, { cause: new Error(causeMessage) });
 }
+
+const runPythonProcess = createPythonProcessRunner();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -917,13 +999,14 @@ export class PythonParser implements LanguageParser {
     operation: "module" | "module-source",
     source?: string,
   ): Promise<ParsedModule> {
+    const executable = resolvePythonExecutable();
     try {
       const { stdout } = await this.executePython(
-        "python3",
+        executable,
         ["-c", PYTHON_AST_SCRIPT, operation, filePath],
         {
-          timeout: 15000,
-          maxBuffer: 10 * 1024 * 1024,
+          timeout: PYTHON_EXECUTION_TIMEOUT,
+          maxBuffer: PYTHON_EXECUTION_MAX_BUFFER,
           input: source,
         },
       );
@@ -937,16 +1020,13 @@ export class PythonParser implements LanguageParser {
         "ENOENT"
       ) {
         throw createSafeParserError(
-          "Python parser unavailable: python3 executable was not found",
+          `Python parser unavailable: ${executable === DEFAULT_PYTHON_EXECUTABLE ? DEFAULT_PYTHON_EXECUTABLE : "configured Python"} executable was not found`,
           "Python executable unavailable.",
         );
       }
       // Preserve the error chain without retaining the child-process error,
       // whose stderr may contain untrusted source text.
-      throw createSafeParserError(
-        "Failed to parse Python source.",
-        "Python parser failed.",
-      );
+      throw await createParseFailure(this.executePython, executable);
     }
   }
 
@@ -979,13 +1059,14 @@ export class PythonParser implements LanguageParser {
     filePath: string,
     source: string,
   ): Promise<ParserModuleSnapshot> {
+    const executable = resolvePythonExecutable();
     try {
       const { stdout } = await this.executePython(
-        "python3",
+        executable,
         ["-c", PYTHON_AST_SCRIPT, "snapshot", filePath],
         {
-          timeout: 15000,
-          maxBuffer: 10 * 1024 * 1024,
+          timeout: PYTHON_EXECUTION_TIMEOUT,
+          maxBuffer: PYTHON_EXECUTION_MAX_BUFFER,
           input: source,
         },
       );
@@ -997,14 +1078,11 @@ export class PythonParser implements LanguageParser {
         "ENOENT"
       ) {
         throw createSafeParserError(
-          "Python parser unavailable: python3 executable was not found",
+          `Python parser unavailable: ${executable === DEFAULT_PYTHON_EXECUTABLE ? DEFAULT_PYTHON_EXECUTABLE : "configured Python"} executable was not found`,
           "Python executable unavailable.",
         );
       }
-      throw createSafeParserError(
-        "Failed to parse Python source.",
-        "Python parser failed.",
-      );
+      throw await createParseFailure(this.executePython, executable);
     }
   }
 
