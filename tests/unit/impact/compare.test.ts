@@ -1,3 +1,4 @@
+import { TypeScriptParser } from "../../../src/parsers/typescript";
 import {
   compareSnapshots,
   digestImpactPayload,
@@ -316,5 +317,27 @@ describe("impact snapshot comparison", () => {
     });
     expect(first).toMatch(/^[0-9a-f]{64}$/u);
     expect(second).toBe(first);
+  });
+
+  it("reports an aliased export rename from parsed source as removal and addition", async () => {
+    const parser = new TypeScriptParser();
+    const before = await parser.snapshot(
+      "src/modern.ts",
+      "const internal = (n: number) => n; export { internal as exposed };",
+    );
+    const after = await parser.snapshot(
+      "src/modern.ts",
+      "const internal = (n: number) => n; export { internal as shown };",
+    );
+    const changes = compareSnapshots([
+      file("modified", before, after, "src/modern.ts", "src/modern.ts"),
+    ]);
+
+    expect(
+      changes.map(({ category, qualifiedName }) => [category, qualifiedName]),
+    ).toEqual([
+      ["removed", "exposed"],
+      ["added", "shown"],
+    ]);
   });
 });

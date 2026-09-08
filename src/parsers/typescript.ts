@@ -1,8 +1,10 @@
 import {
+  ArrowFunction,
   ClassDeclaration,
   ConstructorDeclaration,
   EnumDeclaration,
   FunctionDeclaration,
+  FunctionExpression,
   GetAccessorDeclaration,
   InterfaceDeclaration,
   MethodSignature,
@@ -17,6 +19,7 @@ import {
   FileSystemRefreshResult,
   SyntaxKind,
   TypeAliasDeclaration,
+  VariableDeclaration,
 } from "ts-morph";
 import { sha256Hex } from "../impact/canonical";
 import {
@@ -31,6 +34,7 @@ import {
   FunctionInfo,
   ClassInfo,
   TypeInfo,
+  VariableInfo,
   MethodInfo,
   ImportStatement,
   ParameterInfo,
@@ -53,7 +57,7 @@ export class TypeScriptParser implements LanguageParser {
     if (!sharedProject) {
       sharedProject = new Project({
         skipAddingFilesFromTsConfig: true,
-        compilerOptions: { allowJs: true },
+        compilerOptions: { allowJs: true, allowNonTsExtensions: true },
       });
       TypeScriptParser.sharedProjectCount++;
     }
@@ -88,7 +92,7 @@ export class TypeScriptParser implements LanguageParser {
     const project = new Project({
       useInMemoryFileSystem: true,
       skipAddingFilesFromTsConfig: true,
-      compilerOptions: { allowJs: true },
+      compilerOptions: { allowJs: true, allowNonTsExtensions: true },
     });
     const sourceFile = project.createSourceFile(filePath, source);
     this.assertNoSyntacticDiagnostics(project, sourceFile);
@@ -104,7 +108,7 @@ export class TypeScriptParser implements LanguageParser {
     const project = new Project({
       useInMemoryFileSystem: true,
       skipAddingFilesFromTsConfig: true,
-      compilerOptions: { allowJs: true },
+      compilerOptions: { allowJs: true, allowNonTsExtensions: true },
     });
     const sourceFile = project.createSourceFile(filePath, source);
     const diagnostics = project
@@ -158,75 +162,74 @@ export class TypeScriptParser implements LanguageParser {
       functions: this.extractFunctions(sourceFile),
       classes: this.extractClasses(sourceFile),
       types: this.extractTypes(sourceFile),
+      variables: this.extractVariables(sourceFile),
       imports: this.extractImports(sourceFile),
     };
   }
 
   private extractFunctions(sf: SourceFile): FunctionInfo[] {
-    return sf
-      .getFunctions()
-      .filter((f) => f.isExported())
-      .map((f) => {
-        const params = f.getParameters().map(
-          (p) =>
+    return enumerateExports(sf)
+      .filter(isCallableBinding)
+      .map(({ exportedName, declaration, statement }) => {
+        const params = declaration.getParameters().map(
+          (parameter) =>
             ({
-              name: p.getName(),
-              type: p.getType().getText(p),
-              isOptional: p.isOptional(),
-              defaultValue: p.getInitializer()?.getText(),
+              name: parameter.getName(),
+              type: parameter.getType().getText(parameter),
+              isOptional: parameter.isOptional(),
+              defaultValue: parameter.getInitializer()?.getText(),
             }) as ParameterInfo,
         );
-
-        const jsDocs = f.getJsDocs();
-        const existingDoc =
-          jsDocs.length > 0 ? jsDocs[0].getDescription().trim() : undefined;
-
+        const renderedParameters = declaration
+          .getParameters()
+          .map((parameter) => parameter.getText())
+          .join(", ");
+        const returnType = declaration.getReturnType().getText(declaration);
         return {
-          name: f.getName() || "anonymous",
+          name: exportedName,
           parameters: params,
-          returnType: f.getReturnType().getText(f),
-          isAsync: f.isAsync(),
+          returnType,
+          isAsync: Node.isAsyncable(declaration) && declaration.isAsync(),
           isExported: true,
-          lineRange: [f.getStartLineNumber(), f.getEndLineNumber()] as [
-            number,
-            number,
-          ],
-          existingDoc,
-          signature: f.getText().split("{")[0].trim(),
-        } as FunctionInfo;
+          lineRange: [
+            statement.getStartLineNumber(),
+            statement.getEndLineNumber(),
+          ] as [number, number],
+          existingDoc: getDocDescription(statement),
+          signature: `${exportedName}(${renderedParameters}): ${returnType}`,
+        };
       });
   }
 
   private extractClasses(sf: SourceFile): ClassInfo[] {
-    return sf
-      .getClasses()
-      .filter((c) => c.isExported())
-      .map((c) => {
-        const jsDocs = c.getJsDocs();
-        const existingDoc =
-          jsDocs.length > 0 ? jsDocs[0].getDescription().trim() : undefined;
-        const extendsClause = c.getExtends();
-
-        return {
-          name: c.getName() || "anonymous",
-          extends: extendsClause?.getText(),
-          implements: c.getImplements().map((i) => i.getText()),
-          methods: c.getMethods().map((m) => this.mapMethod(m)),
-          properties: c.getProperties().map((p) => ({
-            name: p.getName(),
-            type: p.getType().getText(p),
-            visibility: this.getScope(p.getScope()),
-            isStatic: p.isStatic(),
-            isReadonly: p.isReadonly(),
-          })),
-          isExported: true,
-          lineRange: [c.getStartLineNumber(), c.getEndLineNumber()] as [
-            number,
-            number,
-          ],
-          existingDoc,
-        } as ClassInfo;
-      });
+    return enumerateExports(sf)
+      .filter(isClassBinding)
+      .map(
+        ({ exportedName, declaration, statement }) =>
+          ({
+            name: exportedName,
+            extends: declaration.getExtends()?.getText(),
+            implements: declaration
+              .getImplements()
+              .map((heritage) => heritage.getText()),
+            methods: declaration
+              .getMethods()
+              .map((method) => this.mapMethod(method)),
+            properties: declaration.getProperties().map((property) => ({
+              name: property.getName(),
+              type: property.getType().getText(property),
+              visibility: this.getScope(property.getScope()),
+              isStatic: property.isStatic(),
+              isReadonly: property.isReadonly(),
+            })),
+            isExported: true,
+            lineRange: [
+              statement.getStartLineNumber(),
+              statement.getEndLineNumber(),
+            ] as [number, number],
+            existingDoc: getDocDescription(statement),
+          }) as ClassInfo,
+      );
   }
 
   private mapMethod(m: MethodDeclaration): MethodInfo {
@@ -262,55 +265,85 @@ export class TypeScriptParser implements LanguageParser {
 
   private extractTypes(sf: SourceFile): TypeInfo[] {
     const types: TypeInfo[] = [];
-
-    sf.getInterfaces()
-      .filter((i) => i.isExported())
-      .forEach((i) => {
+    for (const { exportedName, declaration, statement } of enumerateExports(
+      sf,
+    )) {
+      const existingDoc = getDocDescription(statement);
+      if (Node.isInterfaceDeclaration(declaration)) {
         types.push({
-          name: i.getName(),
+          name: exportedName,
           kind: "interface",
           isExported: true,
-          properties: i.getProperties().map((p) => ({
-            name: p.getName(),
-            type: p.getType().getText(p),
-            isOptional: p.hasQuestionToken(),
+          properties: declaration.getProperties().map((property) => ({
+            name: property.getName(),
+            type: property.getType().getText(property),
+            isOptional: property.hasQuestionToken(),
           })),
-          lineRange: [i.getStartLineNumber(), i.getEndLineNumber()],
-          existingDoc: i.getJsDocs()[0]?.getDescription().trim(),
+          lineRange: [
+            statement.getStartLineNumber(),
+            statement.getEndLineNumber(),
+          ],
+          existingDoc,
         });
-      });
-
-    sf.getTypeAliases()
-      .filter((t) => t.isExported())
-      .forEach((t) => {
+      } else if (Node.isTypeAliasDeclaration(declaration)) {
         types.push({
-          name: t.getName(),
+          name: exportedName,
           kind: "type",
           isExported: true,
           properties: [],
-          lineRange: [t.getStartLineNumber(), t.getEndLineNumber()],
-          existingDoc: t.getJsDocs()[0]?.getDescription().trim(),
+          lineRange: [
+            statement.getStartLineNumber(),
+            statement.getEndLineNumber(),
+          ],
+          existingDoc,
         });
-      });
-
-    sf.getEnums()
-      .filter((e) => e.isExported())
-      .forEach((e) => {
+      } else if (Node.isEnumDeclaration(declaration)) {
         types.push({
-          name: e.getName(),
+          name: exportedName,
           kind: "enum",
           isExported: true,
-          properties: e.getMembers().map((m) => ({
-            name: m.getName(),
-            type: m.getValue()?.toString(),
+          properties: declaration.getMembers().map((member) => ({
+            name: member.getName(),
+            type: member.getValue()?.toString(),
             isOptional: false,
           })),
-          lineRange: [e.getStartLineNumber(), e.getEndLineNumber()],
-          existingDoc: e.getJsDocs()[0]?.getDescription().trim(),
+          lineRange: [
+            statement.getStartLineNumber(),
+            statement.getEndLineNumber(),
+          ],
+          existingDoc,
         });
-      });
-
+      }
+    }
     return types;
+  }
+
+  private extractVariables(sf: SourceFile): VariableInfo[] {
+    return enumerateExports(sf)
+      .filter(
+        ({ declaration, callable }) =>
+          !callable &&
+          (Node.isVariableDeclaration(declaration) ||
+            (Node.isExpression(declaration) &&
+              declaration.getParentIfKind(SyntaxKind.ExportAssignment) !==
+                undefined)),
+      )
+      .map(({ exportedName, declaration, statement }) => {
+        const variable = Node.isVariableDeclaration(declaration)
+          ? declaration
+          : undefined;
+        return {
+          name: exportedName,
+          type: variable?.getTypeNode()?.getText(),
+          declarationKind: getVariableDeclarationKind(statement) ?? "const",
+          isExported: true,
+          lineRange: [
+            statement.getStartLineNumber(),
+            statement.getEndLineNumber(),
+          ],
+          existingDoc: getDocDescription(statement),
+        };
+      });
   }
 
   private extractImports(sf: SourceFile): ImportStatement[] {
@@ -323,7 +356,103 @@ export class TypeScriptParser implements LanguageParser {
 }
 
 type AstTuple = [kind: number, text: string | null, children: AstTuple[]];
-type CallableDeclaration = FunctionDeclaration | MethodDeclaration;
+type CallableDeclaration =
+  | FunctionDeclaration
+  | MethodDeclaration
+  | ArrowFunction
+  | FunctionExpression;
+type OverloadableCallable = FunctionDeclaration | MethodDeclaration;
+interface ExportedBinding {
+  exportedName: string;
+  declaration: Node;
+  statement: Node;
+  callable: boolean;
+}
+function enumerateExports(sourceFile: SourceFile): ExportedBinding[] {
+  const bindings: ExportedBinding[] = [];
+  for (const [
+    exportedName,
+    declarations,
+  ] of sourceFile.getExportedDeclarations()) {
+    for (const declaration of declarations) {
+      if (
+        declaration.getSourceFile() !== sourceFile ||
+        Node.isSourceFile(declaration) ||
+        Node.isModuleDeclaration(declaration)
+      )
+        continue;
+      const variable = Node.isVariableDeclaration(declaration)
+        ? declaration
+        : undefined;
+      const initializer = variable?.getInitializer();
+      const statement =
+        variable?.getVariableStatement() ??
+        (Node.isExpression(declaration)
+          ? declaration.getParentIfKind(SyntaxKind.ExportAssignment)
+          : undefined) ??
+        declaration;
+      if (statement === undefined) continue;
+      const callable =
+        Node.isFunctionDeclaration(declaration) ||
+        Node.isArrowFunction(declaration) ||
+        Node.isFunctionExpression(declaration) ||
+        (initializer !== undefined &&
+          (Node.isArrowFunction(initializer) ||
+            Node.isFunctionExpression(initializer)));
+      const publicName =
+        exportedName === "default" &&
+        Node.isExportable(declaration) &&
+        declaration.hasDefaultKeyword() &&
+        Node.hasName(declaration)
+          ? (declaration.getName() ?? exportedName)
+          : exportedName;
+      bindings.push({
+        exportedName: publicName,
+        declaration:
+          initializer !== undefined &&
+          (Node.isArrowFunction(initializer) ||
+            Node.isFunctionExpression(initializer))
+            ? initializer
+            : declaration,
+        statement,
+        callable,
+      });
+    }
+  }
+  return bindings.sort((left, right) =>
+    compareText(left.exportedName, right.exportedName),
+  );
+}
+function getDocDescription(node: Node): string | undefined {
+  if (!Node.isJSDocable(node)) return undefined;
+  const docs = node.getJsDocs();
+  return docs.length === 0 ? undefined : docs[0].getDescription().trim();
+}
+function isCallableBinding(
+  binding: ExportedBinding,
+): binding is ExportedBinding & { declaration: CallableDeclaration } {
+  return binding.callable;
+}
+function isClassBinding(
+  binding: ExportedBinding,
+): binding is ExportedBinding & { declaration: ClassDeclaration } {
+  return Node.isClassDeclaration(binding.declaration);
+}
+function asVariableDeclaration(node: Node): VariableDeclaration {
+  if (!Node.isVariableDeclaration(node))
+    throw new Error("Expected variable declaration");
+  return node;
+}
+function getVariableDeclarationKind(
+  node: Node,
+): "const" | "let" | "var" | undefined {
+  if (!Node.isVariableStatement(node)) return undefined;
+  const kind = node.getDeclarationKind();
+  return kind === "const" || kind === "let" || kind === "var"
+    ? kind
+    : undefined;
+}
+
 type PublicMethodDeclaration = MethodDeclaration | MethodSignature;
 type PublicClassMember =
   | ConstructorDeclaration
@@ -345,72 +474,102 @@ function extractSnapshotSymbols(
 ): ParserSymbolSnapshot[] {
   const symbols: ParserSymbolSnapshot[] = [];
   const methodContributions = new Map<string, MethodSnapshotContribution[]>();
-
-  for (const declarations of groupByName(
-    sourceFile.getFunctions().filter((declaration) => declaration.isExported()),
-  ).values()) {
-    const overloadGroup = expandCallableDeclarations(declarations);
+  const bindings = enumerateExports(sourceFile);
+  const callableGroups = new Map<string, ExportedBinding[]>();
+  for (const binding of bindings) {
+    if (!binding.callable) continue;
+    const group = callableGroups.get(binding.exportedName);
+    if (group === undefined)
+      callableGroups.set(binding.exportedName, [binding]);
+    else group.push(binding);
+  }
+  for (const [exportedName, group] of callableGroups) {
     symbols.push(
       callableSnapshot(
         "function",
-        overloadGroup[0].getName() ?? "anonymous",
-        overloadGroup,
+        exportedName,
+        group.map(({ declaration }) => declaration as CallableDeclaration),
+        {
+          documentationNodes: group.map(({ statement }) => statement),
+          variableDeclarationKind:
+            getVariableDeclarationKind(group[0].statement) ?? null,
+        },
       ),
     );
   }
-
-  for (const declaration of sourceFile
-    .getClasses()
-    .filter((candidate) => candidate.isExported())) {
-    const className = declaration.getName() ?? "anonymous";
-    symbols.push(classSnapshot(declaration, className));
-
-    const publicMethods = declaration.getMethods().filter(isPublicClassMember);
-    for (const [methodIdentity, methods] of groupByMethodIdentity(
-      publicMethods,
-    )) {
-      const overloadGroup = expandCallableDeclarations(methods);
-      addMethodContribution(
-        methodContributions,
-        callableSnapshot(
-          "method",
-          `${className}.${methodIdentity}`,
-          overloadGroup,
-        ),
-        true,
-      );
+  for (const binding of bindings) {
+    if (Node.isClassDeclaration(binding.declaration)) {
+      symbols.push(classSnapshot(binding.declaration, binding.exportedName));
+      const publicMethods = binding.declaration
+        .getMethods()
+        .filter(isPublicClassMember);
+      for (const [methodIdentity, methods] of groupByMethodIdentity(
+        publicMethods,
+      )) {
+        addMethodContribution(
+          methodContributions,
+          callableSnapshot(
+            "method",
+            binding.exportedName + "." + methodIdentity,
+            expandCallableDeclarations(methods),
+          ),
+          true,
+        );
+      }
     }
   }
-
-  for (const declarations of groupByName(
-    sourceFile.getInterfaces().filter((candidate) => candidate.isExported()),
-  ).values()) {
-    const interfaceName = declarations[0].getName();
-    symbols.push(interfaceSnapshot(declarations));
+  const interfaceGroups = new Map<string, InterfaceDeclaration[]>();
+  for (const binding of bindings) {
+    if (!Node.isInterfaceDeclaration(binding.declaration)) continue;
+    const group = interfaceGroups.get(binding.exportedName);
+    if (group === undefined)
+      interfaceGroups.set(binding.exportedName, [binding.declaration]);
+    else group.push(binding.declaration);
+  }
+  for (const [exportedName, declarations] of interfaceGroups) {
+    symbols.push(interfaceSnapshot(declarations, exportedName));
     for (const [methodIdentity, methods] of groupByMethodIdentity(
       declarations.flatMap((declaration) => declaration.getMethods()),
     )) {
       addMethodContribution(
         methodContributions,
-        interfaceMethodSnapshot(`${interfaceName}.${methodIdentity}`, methods),
+        interfaceMethodSnapshot(exportedName + "." + methodIdentity, methods),
         false,
       );
     }
   }
-  for (const declaration of sourceFile
-    .getTypeAliases()
-    .filter((candidate) => candidate.isExported())) {
-    symbols.push(typeAliasSnapshot(declaration));
+  const typeAliases = new Set<string>();
+  const enumGroups = new Map<string, EnumDeclaration[]>();
+  for (const binding of bindings) {
+    if (Node.isTypeAliasDeclaration(binding.declaration)) {
+      if (!typeAliases.has(binding.exportedName)) {
+        symbols.push(
+          typeAliasSnapshot(binding.declaration, binding.exportedName),
+        );
+        typeAliases.add(binding.exportedName);
+      }
+    } else if (Node.isEnumDeclaration(binding.declaration)) {
+      const group = enumGroups.get(binding.exportedName);
+      if (group === undefined)
+        enumGroups.set(binding.exportedName, [binding.declaration]);
+      else group.push(binding.declaration);
+    } else if (
+      !binding.callable &&
+      binding.declaration.getKind() === SyntaxKind.VariableDeclaration
+    ) {
+      symbols.push(variableSnapshot(binding));
+    } else if (
+      !binding.callable &&
+      !Node.isClassDeclaration(binding.declaration) &&
+      !Node.isInterfaceDeclaration(binding.declaration)
+    ) {
+      symbols.push(variableExpressionSnapshot(binding));
+    }
   }
-  for (const declarations of groupByName(
-    sourceFile.getEnums().filter((candidate) => candidate.isExported()),
-  ).values()) {
-    symbols.push(enumSnapshot(declarations));
-  }
-  for (const contributions of methodContributions.values()) {
+  for (const [exportedName, declarations] of enumGroups)
+    symbols.push(enumSnapshot(declarations, exportedName));
+  for (const contributions of methodContributions.values())
     symbols.push(mergeMethodContributions(contributions));
-  }
-
   return symbols.sort(
     (left, right) =>
       compareText(left.kind, right.kind) ||
@@ -447,7 +606,7 @@ function mergeMethodContributions(
     const hashes = uniqueSorted(
       contributions.flatMap(({ snapshot }) => {
         const hash = snapshot.contractFacets[facet];
-        return hash === undefined ? [] : [hash];
+        return typeof hash === "string" ? [hash] : [];
       }),
     );
     if (hashes.length > 0) {
@@ -500,11 +659,20 @@ function callableSnapshot(
   kind: "function" | "method",
   qualifiedName: string,
   declarations: CallableDeclaration[],
+  options: {
+    documentationNodes?: Node[];
+    variableDeclarationKind?: "const" | "let" | "var" | null;
+  } = {},
 ): ParserSymbolSnapshot {
-  const contractDeclarations = declarations.some((declaration) =>
-    declaration.isOverload(),
+  const overloadable = declarations.filter(
+    (declaration): declaration is OverloadableCallable =>
+      Node.isOverloadable(declaration),
+  );
+  const contractDeclarations = overloadable.some(
+    (declaration) =>
+      Node.isOverloadable(declaration) && declaration.isOverload(),
   )
-    ? declarations.filter((declaration) => declaration.isOverload())
+    ? overloadable.filter((declaration) => declaration.isOverload())
     : declarations;
   const parameterShapes = sortNormalized(
     contractDeclarations.map((declaration) => [
@@ -520,14 +688,30 @@ function callableSnapshot(
       return returnType === undefined ? null : normalizeAst(returnType);
     }),
   );
-  const modifierShapes = sortNormalized(
-    contractDeclarations.map((declaration) => [
-      declaration.getModifiers().map((modifier) => normalizeAst(modifier)),
-      declaration.isGenerator(),
-      Node.isQuestionTokenable(declaration) &&
-        declaration.getQuestionTokenNode() !== undefined,
-    ]),
-  );
+  const modifierShapes =
+    options.variableDeclarationKind !== undefined &&
+    declarations.every(
+      (declaration) =>
+        Node.isArrowFunction(declaration) ||
+        Node.isFunctionExpression(declaration),
+    )
+      ? declarations.map((declaration) => [
+          Node.isAsyncable(declaration) && declaration.isAsync(),
+          Node.isGeneratorable(declaration) && declaration.isGenerator(),
+          options.variableDeclarationKind,
+        ])
+      : sortNormalized(
+          contractDeclarations.map((declaration) => [
+            Node.isModifierable(declaration)
+              ? declaration
+                  .getModifiers()
+                  .map((modifier) => normalizeAst(modifier))
+              : [],
+            Node.isGeneratorable(declaration) && declaration.isGenerator(),
+            Node.isQuestionTokenable(declaration) &&
+              declaration.getQuestionTokenNode() !== undefined,
+          ]),
+        );
   const signatureShapes = sortNormalized(
     contractDeclarations.map(normalizeDeclarationContract),
   );
@@ -550,7 +734,12 @@ function callableSnapshot(
     implementationFingerprint: fingerprint(
       sortNormalized(
         declarations.flatMap((declaration) => {
-          const body = declaration.getBody();
+          const body = Node.isBodyable(declaration)
+            ? declaration.getBody()
+            : Node.isArrowFunction(declaration) ||
+                Node.isFunctionExpression(declaration)
+              ? declaration.getBody()
+              : undefined;
           if (body === undefined) return [];
           return [
             [
@@ -563,7 +752,9 @@ function callableSnapshot(
         }),
       ),
     ),
-    documentationFingerprint: documentationFingerprint(declarations),
+    documentationFingerprint: documentationFingerprint(
+      options.documentationNodes ?? declarations,
+    ),
   };
 }
 
@@ -657,6 +848,7 @@ function classSnapshot(
 
 function interfaceSnapshot(
   declarations: InterfaceDeclaration[],
+  qualifiedName: string,
 ): ParserSymbolSnapshot {
   const modifiers = uniqueNormalized(
     declarations.flatMap((declaration) =>
@@ -695,7 +887,7 @@ function interfaceSnapshot(
 
   return declarationSnapshot(
     "interface",
-    declarations[0].getName(),
+    qualifiedName,
     contractFacets,
     documentationFingerprint(
       declarations.flatMap((declaration) => [
@@ -708,6 +900,7 @@ function interfaceSnapshot(
 
 function typeAliasSnapshot(
   declaration: TypeAliasDeclaration,
+  qualifiedName: string,
 ): ParserSymbolSnapshot {
   const contractFacets: Partial<Record<ContractFacet, string>> = {
     members: fingerprint([
@@ -722,13 +915,16 @@ function typeAliasSnapshot(
   };
   return declarationSnapshot(
     "type",
-    declaration.getName(),
+    qualifiedName,
     contractFacets,
     documentationFingerprint([declaration]),
   );
 }
 
-function enumSnapshot(declarations: EnumDeclaration[]): ParserSymbolSnapshot {
+function enumSnapshot(
+  declarations: EnumDeclaration[],
+  qualifiedName: string,
+): ParserSymbolSnapshot {
   const contractFacets: Partial<Record<ContractFacet, string>> = {
     members: fingerprint(
       sortNormalized(
@@ -747,7 +943,7 @@ function enumSnapshot(declarations: EnumDeclaration[]): ParserSymbolSnapshot {
   };
   return declarationSnapshot(
     "enum",
-    declarations[0].getName(),
+    qualifiedName,
     contractFacets,
     documentationFingerprint(
       declarations.flatMap((declaration) => [
@@ -756,6 +952,64 @@ function enumSnapshot(declarations: EnumDeclaration[]): ParserSymbolSnapshot {
       ]),
     ),
   );
+}
+
+function variableSnapshot(binding: ExportedBinding): ParserSymbolSnapshot {
+  const declaration = asVariableDeclaration(binding.declaration);
+  const statement = declaration.getVariableStatement();
+  if (statement === undefined) throw new Error("Expected variable statement");
+  const initializer = declaration.getInitializer();
+  let memberShape: unknown = null;
+  if (declaration.getTypeNode() !== undefined)
+    memberShape = normalizeAst(declaration.getTypeNode()!);
+  else if (
+    initializer !== undefined &&
+    Node.isObjectLiteralExpression(initializer)
+  )
+    memberShape = initializer
+      .getProperties()
+      .map((property) =>
+        Node.hasName(property) ? property.getName() : property.getKindName(),
+      )
+      .sort(compareText);
+  const facets: Partial<Record<ContractFacet, string | null>> = {
+    modifiers: fingerprint([
+      statement.getDeclarationKind(),
+      statement.hasDeclareKeyword(),
+    ]),
+    members: memberShape === null ? null : fingerprint(memberShape),
+  };
+  return {
+    language: "typescript",
+    kind: "variable",
+    qualifiedName: binding.exportedName,
+    contractFacets: facets,
+    contractFingerprint: combinedContractFingerprint("variable", facets),
+    implementationFingerprint:
+      initializer === undefined
+        ? fingerprint([])
+        : fingerprint(normalizeAst(initializer)),
+    documentationFingerprint: documentationFingerprint([statement]),
+  };
+}
+
+function variableExpressionSnapshot(
+  binding: ExportedBinding,
+): ParserSymbolSnapshot {
+  const expression = binding.declaration;
+  const facets: Partial<Record<ContractFacet, string | null>> = {
+    modifiers: fingerprint(["const", false]),
+    members: null,
+  };
+  return {
+    language: "typescript",
+    kind: "variable",
+    qualifiedName: binding.exportedName,
+    contractFacets: facets,
+    contractFingerprint: combinedContractFingerprint("variable", facets),
+    implementationFingerprint: fingerprint(normalizeAst(expression)),
+    documentationFingerprint: documentationFingerprint([binding.statement]),
+  };
 }
 
 function declarationSnapshot(
@@ -789,8 +1043,12 @@ function publicClassMemberShapes(declaration: ClassDeclaration): unknown[] {
     declaration.getMethods().filter(isPublicClassMember),
   )) {
     const overloadGroup = expandCallableDeclarations(methods);
-    const contracts = overloadGroup.some((method) => method.isOverload())
-      ? overloadGroup.filter((method) => method.isOverload())
+    const overloadMethods = overloadGroup.filter(
+      (method): method is FunctionDeclaration | MethodDeclaration =>
+        Node.isOverloadable(method),
+    );
+    const contracts = overloadMethods.some((method) => method.isOverload())
+      ? overloadMethods.filter((method) => method.isOverload())
       : overloadGroup;
     shapes.push([
       "method",
@@ -900,7 +1158,7 @@ function classImplementationShape(declaration: ClassDeclaration): unknown[] {
 
 function combinedContractFingerprint(
   kind: SymbolKind,
-  facets: Partial<Record<ContractFacet, string>>,
+  facets: Partial<Record<ContractFacet, string | null>>,
 ): string {
   return fingerprint([
     kind,
@@ -926,19 +1184,6 @@ function isPublicClassMember(member: PublicClassMember): boolean {
   );
 }
 
-function groupByName<T extends { getName(): string | undefined }>(
-  declarations: T[],
-): Map<string, T[]> {
-  const groups = new Map<string, T[]>();
-  for (const declaration of declarations) {
-    const name = declaration.getName() ?? "anonymous";
-    const group = groups.get(name);
-    if (group === undefined) groups.set(name, [declaration]);
-    else group.push(declaration);
-  }
-  return groups;
-}
-
 function groupByMethodIdentity<T extends PublicMethodDeclaration>(
   declarations: T[],
 ): Map<string, T[]> {
@@ -961,12 +1206,13 @@ function safeMethodIdentity(declaration: PublicMethodDeclaration): string {
 function expandCallableDeclarations(
   declarations: CallableDeclaration[],
 ): CallableDeclaration[] {
-  return uniqueNodes(
-    declarations.flatMap((declaration) => [
-      ...declaration.getOverloads(),
-      declaration,
-    ]),
-  );
+  const expanded: CallableDeclaration[] = [];
+  for (const declaration of declarations) {
+    if (Node.isOverloadable(declaration))
+      expanded.push(...declaration.getOverloads());
+    expanded.push(declaration);
+  }
+  return uniqueNodes(expanded);
 }
 
 function expandConstructorDeclarations(
@@ -1026,7 +1272,11 @@ function runtimeParameterShapes(parameters: ParameterDeclaration[]): unknown[] {
 }
 
 function normalizeDeclarationContract(node: Node): AstTuple {
-  const body = Node.isBodyable(node) ? node.getBody() : undefined;
+  const body = Node.isBodyable(node)
+    ? node.getBody()
+    : Node.isArrowFunction(node) || Node.isFunctionExpression(node)
+      ? node.getBody()
+      : undefined;
   return normalizeAst(
     node,
     DOCUMENTATION_EXCLUSIONS,

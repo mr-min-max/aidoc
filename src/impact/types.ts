@@ -13,7 +13,8 @@ export type SymbolKind =
   | "method"
   | "interface"
   | "type"
-  | "enum";
+  | "enum"
+  | "variable";
 export type ContractFacet =
   | "parameters"
   | "return"
@@ -182,7 +183,7 @@ export interface ParserSymbolSnapshot {
   language: ImpactLanguage;
   kind: SymbolKind;
   qualifiedName: string;
-  contractFacets: Partial<Record<ContractFacet, string>>;
+  contractFacets: Partial<Record<ContractFacet, string | null>>;
   contractFingerprint: string;
   implementationFingerprint: string;
   documentationFingerprint: string | null;

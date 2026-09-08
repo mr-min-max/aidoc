@@ -79,6 +79,7 @@ function parsedModule(
     functions,
     classes: [],
     types: [],
+    variables: [],
     imports: [],
   };
 }

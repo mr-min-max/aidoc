@@ -36,6 +36,7 @@ function parsedModules(cwd: string): ParsedModule[] {
       ],
       classes: [],
       types: [],
+      variables: [],
       imports: [],
     },
   ];

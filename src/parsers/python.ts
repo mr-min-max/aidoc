@@ -1050,6 +1050,7 @@ export class PythonParser implements LanguageParser {
       functions: functions.map(this.mapFunction),
       classes: classes.map(this.mapClass),
       types: [], // Python doesn't have separate type declarations like TS
+      variables: [],
       imports: imports.map(this.mapImport),
     };
   }

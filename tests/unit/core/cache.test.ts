@@ -15,6 +15,7 @@ describe("ASTCache", () => {
     functions: [],
     classes: [],
     types: [],
+    variables: [],
     imports: [],
   };
 
