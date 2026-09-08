@@ -26,7 +26,9 @@ describe("analyzeCodebase parser diagnostics", () => {
 
       expect(modules).toEqual([]);
       expect(messages).not.toContain(fakeSourceSecret);
-      expect(messages).toContain("Failed to parse Python source.");
+      expect(messages).toMatch(
+        /Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\))?\./u,
+      );
     } finally {
       warn.mockRestore();
       fs.rmSync(root, { recursive: true, force: true });
@@ -91,7 +93,9 @@ describe("analyzeCodebase parser diagnostics", () => {
       expect(cacheGet).not.toHaveBeenCalled();
       expect(cacheSet).not.toHaveBeenCalled();
       const messages = warn.mock.calls.map(([message]) => message).join("\n");
-      expect(messages).toContain("Failed to parse Python source.");
+      expect(messages).toMatch(
+        /Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\))?\./u,
+      );
       expect(messages).not.toContain(sourceSentinel);
     } finally {
       warn.mockRestore();

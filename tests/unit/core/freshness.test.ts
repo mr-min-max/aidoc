@@ -203,7 +203,9 @@ it("does not return malformed Python source through freshness diagnostics", asyn
 
     expect(report.status).toBe("unknown");
     expect(report.message).not.toContain(fakeSourceSecret);
-    expect(report.message).toContain("Failed to parse Python source.");
+    expect(report.message).toMatch(
+      /Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\))?\./u,
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
