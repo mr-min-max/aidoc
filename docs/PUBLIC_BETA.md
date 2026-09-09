@@ -204,11 +204,12 @@ exists yet; marketplace distribution is a later step.
 ## Repository-contained safety
 
 Planning is AST-first: supported source files are parsed before any provider
-could be constructed, and raw source, raw diffs, prompts, and credentials are
-not part of the bounded impact context. The repository writer rejects unsafe
-paths, symlinks, and stale snapshots and uses same-directory atomic
-replacement. These controls are repository-contained checks, not an operating
-system sandbox or a guarantee about what a host model can see.
+could be constructed, and the impact context contains AST-rendered signatures of
+changed public symbols; raw source files and raw Git diffs are never included.
+The repository writer rejects unsafe paths, symlinks, and stale snapshots and
+uses same-directory atomic replacement. These controls are repository-contained
+checks, not an operating system sandbox or a guarantee about what a host model
+can see.
 
 Trust Gate redaction is not a prompt-injection defense. Review the approved
 diff and host permission request before applying documentation.
