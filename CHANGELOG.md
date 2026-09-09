@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+- Impact snapshots now carry deterministic AST-rendered before/after signatures and callable arity, with conservative arity-based breaking-risk classification.
+- Provider update context propagates safe signatures, groups changes in an unescaped plain-text prompt, and preserves schema v1 additive semantics.
+- Impact summaries count only contract-level public API changes and report informational implementation/documentation changes separately.
+- Verbose plans and deterministic mock updates show before/after signatures; the provider-free storefront demo proves prompt sufficiency.
+
 - Parser: enumerate arrow-function, function-expression, default, aliased, and constant exports. New impact symbol kind `variable`.
 - Removed historical planning records from the public tree; Git history retains them.
 

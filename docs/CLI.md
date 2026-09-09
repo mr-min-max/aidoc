@@ -189,6 +189,13 @@ Options:
 - `--json` emits only the versioned JSON result.
 - `--max-context-bytes <count>` overrides the deterministic provider-context
   byte ceiling. It does not permit raw source or raw diffs into that context.
+  For `aidoc plan --json`, each `changes[]` record includes `before` and `after`
+  AST-rendered signatures when the symbol is added, removed, moved, or
+  contract-changed. Callable records also include `arity` with `required` and
+  `total` parameter counts for the head signature, or the base signature when the
+  symbol was removed. A contract change is marked `potentially-breaking` when
+  required arity increases or total arity decreases; otherwise it remains
+  `review-required`.
 
 The first commit is compared with Git's empty tree. A shallow repository must
 contain the selected base. A supported source file that cannot be parsed stops
