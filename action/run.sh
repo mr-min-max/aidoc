@@ -157,7 +157,7 @@ if [ "$mode" = "review" ]; then
         if [ "$public_api_changes" = "0" ] || [ -z "$public_api_changes" ]; then
           if [ -n "$comment_id" ]; then
             delete_status=0
-            delete_output="$(GH_TOKEN="$github_token" gh api -X DELETE "repos/$repo/issues/$pr_number/comments/$comment_id" 2>&1)" || delete_status=$?
+            delete_output="$(GH_TOKEN="$github_token" gh api -X DELETE "repos/$repo/issues/comments/$comment_id" 2>&1)" || delete_status=$?
             if [ "$delete_status" -ne 0 ]; then
               case "$delete_output" in
                 *403*|*Forbidden*) posting_notice ;;
@@ -171,7 +171,7 @@ if [ "$mode" = "review" ]; then
           jq -n --rawfile body "$markdown" '{body: $body}' > "$comment_payload"
           comment_status=0
           if [ -n "$comment_id" ]; then
-            comment_output="$(GH_TOKEN="$github_token" gh api -X PATCH "repos/$repo/issues/$pr_number/comments/$comment_id" --input "$comment_payload" 2>&1)" || comment_status=$?
+            comment_output="$(GH_TOKEN="$github_token" gh api -X PATCH "repos/$repo/issues/comments/$comment_id" --input "$comment_payload" 2>&1)" || comment_status=$?
           else
             comment_output="$(GH_TOKEN="$github_token" gh api -X POST "repos/$repo/issues/$pr_number/comments" --input "$comment_payload" 2>&1)" || comment_status=$?
           fi

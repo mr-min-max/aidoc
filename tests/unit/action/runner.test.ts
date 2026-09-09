@@ -105,6 +105,12 @@ if [ "\${AIDOC_GH_MODE:-}" = "label-delete" ] && [[ "$*" == *"-X DELETE"* ]] && 
   printf '%s\n' '500 Server Error' >&2
   exit 1
 fi
+# Real GitHub serves a single issue comment at /issues/comments/{id}; the
+# per-issue form with an issue number does not exist and returns 404.
+if [[ "$*" == *"/issues/"*"/comments/"* ]]; then
+  printf '%s\n' '{"message":"Not Found"}' >&2
+  exit 1
+fi
 if [ "$1" = "api" ] && [ "$2" = "user" ]; then
   if [ "\${AIDOC_GH_USER_FORBIDDEN:-false}" = "true" ]; then
     printf '%s\n' 'gh: Resource not accessible by integration (HTTP 403)' >&2
@@ -339,7 +345,7 @@ describe("action/run.sh", () => {
     expect(result.status).toBe(0);
     expect(result.ghLog).toContain("api repos/owner/repo/issues/7/comments --paginate");
     expect(result.ghLog).toContain("api user --jq .login");
-    expect(result.ghLog).toContain("api -X PATCH repos/owner/repo/issues/7/comments/42 --input");
+    expect(result.ghLog).toContain("api -X PATCH repos/owner/repo/issues/comments/42 --input");
     expect(result.ghLog).not.toContain("api -X POST repos/owner/repo/issues/7/comments --input");
   });
 
@@ -355,7 +361,7 @@ describe("action/run.sh", () => {
       AIDOC_GH_COMMENTS: '[{"id":42,"body":"<!-- aidoc-review -->\\nold","user":{"login":"github-actions[bot]"}}]',
     });
     expect(result.status).toBe(0);
-    expect(result.ghLog).toContain("api -X PATCH repos/owner/repo/issues/7/comments/42 --input");
+    expect(result.ghLog).toContain("api -X PATCH repos/owner/repo/issues/comments/42 --input");
     expect(result.ghLog).not.toContain("api -X POST repos/owner/repo/issues/7/comments --input");
     expect(result.stdout).not.toContain("read-only token");
   });
@@ -386,8 +392,8 @@ describe("action/run.sh", () => {
       AIDOC_FAKE_REVIEW_ZERO: "true",
     });
     expect(result.status).toBe(0);
-    expect(result.ghLog).toContain("api -X DELETE repos/owner/repo/issues/7/comments/42");
-    expect(result.ghLog).not.toContain("api -X PATCH repos/owner/repo/issues/7/comments/42");
+    expect(result.ghLog).toContain("api -X DELETE repos/owner/repo/issues/comments/42");
+    expect(result.ghLog).not.toContain("api -X PATCH repos/owner/repo/issues/comments/42");
   });
 
   it("uses the locked label colors and descriptions", () => {
