@@ -308,6 +308,66 @@ changed public symbol is mentioned in README.md` is clean. A missing target emit
 `Documentation target is missing: docs/API.md` and exits 1; an operational
 failure emits `Could not evaluate documentation freshness: ...` and exits 2.
 
+### `aidoc review`
+
+Reviews the current pull request range with deterministic AST analysis. Review mode
+reports only the drift this pull request introduces; pre-existing stale documentation is not reported.
+It does not use a model, API key, or repository write. With no explicit `--head`,
+the working tree is compared with the selected base.
+
+```bash
+aidoc review
+aidoc review --base origin/main --head HEAD
+aidoc review --format markdown
+aidoc review --format json
+aidoc review --base origin/main --fail-on stale
+```
+
+Options:
+
+- `--base <ref>` selects the comparison base. The default uses planner discovery.
+- `--head <ref>` selects an immutable comparison head. The default is the working tree.
+- `--format <text|markdown|json>` selects terminal, comment, or machine output. The default is `text`.
+- `--fail-on <none|stale|breaking>` controls the exit status. The default is `none`; `stale` fails for stale or breaking findings, and `breaking` fails only for breaking findings.
+- `--max-symbols <n>` limits the text or Markdown change list, defaulting to 30. JSON is never truncated.
+
+Markdown output starts with `<!-- aidoc-review -->`, followed by before and after
+signatures, affected documentation sections, and co-changed documents. A clean
+review has exactly the marker, heading, and `No public API changes in this pull request.`
+
+### `.aidocignore`
+
+Add deliberate suppressions at the repository root, one per line. Blank lines and
+`#` comments are ignored. An exact symbol or `*` pattern suppresses a symbol; a
+line containing `/` suppresses a source path; a `.md` path suppresses a documentation
+file. For example:
+
+```text
+# symbol
+UserService.*
+# source path
+src/internal/**
+# documentation path
+docs/legacy/*.md
+```
+
+Suppression is not a baseline mode: review mode reports only the drift this pull request introduces; pre-existing stale documentation is not reported. Add entries only for known debt or a confirmed false positive.
+
+### Pre-commit
+
+AiDoc also provides a pre-commit hook for the Python pre-commit ecosystem:
+
+```yaml
+repos:
+  - repo: https://github.com/mr-min-max/aidoc
+    rev: v0.2.0-beta.6
+    hooks:
+      - id: aidoc-check
+```
+
+The hook runs `aidoc check --since HEAD` on `pre-push`. It does not pass filenames.
+Install Node.js and `aidoc` before enabling it.
+
 ### `aidoc score`
 
 Calculates AST-derived documentation coverage for exported symbols. The score

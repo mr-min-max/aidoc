@@ -8,43 +8,63 @@ branding:
 
 inputs:
   provider:
-    description: "LLM provider to use (openai, anthropic, ollama)"
+    description: "LLM provider to use in generate mode (openai, anthropic, ollama); ignored in review mode"
     required: false
     default: "openai"
   api-key:
-    description: "API key for the LLM provider"
+    description: "API key for the LLM provider in generate mode; ignored in review mode"
     required: false
   trust-policy:
     description: "Secret handling policy: warn, redact, or strict"
     required: false
     default: "strict"
   model:
-    description: "Model to use (e.g., gpt-5.6-luna, claude-sonnet-5, or an explicit installed Ollama model)"
+    description: "Model to use in generate mode; ignored in review mode"
     required: false
   commands:
-    description: "Comma-separated list of commands to run (readme,api,changelog,diagram)"
+    description: "Comma-separated documentation commands for generate/check; ignored in review mode"
     required: false
     default: "readme"
   mode:
-    description: 'Operation mode: "generate" (create docs), "check" (run the deterministic AST-backed co-change guard)'
+    description: 'Operation mode: "review" (pull request impact comment), "generate" (create docs), or "check" (freshness guard)'
     required: false
-    default: "generate"
+    default: "review"
   output-dir:
-    description: "Output directory for generated documentation"
+    description: "Output directory for generated documentation; ignored in review mode"
     required: false
     default: "./docs"
   auto-commit:
-    description: "Automatically commit generated documentation changes"
+    description: "Automatically commit generated documentation changes; ignored in review mode"
     required: false
     default: "false"
   dry-run:
-    description: "Preview changes without writing files"
+    description: "Preview generate changes without writing files"
     required: false
     default: "false"
   since:
-    description: "Git ref present in the checkout and used by co-change check mode"
+    description: "Git ref used by check mode and non-PR review fallback"
     required: false
     default: "HEAD~1"
+  fail-on:
+    description: "Review exit policy: none, stale, or breaking"
+    required: false
+    default: "none"
+  comment:
+    description: "Post or update the review comment on a pull request"
+    required: false
+    default: "true"
+  labels:
+    description: "Apply docs-stale and breaking-change labels on a pull request"
+    required: false
+    default: "true"
+  github-token:
+    description: "GitHub token used for review comments and labels; review mode needs pull-requests: write"
+    required: false
+    default: ${{ github.token }}
+  source:
+    description: "AiDoc source: npm installs the package version, local builds and links this checkout"
+    required: false
+    default: "npm"
 
 outputs:
   changed:
@@ -56,6 +76,21 @@ outputs:
   summary:
     description: "Human-readable summary"
     value: ${{ steps.aidoc.outputs.summary }}
+  verdict:
+    description: "Review verdict: clean, stale, or breaking"
+    value: ${{ steps.aidoc.outputs.verdict }}
+  public-api-changes:
+    description: "Number of public API changes in the review"
+    value: ${{ steps.aidoc.outputs.public-api-changes }}
+  stale-documents:
+    description: "Number of stale documentation files in the review"
+    value: ${{ steps.aidoc.outputs.stale-documents }}
+  breaking:
+    description: "Number of potentially breaking changes in the review"
+    value: ${{ steps.aidoc.outputs.breaking }}
+  report:
+    description: "Path to the JSON review report"
+    value: ${{ steps.aidoc.outputs.report }}
 
 runs:
   using: "composite"
@@ -67,10 +102,26 @@ runs:
 
     - name: Install aidoc
       shell: bash
+      env:
+        AIDOC_INPUT_SOURCE: ${{ inputs.source }}
       run: |
+        set -euo pipefail
         cd "$GITHUB_ACTION_PATH"
-        version="$(node -p "require('./package.json').version")"
-        npm install -g "@mr-min-max/aidoc-gen@$version"
+        case "$AIDOC_INPUT_SOURCE" in
+          npm)
+            version="$(node -p "require('./package.json').version")"
+            npm install -g "@mr-min-max/aidoc-gen@$version"
+            ;;
+          local)
+            npm ci
+            npm run build
+            npm link
+            ;;
+          *)
+            echo "Unsupported aidoc source input" >&2
+            exit 2
+            ;;
+        esac
 
     - name: Run aidoc commands
       id: aidoc
@@ -85,11 +136,19 @@ runs:
         AIDOC_INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
         AIDOC_INPUT_DRY_RUN: ${{ inputs.dry-run }}
         AIDOC_INPUT_SINCE: ${{ inputs.since }}
+        AIDOC_INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        AIDOC_INPUT_COMMENT: ${{ inputs.comment }}
+        AIDOC_INPUT_LABELS: ${{ inputs.labels }}
+        AIDOC_INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        AIDOC_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        AIDOC_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        AIDOC_REPOSITORY: ${{ github.repository }}
+        AIDOC_PR_NUMBER: ${{ github.event.pull_request.number }}
         AIDOC_CHANGED_FILES_FILE: ${{ runner.temp }}/aidoc-changed-files
       run: bash "$GITHUB_ACTION_PATH/action/run.sh"
 
     - name: Auto-commit changes
-      if: inputs.auto-commit == 'true' && inputs.mode != 'check' && inputs.dry-run != 'true' && steps.aidoc.outputs.changed == 'true'
+      if: inputs.auto-commit == 'true' && inputs.mode == 'generate' && inputs.dry-run != 'true' && steps.aidoc.outputs.changed == 'true'
       shell: bash
       run: |
         git config user.name "aidoc[bot]"

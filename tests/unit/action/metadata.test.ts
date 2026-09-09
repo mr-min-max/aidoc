@@ -12,6 +12,7 @@ interface CompositeStep {
 }
 
 interface CompositeAction {
+  inputs?: Record<string, { default?: unknown; description?: string }>;
   runs: { using: string; steps: CompositeStep[] };
 }
 
@@ -19,7 +20,7 @@ const metadata = load(
   fs.readFileSync(path.resolve("action.yml"), "utf8"),
 ) as CompositeAction;
 
-describe("composite Action runtime policy", () => {
+describe("composite Action metadata", () => {
   it("uses the reviewed setup-node revision and an explicit supported Node floor", () => {
     const setup = metadata.runs.steps.find(
       (step) => step.name === "Setup Node.js",
@@ -34,5 +35,14 @@ describe("composite Action runtime policy", () => {
     );
     expect(major).toBeGreaterThanOrEqual(22);
     expect(major === 22 ? minor : 12).toBeGreaterThanOrEqual(12);
+  });
+
+  it("declares review inputs with their locked defaults", () => {
+    expect(metadata.inputs?.mode?.default).toBe("review");
+    expect(metadata.inputs?.["fail-on"]?.default).toBe("none");
+    expect(metadata.inputs?.comment?.default).toBe("true");
+    expect(metadata.inputs?.labels?.default).toBe("true");
+    expect(metadata.inputs?.["github-token"]?.default).toBe("${{ github.token }}");
+    expect(metadata.inputs?.source?.default).toBe("npm");
   });
 });

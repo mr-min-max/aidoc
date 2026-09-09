@@ -11,9 +11,46 @@
   and keeps change-driven updates reviewable.
 </p>
 
-```bash
-npm install -g @mr-min-max/aidoc-gen@beta
-aidoc
+```yaml
+name: AiDoc review
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      # Replace <phase-4-action-ref> with the Action ref containing review mode.
+      - uses: mr-min-max/aidoc@<phase-4-action-ref>
+        with:
+          mode: review
+          fail-on: none
+```
+
+The review workflow above uses a placeholder for the Phase 4 Action ref because
+review mode is introduced in this phase and is not part of the published beta.6
+Action. Use the ref for the Phase 4 branch or release that contains review mode.
+Review mode reports only the drift this pull request introduces; pre-existing stale documentation is not reported.
+For example, the pull request comment is:
+
+```markdown
+<!-- aidoc-review -->
+### AiDoc: documentation impact
+
+**1 public API change**, 0 potentially breaking. **1 documentation section** mention changed symbols and were not updated in this PR.
+
+| Symbol | Change | Before | After |
+| --- | --- | --- | --- |
+| `createUser` | parameters | `createUser(email: string): string` | `createUser(email: string, role: string): string` |
+
+**Needs a documentation update**
+- `README.md` > API: `createUser`
 ```
 
 [![npm beta](https://img.shields.io/npm/v/@mr-min-max/aidoc-gen/beta?label=npm%20beta)](https://www.npmjs.com/package/@mr-min-max/aidoc-gen)
@@ -59,6 +96,7 @@ AST-derived coverage:
 | Update affected Markdown        | `aidoc update` |
 | Watch and regenerate            | `aidoc watch`  |
 | Fail CI only when a doc section that mentions a changed public symbol was not updated | `aidoc check`  |
+| Review pull-request documentation impact | `aidoc review` |
 | Score AST coverage              | `aidoc score`  |
 
 Planning, checking, and scoring without an output path are deterministic and

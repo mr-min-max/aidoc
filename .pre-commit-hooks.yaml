@@ -1,0 +1,6 @@
+- id: aidoc-check
+  name: aidoc check
+  entry: aidoc check --since HEAD
+  language: node
+  pass_filenames: false
+  stages: [pre-push]
