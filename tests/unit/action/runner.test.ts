@@ -285,7 +285,10 @@ describe("action/run.sh", () => {
     const result = runRunner({ AIDOC_INPUT_MODE: "check", AIDOC_INPUT_API_KEY: "" });
     expect(result.status).toBe(0);
     expect(result.log).toContain("check --target ./README.md --since HEAD~1 --json");
-    expect(result.output).toContain("No changed public symbol is mentioned in README.md");
+    expect(result.log).not.toContain("--mock");
+    expect(result.output).toContain(
+      "summary<<AIDOC_SUMMARY_EOF\nNo changed public symbol is mentioned in README.md\n",
+    );
   });
 
   it("runs review without PR context, writes outputs, and never invokes gh", () => {
