@@ -1,237 +1,161 @@
 # AiDoc GitHub Action
 
-This document describes the composite Action at the repository root. The
-examples use the currently published beta.6 tag:
+The AiDoc Action reviews pull requests for deterministic documentation drift. Review
+mode reports only the drift this pull request introduces; pre-existing stale
+documentation is not reported. It uses no model, API key, or repository write for
+analysis.
+
+## Review mode
+
+Add one workflow to a repository:
+
+```yaml
+name: AiDoc review
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      # Replace <phase-4-action-ref> with the Action ref containing review mode.
+      - uses: mr-min-max/aidoc@<phase-4-action-ref>
+        with:
+          mode: review
+          fail-on: none
+```
+
+The review workflow uses a placeholder because review mode is introduced in this
+phase and is not part of the published beta.6 Action. Replace it with the Phase 4
+branch or release ref that contains review mode. The check and generate examples
+below intentionally retain the published beta.6 ref.
+
+The comment starts with a hidden marker and lists changed signatures, affected
+sections, and whether each section changed in the pull request:
+
+```markdown
+<!-- aidoc-review -->
+### AiDoc: documentation impact
+
+**1 public API change**, 0 potentially breaking. **1 documentation section** mention changed symbols and were not updated in this PR.
+
+| Symbol | Change | Before | After |
+| --- | --- | --- | --- |
+| `createUser` | parameters | `createUser(email: string): string` | `createUser(email: string, role: string): string` |
+
+**Needs a documentation update**
+- `README.md` > API: `createUser`
+
+<sub>Deterministic AST analysis; no model was used.</sub>
+```
+
+Review mode needs `permissions: contents: read` and `pull-requests: write` for
+comments and labels. Use `actions/checkout` with `fetch-depth: 0`, because the
+planner needs the pull request base commit. A fork pull request can have a
+read-only token. In that case the Action emits a notice and writes the Markdown
+report to the job summary without failing because of posting.
+
+The review mode wording is intentional: review mode reports only the drift this
+pull request introduces; pre-existing stale documentation is not reported.
+
+### Review inputs
+
+| Input | Default | Behavior |
+| --- | --- | --- |
+| `mode` | `review` | `review`, `check`, or `generate`; review is the default. |
+| `fail-on` | `none` | `none`, `stale`, or `breaking`. The report is still produced before an opt-in failure. |
+| `comment` | `true` | Update the token user's marked comment, post it if absent, or delete it when there are no public API changes. |
+| `labels` | `true` | Ensure and update `docs-stale` and `breaking-change`. A missing label on deletion is tolerated. |
+| `github-token` | `${{ github.token }}` | Token used for pull request API calls. |
+| `source` | `npm` | `npm` installs the package version from this Action ref. `local` runs `npm ci`, `npm run build`, and `npm link`. |
+
+In review mode, `provider`, `api-key`, `model`, `commands`, `output-dir`, and
+`auto-commit` are ignored. The Action resolves the pull request base and head
+SHAs from the event, writes JSON to its temporary report path, and exposes
+`verdict`, `public-api-changes`, `stale-documents`, `breaking`, and `report`.
+Non-pull-request runs use `since` as the base, inspect the working tree, print the
+text report, and do not invoke `gh`.
+
+Labels use the following stable metadata:
+
+- `docs-stale`, color `e4e669`, description `Documentation sections mentioning changed public symbols are stale`;
+- `breaking-change`, color `d73a4a`, description `Potentially breaking public API changes detected`.
+
+### Suppressions
+
+Create `.aidocignore` at the repository root. Each line is an exact symbol or a
+small glob, a source path glob, or a Markdown documentation path glob:
+
+```text
+# symbols
+UserService.*
+# source paths
+src/internal/**
+# documentation paths
+docs/legacy/*.md
+```
+
+Blank lines and `#` comments are ignored. Suppressions are deliberate, not a
+baseline: a new adopter sees existing stale documentation once and can then add
+specific entries.
+
+## Check mode
+
+Check mode is provider-free and reports only whether selected documents changed with
+public symbols they directly mention. It does not compare prose correctness.
 
 ```yaml
 - uses: mr-min-max/aidoc@v0.2.0-beta.6
+  with:
+    mode: check
+    since: ${{ github.event.pull_request.base.sha }}
+    commands: readme,api
 ```
 
-The Action's install step reads the AiDoc package version from the same Action
-ref and installs @mr-min-max/aidoc-gen at that version globally. This keeps the
-runtime package and Action source on one reviewed beta.6 ref.
+The `commands` input is a comma-separated list of `readme`, `api`, `changelog`, and
+`diagram`. Check mode does not need an API key. The checkout must contain `since`.
 
-For the complete command catalogue, see [CLI.md](./CLI.md). For provider
-credentials, billing, Ollama discovery, Trust Gate details, and public beta
-boundaries, see [PUBLIC_BETA.md](./PUBLIC_BETA.md).
+## Generate mode
 
-## Modes and commands
+Generate mode remains available for provider-backed documentation creation:
 
-The mode input accepts exactly:
+```yaml
+- uses: mr-min-max/aidoc@v0.2.0-beta.6
+  with:
+    mode: generate
+    provider: openai
+    api-key: ${{ secrets.OPENAI_API_KEY }}
+    model: gpt-5.6-luna
+    commands: readme,api
+```
 
-- generate creates or updates the selected documentation files;
-- check runs the deterministic, plan-driven freshness guard and fails only when an unchanged Markdown section directly mentions a changed public symbol.
-
-The commands input is a comma-separated list. Each value is trimmed and must
-be one of:
-
-- readme, which targets ./README.md;
-- api, which targets <output-dir>/API.md;
-- changelog, which targets ./CHANGELOG.md;
-- diagram, which targets <output-dir>/architecture.md.
-
-In generate mode, each command invokes the corresponding CLI command with
---output, --yes, and --strict-output. In check mode, each command invokes
-aidoc check --target <file> --since <since> --json and appends the report message
-to the Action summary. Check mode does not generate or write documentation and
-does not need an API key.
-
-## Inputs
-
-| Input        | Default  | Accepted values and behavior                                                                                                                                          |
-| ------------ | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| provider     | openai   | openai, anthropic, or ollama. Other values fail before AiDoc starts.                                                                                                  |
-| api-key      | empty    | Passed to the selected remote provider as its API key. In generate mode, openai and anthropic require a non-empty value. It is not required for ollama or check mode. |
-| trust-policy | strict   | warn, redact, or strict. Invalid values fail before AiDoc starts.                                                                                                     |
-| model        | empty    | Model override passed through as AIDOC_MODEL. Ollama requires an explicit installed model for a real non-interactive generation run.                                  |
-| commands     | readme   | Comma-separated values from readme, api, changelog, and diagram.                                                                                                      |
-| mode         | generate | generate or check.                                                                                                                                                    |
-| output-dir   | ./docs   | Directory used by the api and diagram command targets.                                                                                                                |
-| auto-commit  | false    | When true, enables the separate auto-commit step after changed generated files are reported. It has no effect in check or dry-run mode.                               |
-| dry-run      | false    | true or false. In generate mode, previews without writing and reports no changed files.                                                                               |
-| since        | HEAD~1   | Git ref passed to check mode. The checkout must contain the ref.                                                                                                      |
-
-The Action passes the selected trust policy through AIDOC_TRUST_POLICY and
-marks the process as Action-originated. It passes the provider, model, command
-list, mode, output directory, dry-run flag, and since value to the runner.
+Generate mode accepts the existing `provider`, `api-key`, `model`, `commands`,
+`output-dir`, `dry-run`, and `auto-commit` inputs. `auto-commit` is opt-in and
+requires `contents: write`; it stages only paths emitted by AiDoc.
 
 ## Outputs
 
-The composite step exposes these outputs from the step with id aidoc:
+The Action exposes these outputs:
 
-| Output  | Meaning                                                                             |
-| ------- | ----------------------------------------------------------------------------------- |
-| changed | true when a non-dry-run generate command changed a target file; otherwise false.    |
-| files   | Newline-delimited documentation paths whose checksums changed during generate mode. |
-| summary | Human-readable lines for each generated command or successful co-change check.      |
+| Output | Meaning |
+| --- | --- |
+| `verdict` | `clean`, `stale`, or `breaking` in review mode. |
+| `public-api-changes` | Number of contract-level public changes. |
+| `stale-documents` | Number of stale documentation files. |
+| `breaking` | Number of potentially breaking changes. |
+| `report` | Temporary path to the complete JSON review report. |
+| `changed`, `files`, `summary` | Existing generate/check outputs. |
 
-For a generate run, the runner compares each target checksum before and after
-the CLI call. A dry run deliberately does not compare or report changed files.
-For check mode, changed remains false and files remains empty when the checks
-pass.
+Review comments are deterministic, contain no timestamps, and are owned by the
+GitHub token user as well as the `<!-- aidoc-review -->` marker. A token cannot
+modify another user's marked comment.
 
-## Provider and credential requirements
-
-The Action supports the provider values implemented by action/run.sh: openai,
-anthropic, and ollama.
-
-- For generate mode with openai, set api-key from a GitHub Actions secret. The
-  runner exports it as OPENAI_API_KEY.
-- For generate mode with anthropic, set api-key from a GitHub Actions secret.
-  The runner exports it as ANTHROPIC_API_KEY.
-- For ollama, the runner does not export a remote API key. Provide an explicit
-  installed Ollama model through model and use a runner where the local Ollama
-  service is available.
-- Check mode is deterministic and does not require api-key, but it still
-  requires a complete checkout containing the since ref. Use actions/checkout
-  with fetch-depth: 0 when the base is outside the default shallow history.
-
-Consumer subscriptions for Codex or Claude are not Action API credentials. The
-Action's supported provider list is narrower than the direct CLI provider
-registry; use [PUBLIC_BETA.md](./PUBLIC_BETA.md) for the separate direct CLI
-profiles.
-
-## Trust-policy behavior
-
-The default is strict, and the Action exports the selected policy over project
-configuration. The Trust Gate evaluates rendered provider input and completed
-provider output:
-
-- strict blocks a finding;
-- redact replaces detected values with typed placeholders;
-- warn preserves detected text while reporting findings.
-
-The Action runner does not reinterpret these findings. A failed Trust Gate
-causes the underlying aidoc command to fail, so no changed-file output is
-claimed for that command. Trust Gate is not a prompt-injection defense or an
-operating-system sandbox; repository and host permissions still matter.
-
-## Generate example
-
-Use readme and API generation with a secret-backed provider:
-
-```yaml
-name: Documentation
-
-on:
-  push:
-    branches: [main]
-
-permissions:
-  contents: read
-
-jobs:
-  docs:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: mr-min-max/aidoc@v0.2.0-beta.6
-        with:
-          provider: openai
-          api-key: ${{ secrets.OPENAI_API_KEY }}
-          model: gpt-5.6-luna
-          commands: readme,api
-          trust-policy: strict
-```
-
-Generation uses --yes and --strict-output for each selected command. It still
-requires a provider path and the repository writer's normal safety checks. Add
-dry-run: true to preview the command without writing.
-
-## Check example
-
-Use check mode to guard documentation co-change in a pull request:
-
-```yaml
-name: Documentation freshness
-
-on:
-  pull_request:
-
-permissions:
-  contents: read
-
-jobs:
-  docs-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: mr-min-max/aidoc@v0.2.0-beta.6
-        with:
-          mode: check
-          since: ${{ github.event.pull_request.base.sha }}
-          commands: readme,api
-```
-
-Check mode uses the same plan-driven freshness semantics as the CLI. A target is
-`stale` only when a Markdown section directly mentions a changed public symbol
-and the target was not modified in the selected range. Recommendations and
-unmapped symbols do not fail the check; implementation-only changes fail only
-when the changed symbol is directly mentioned. The default CLI target is the
-repository README discovered on disk, so `readme.md` is supported. Check mode
-passes `--json` internally and exposes each report message in the Action
-summary. A successful co-change does not prove that document content is correct,
-and the check never compares non-deterministic LLM output.
-
-For a push workflow, the repository's prior commit can be supplied with
-${{ github.event.before }} when that ref is present in the checkout.
-
-## Dry runs and changed files
-
-Set dry-run: true in generate mode to preview each selected command. The runner
-still invokes the command with --dry-run, but it does not compare checksums or
-append paths to the changed-file list. The changed output is false and the
-files output is empty. The summary describes the command that was attempted.
-
-Without dry-run, a generated path is reported only when its checksum differs
-after the command returns successfully. The temporary changed-file list is
-used by the auto-commit step and contains only those emitted paths.
-
-## Auto-commit and push boundary
-
-Auto-commit runs only when all of these are true:
-
-- auto-commit: true;
-- mode: generate;
-- dry-run: false;
-- the aidoc step reports changed=true.
-
-Before staging, the Action configures the bot identity:
-
-```text
-aidoc[bot] <aidoc[bot]@users.noreply.github.com>
-```
-
-It then refuses to continue if the checkout already has any staged changes.
-This protects staged work that was present before the Action started. If the
-index is clean, it runs git add -- <file> only for paths emitted by AiDoc. It
-does not run git add -A and does not stage unrelated changes. When the scoped
-index has a diff, it creates exactly this commit:
-
-```text
-docs: update documentation via aidoc [skip ci]
-```
-
-Finally it runs git push. A workflow that enables this step needs
-permissions: contents: write; read-only workflows should leave auto-commit
-disabled. The Action does not open pull requests, install a marketplace
-package, or provide a provider credential.
-
-## Security recommendations
-
-- Pin the Action to the reviewed beta.6 ref shown above rather than using a
-  moving branch.
-- Store remote provider keys in GitHub Actions secrets and pass them only to
-  api-key.
-- Use permissions: contents: read for check and dry-run workflows.
-- Grant contents: write only when the scoped auto-commit and push behavior is
-  intentional.
-- Use fetch-depth: 0 for check ranges that require a pull request base or
-  another ref not present in a shallow checkout.
-- Review generated diffs. The co-change guard is an AST-backed freshness check,
-  not semantic validation of prose.
-
-Report reproducible Action issues with the command, workflow inputs, and
-observed output. Use [SECURITY.md](../SECURITY.md) for private security reports.
+For provider credentials, Trust Gate behavior, and MCP boundaries, see
+[PUBLIC_BETA.md](./PUBLIC_BETA.md). For the CLI review command and suppression
+syntax, see [CLI.md](./CLI.md).

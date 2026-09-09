@@ -4,25 +4,256 @@ set -euo pipefail
 provider="${AIDOC_INPUT_PROVIDER:-openai}"
 model="${AIDOC_INPUT_MODEL:-}"
 commands="${AIDOC_INPUT_COMMANDS:-readme}"
-mode="${AIDOC_INPUT_MODE:-generate}"
+mode="${AIDOC_INPUT_MODE:-review}"
 output_dir="${AIDOC_INPUT_OUTPUT_DIR:-./docs}"
 dry_run="${AIDOC_INPUT_DRY_RUN:-false}"
 since="${AIDOC_INPUT_SINCE:-HEAD~1}"
 api_key="${AIDOC_INPUT_API_KEY:-}"
 changed_files_file="${AIDOC_CHANGED_FILES_FILE:-}"
 trust_policy="${AIDOC_INPUT_TRUST_POLICY:-strict}"
+fail_on="${AIDOC_INPUT_FAIL_ON:-none}"
+comment="${AIDOC_INPUT_COMMENT:-true}"
+labels="${AIDOC_INPUT_LABELS:-true}"
+github_token="${AIDOC_INPUT_GITHUB_TOKEN:-}"
+
+case "$mode" in
+  review|generate|check) ;;
+  *) echo "Unsupported aidoc Action mode input" >&2; exit 2 ;;
+esac
+
+if [ "$mode" = "review" ]; then
+  case "$fail_on" in
+    none|stale|breaking) ;;
+    *) echo "Unsupported aidoc fail-on input" >&2; exit 2 ;;
+  esac
+  case "$comment" in
+    true|false) ;;
+    *) echo "Unsupported aidoc comment input" >&2; exit 2 ;;
+  esac
+  case "$labels" in
+    true|false) ;;
+    *) echo "Unsupported aidoc labels input" >&2; exit 2 ;;
+  esac
+
+  export AIDOC_ORIGIN="action"
+  runner_temp="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
+  mkdir -p "$runner_temp"
+  report="$runner_temp/aidoc-review.json"
+  markdown="$runner_temp/aidoc-review.md"
+  text_report="$runner_temp/aidoc-review.txt"
+  base="${AIDOC_PR_BASE_SHA:-}"
+  head="${AIDOC_PR_HEAD_SHA:-}"
+  in_pr="true"
+  if [ -z "$base" ]; then
+    in_pr="false"
+    base="$since"
+  fi
+  if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+    echo "AiDoc could not find the pull request base commit $base; use actions/checkout with fetch-depth: 0." >&2
+    exit 2
+  fi
+
+  review_args=(review --format json --fail-on "$fail_on" --base "$base")
+  if [ -n "$head" ]; then review_args+=(--head "$head"); fi
+  review_status=0
+  aidoc "${review_args[@]}" > "$report" || review_status=$?
+
+  presentation_failure=0
+  if [ "$in_pr" = "false" ]; then
+    text_status=0
+    text_args=(review --format text --fail-on "$fail_on" --base "$base")
+    aidoc "${text_args[@]}" > "$text_report" || text_status=$?
+    if [ "$text_status" -ne 0 ] && [ "$text_status" -ne 1 ]; then
+      presentation_failure="$text_status"
+    fi
+  else
+    markdown_status=0
+    markdown_args=(review --format markdown --fail-on "$fail_on" --base "$base")
+    if [ -n "$head" ]; then markdown_args+=(--head "$head"); fi
+    aidoc "${markdown_args[@]}" > "$markdown" || markdown_status=$?
+    if [ "$markdown_status" -ne 0 ] && [ "$markdown_status" -ne 1 ]; then
+      presentation_failure="$markdown_status"
+    fi
+  fi
+
+  verdict=""
+  public_api_changes=""
+  stale_documents=""
+  breaking=""
+  if [ -s "$report" ]; then
+    verdict="$(jq -r '.verdict // empty' "$report")"
+    public_api_changes="$(jq -r '.summary.publicApiChanges // 0' "$report")"
+    stale_documents="$(jq -r '.summary.staleDocuments // 0' "$report")"
+    breaking="$(jq -r '.summary.breaking // 0' "$report")"
+  fi
+
+  {
+    echo "verdict=$verdict"
+    echo "public-api-changes=$public_api_changes"
+    echo "stale-documents=$stale_documents"
+    echo "breaking=$breaking"
+    echo "report=$report"
+    echo "changed=false"
+    echo "files<<AIDOC_FILES_EOF"
+    echo "AIDOC_FILES_EOF"
+    echo "summary<<AIDOC_SUMMARY_EOF"
+    if [ "$in_pr" = "true" ] && [ -s "$markdown" ]; then
+      cat "$markdown"
+    elif [ -s "$text_report" ]; then
+      cat "$text_report"
+    fi
+    echo "AIDOC_SUMMARY_EOF"
+  } >> "$GITHUB_OUTPUT"
+
+  permission_notice_sent="false"
+  operation_failure=0
+  mark_operation_failure() {
+    if [ "$operation_failure" -eq 0 ]; then operation_failure="$1"; fi
+  }
+  posting_notice() {
+    if [ "$permission_notice_sent" = "false" ]; then
+      echo "::notice::AiDoc could not post a comment (read-only token); see the job summary"
+      if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f "$markdown" ]; then
+        cat "$markdown" >> "$GITHUB_STEP_SUMMARY"
+      fi
+      permission_notice_sent="true"
+    fi
+  }
+
+  if [ "$in_pr" = "false" ]; then
+    if [ -s "$text_report" ]; then cat "$text_report"; fi
+    if [ "$presentation_failure" -ne 0 ]; then exit "$presentation_failure"; fi
+    exit "$review_status"
+  fi
+
+  repo="${AIDOC_REPOSITORY:-${GITHUB_REPOSITORY:-}}"
+  pr_number="${AIDOC_PR_NUMBER:-}"
+  if [ -n "$repo" ] && [ -n "$pr_number" ]; then
+    comments="$runner_temp/aidoc-review-comments.json"
+    comments_stderr="$runner_temp/aidoc-review-comments.err"
+    comments_status=0
+    comment_id=""
+    token_user_status=0
+    if [ "$comment" = "true" ]; then
+      GH_TOKEN="$github_token" gh api "repos/$repo/issues/$pr_number/comments" --paginate > "$comments" 2> "$comments_stderr" || comments_status=$?
+      if [ "$comments_status" -eq 0 ] && [ -s "$comments" ]; then
+        token_user="${GITHUB_ACTOR:-github-actions[bot]}"
+        token_user_stderr="$runner_temp/aidoc-review-user.err"
+        token_user_from_api=""
+        token_user_from_api="$(GH_TOKEN="$github_token" gh api user --jq '.login' 2> "$token_user_stderr")" || token_user_status=$?
+        if [ "$token_user_status" -ne 0 ]; then
+          user_error="$(cat "$token_user_stderr")"
+          case "$user_error" in
+            *403*|*Forbidden*) posting_notice ;;
+            *) mark_operation_failure "$token_user_status" ;;
+          esac
+        elif [ -n "$token_user_from_api" ]; then
+          token_user="$token_user_from_api"
+        fi
+        if [ "$token_user_status" -eq 0 ]; then
+          comment_id="$(jq -s -r --arg marker '<!-- aidoc-review -->' --arg user "$token_user" 'add | map(select(((.body // "") | startswith($marker)) and ((.user.login // "") == $user))) | .[0].id // empty' "$comments")"
+        fi
+      elif [ "$comments_status" -ne 0 ]; then
+        comments_error="$(cat "$comments_stderr")"
+        case "$comments_error" in
+          *403*|*Forbidden*) posting_notice ;;
+          *) mark_operation_failure "$comments_status" ;;
+        esac
+      fi
+
+      if [ "$comments_status" -eq 0 ] && [ "$token_user_status" -eq 0 ]; then
+        if [ "$public_api_changes" = "0" ] || [ -z "$public_api_changes" ]; then
+          if [ -n "$comment_id" ]; then
+            delete_status=0
+            delete_output="$(GH_TOKEN="$github_token" gh api -X DELETE "repos/$repo/issues/$pr_number/comments/$comment_id" 2>&1)" || delete_status=$?
+            if [ "$delete_status" -ne 0 ]; then
+              case "$delete_output" in
+                *403*|*Forbidden*) posting_notice ;;
+                *404*|*Not\ Found*) ;;
+                *) mark_operation_failure "$delete_status" ;;
+              esac
+            fi
+          fi
+        else
+          comment_payload="$runner_temp/aidoc-review-comment.json"
+          jq -n --rawfile body "$markdown" '{body: $body}' > "$comment_payload"
+          comment_status=0
+          if [ -n "$comment_id" ]; then
+            comment_output="$(GH_TOKEN="$github_token" gh api -X PATCH "repos/$repo/issues/$pr_number/comments/$comment_id" --input "$comment_payload" 2>&1)" || comment_status=$?
+          else
+            comment_output="$(GH_TOKEN="$github_token" gh api -X POST "repos/$repo/issues/$pr_number/comments" --input "$comment_payload" 2>&1)" || comment_status=$?
+          fi
+          if [ "$comment_status" -ne 0 ]; then
+            case "$comment_output" in
+              *403*|*Forbidden*) posting_notice ;;
+              *) mark_operation_failure "$comment_status" ;;
+            esac
+          fi
+        fi
+      fi
+    fi
+
+    if [ "$labels" = "true" ]; then
+      docs_label_description="Documentation sections mentioning changed public symbols are stale"
+      breaking_label_description="Potentially breaking public API changes detected"
+      label_create_status=0
+      label_create_output="$(GH_TOKEN="$github_token" gh label create docs-stale --color e4e669 --description "$docs_label_description" --force 2>&1)" || label_create_status=$?
+      if [ "$label_create_status" -ne 0 ]; then
+        case "$label_create_output" in *403*|*Forbidden*) posting_notice ;; *) mark_operation_failure "$label_create_status" ;; esac
+      fi
+      label_create_status=0
+      label_create_output="$(GH_TOKEN="$github_token" gh label create breaking-change --color d73a4a --description "$breaking_label_description" --force 2>&1)" || label_create_status=$?
+      if [ "$label_create_status" -ne 0 ]; then
+        case "$label_create_output" in *403*|*Forbidden*) posting_notice ;; *) mark_operation_failure "$label_create_status" ;; esac
+      fi
+      label_payload="$runner_temp/aidoc-review-label.json"
+      if [ "${stale_documents:-0}" -gt 0 ] 2>/dev/null; then
+        jq -n '{labels:["docs-stale"]}' > "$label_payload"
+        label_status=0
+        label_output="$(GH_TOKEN="$github_token" gh api -X POST "repos/$repo/issues/$pr_number/labels" --input "$label_payload" 2>&1)" || label_status=$?
+        if [ "$label_status" -ne 0 ]; then
+          case "$label_output" in *403*|*Forbidden*) posting_notice ;; *) mark_operation_failure "$label_status" ;; esac
+        fi
+      else
+        delete_label_status=0
+        delete_label_output="$(GH_TOKEN="$github_token" gh api -X DELETE "repos/$repo/issues/$pr_number/labels/docs-stale" 2>&1)" || delete_label_status=$?
+        if [ "$delete_label_status" -ne 0 ]; then
+          case "$delete_label_output" in
+            *403*|*Forbidden*) posting_notice ;;
+            *404*|*Not\ Found*) ;;
+            *) mark_operation_failure "$delete_label_status" ;;
+          esac
+        fi
+      fi
+      if [ "${breaking:-0}" -gt 0 ] 2>/dev/null; then
+        jq -n '{labels:["breaking-change"]}' > "$label_payload"
+        label_status=0
+        label_output="$(GH_TOKEN="$github_token" gh api -X POST "repos/$repo/issues/$pr_number/labels" --input "$label_payload" 2>&1)" || label_status=$?
+        if [ "$label_status" -ne 0 ]; then
+          case "$label_output" in *403*|*Forbidden*) posting_notice ;; *) mark_operation_failure "$label_status" ;; esac
+        fi
+      else
+        delete_label_status=0
+        delete_label_output="$(GH_TOKEN="$github_token" gh api -X DELETE "repos/$repo/issues/$pr_number/labels/breaking-change" 2>&1)" || delete_label_status=$?
+        if [ "$delete_label_status" -ne 0 ]; then
+          case "$delete_label_output" in
+            *403*|*Forbidden*) posting_notice ;;
+            *404*|*Not\ Found*) ;;
+            *) mark_operation_failure "$delete_label_status" ;;
+          esac
+        fi
+      fi
+    fi
+  fi
+
+  if [ "$operation_failure" -ne 0 ]; then exit "$operation_failure"; fi
+  if [ "$presentation_failure" -ne 0 ]; then exit "$presentation_failure"; fi
+  exit "$review_status"
+fi
 
 case "$trust_policy" in
   warn|redact|strict) ;;
   *) echo "Unsupported aidoc trust-policy input" >&2; exit 2 ;;
-esac
-
-export AIDOC_TRUST_POLICY="$trust_policy"
-export AIDOC_ORIGIN="action"
-
-case "$mode" in
-  generate|check) ;;
-  *) echo "Unsupported aidoc Action mode input" >&2; exit 2 ;;
 esac
 
 case "$dry_run" in
@@ -52,6 +283,8 @@ fi
 
 export AIDOC_PROVIDER="$provider"
 export AIDOC_MODEL="$model"
+export AIDOC_TRUST_POLICY="$trust_policy"
+export AIDOC_ORIGIN="action"
 
 changed="false"
 changed_files=()

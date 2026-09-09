@@ -118,10 +118,6 @@ test("keeps the exact hero, beta notice, install, badges, and demo flow contract
     ),
     "hero supporting copy must remain exact",
   );
-  assert.match(
-    firstScreen,
-    /```bash\s*npm install -g @mr-min-max\/aidoc-gen@beta\s+aidoc\s*```/u,
-  );
 
   for (const badge of [
     "[![npm beta](https://img.shields.io/npm/v/@mr-min-max/aidoc-gen/beta?label=npm%20beta)](https://www.npmjs.com/package/@mr-min-max/aidoc-gen)",

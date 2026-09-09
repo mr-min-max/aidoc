@@ -12,6 +12,11 @@ All notable changes to this project are documented in this file.
 
 - Parser: enumerate arrow-function, function-expression, default, aliased, and constant exports. New impact symbol kind `variable`.
 - Removed historical planning records from the public tree; Git history retains them.
+- Add `aidoc review` with deterministic JSON, Markdown, and text reports, before/after signatures, stale and breaking verdicts, and opt-in failure thresholds.
+- Add Action review mode as the default, with pull request comments, token-owned sticky updates, optional `docs-stale` and `breaking-change` labels, fork read-only fallback, and local source installation for dogfooding. Generate and check modes remain available.
+- Add `.aidocignore` suppressions and the additive `plan.ignored.suppressed` count.
+- Review mode reports only the drift this pull request introduces; pre-existing stale documentation is not reported.
+- Add the false-positive issue form and `aidoc-check` pre-commit hook.
 
 ## [0.2.0-beta.6] - 2026-08-16
 

@@ -1,0 +1,50 @@
+name: False positive
+description: Report a review finding that is incorrect
+title: "[False positive]: "
+labels: ["false-positive", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the deterministic review. Please include the exact finding and enough context to reproduce it.
+  - type: textarea
+    id: review-comment
+    attributes:
+      label: Review comment text
+      description: Paste the complete AiDoc review comment.
+      render: markdown
+    validations:
+      required: true
+  - type: input
+    id: changed-symbol
+    attributes:
+      label: Changed symbol
+      description: The qualified symbol named by the review.
+      placeholder: "UserService.create"
+    validations:
+      required: true
+  - type: input
+    id: documentation-section
+    attributes:
+      label: Documentation section flagged
+      description: Include the documentation path and section heading.
+      placeholder: "README.md > API"
+    validations:
+      required: true
+  - type: textarea
+    id: why-wrong
+    attributes:
+      label: Why is this flag wrong?
+      description: Explain what the review should have recognized.
+    validations:
+      required: true
+  - type: dropdown
+    id: suppression-tried
+    attributes:
+      label: Was .aidocignore tried?
+      options:
+        - "Yes"
+        - "No"
+        - "Not applicable"
+    validations:
+      required: true

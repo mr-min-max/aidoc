@@ -1,4 +1,4 @@
-import { lstat, open } from "node:fs/promises";
+import { RepositoryWriteScope } from "../security/repository-writer";
 
 export interface SuppressionConfig {
   readonly symbols: readonly string[];
@@ -46,22 +46,13 @@ export function parseSuppressions(content: string): SuppressionConfig {
 
 /** Reads the optional root .aidocignore without exposing filesystem failures. */
 export async function loadSuppressions(root: string): Promise<SuppressionConfig> {
-  const path = `${root}/.aidocignore`;
   try {
-    const initial = await lstat(path);
-    if (!initial.isFile() || initial.isSymbolicLink() || initial.size > 256 * 1024) {
+    const scope = await RepositoryWriteScope.open(root);
+    const target = await scope.prepare(".aidocignore");
+    if (target.existingText === null || target.existingText.length > 256 * 1024) {
       return EMPTY_SUPPRESSIONS;
     }
-    const file = await open(path, "r");
-    try {
-      const stat = await file.stat();
-      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 256 * 1024) {
-        return EMPTY_SUPPRESSIONS;
-      }
-      return parseSuppressions(await file.readFile("utf8"));
-    } finally {
-      await file.close();
-    }
+    return parseSuppressions(target.existingText);
   } catch {
     return EMPTY_SUPPRESSIONS;
   }
@@ -85,7 +76,7 @@ function isSymbolPattern(value: string): boolean {
     value.length === 0 ||
     value.includes("/") ||
     value.includes("\\") ||
-    /[?\[\]{}()!+@]/u.test(value)
+    /[?{}()!+@]|\[|\]/u.test(value)
   ) {
     return false;
   }
@@ -106,7 +97,7 @@ function isSafePattern(value: string): boolean {
     !value.startsWith("/") &&
     !value.includes("\\") &&
     !value.includes("\0") &&
-    !/[?\[\]{}()!+@]/u.test(value) &&
+    !/[?{}()!+@]|\[|\]/u.test(value) &&
     !value.split("/").some((part) => part === "..")
   );
 }
