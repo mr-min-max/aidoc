@@ -3,6 +3,12 @@ import { promises as fs, type BigIntStats } from "node:fs";
 import { isAbsolute, posix, resolve, relative, sep } from "node:path";
 import { promisify } from "node:util";
 import {
+  loadSuppressions,
+  matchingSuppression,
+  type SuppressionConfig,
+  type SuppressedChange,
+} from "../config/suppressions";
+import {
   loadPlanningConfig,
   parseContextBudget,
   parsePlanningConfig,
@@ -34,6 +40,7 @@ export interface ImpactPlanOptions {
   head?: string;
   maxContextBytes?: unknown;
   readonly planningConfig?: Readonly<PlanningConfig>;
+  readonly suppressions?: Readonly<SuppressionConfig>;
 }
 
 interface ValidatedExistingPath {
@@ -163,21 +170,50 @@ export async function createImpactPlan(
   const parsed = await snapshotChangedSources(sourceFiles).finally(() => {
     sourceFiles.length = 0;
   });
-  const changes = compareSnapshots(parsed);
+  const allChanges = compareSnapshots(parsed);
+  const suppressions = options.suppressions ?? (await loadSuppressions(root));
+  const suppressed: SuppressedChange[] = [];
+  const changes = allChanges.filter((change) => {
+    const symbolPattern =
+      change.qualifiedName === undefined
+        ? undefined
+        : matchingSuppression(change.qualifiedName, suppressions.symbols);
+    const sourcePattern = matchingSuppression(
+      change.path,
+      suppressions.sourcePaths,
+    );
+    const pattern = symbolPattern ?? sourcePattern;
+    if (pattern === undefined) return true;
+    suppressed.push({
+      symbol: change.qualifiedName ?? change.path,
+      reason: pattern,
+    });
+    return false;
+  });
   const documentationFiles = await loadDocumentationFiles(
     root,
     config.outputDir,
     config.exclude,
   );
-  const documentation = mapDocumentationImpact(changes, documentationFiles);
+  const filteredDocumentationFiles = documentationFiles.filter(
+    (file) => matchingSuppression(file.path, suppressions.docPaths) === undefined,
+  );
+  const documentation = mapDocumentationImpact(
+    changes,
+    filteredDocumentationFiles,
+  );
   const summary = summarizeImpact(changes, documentation);
+  const planIgnored = {
+    ...ignored,
+    suppressed: suppressed.length,
+  };
   const digest = digestImpactPayload({
     base,
     head,
     summary,
     changes,
     documentation,
-    ignored,
+    ignored: planIgnored,
   });
   const context = buildImpactContext({
     impactDigest: digest,
@@ -194,10 +230,10 @@ export async function createImpactPlan(
     changes,
     documentation,
     context: context.report,
-    ignored,
+    ignored: planIgnored,
     digest,
   };
-  return { plan, providerContext: context.providerContext };
+  return { plan, providerContext: context.providerContext, suppressed };
 }
 
 async function snapshotChangedSources(files: SnapshotFileChange[]): Promise<

@@ -57,7 +57,7 @@ function plan(overrides: Partial<ImpactPlan> = {}): ImpactPlan {
       omittedRecords: 0,
       impactDigest: "b".repeat(64),
     },
-    ignored: { unsupported: 0, excluded: 0 },
+    ignored: { unsupported: 0, excluded: 0, suppressed: 0 },
     digest: "c".repeat(64),
     ...overrides,
   };
@@ -87,6 +87,19 @@ describe("impact-plan output", () => {
     expect(output).not.toContain("Head:");
     expect(output).toContain("Targets:\n  CHANGELOG.md\n  docs/API.md");
     expect(output).toMatch(/Next: aidoc update$/);
+  });
+
+  it("prints suppression detail only when changes were suppressed", () => {
+    expect(formatImpactPlan(plan())).not.toContain(
+      "changes suppressed by .aidocignore",
+    );
+    expect(
+      formatImpactPlan(
+        plan({
+          ignored: { unsupported: 0, excluded: 0, suppressed: 2 },
+        }),
+      ),
+    ).toContain("2 changes suppressed by .aidocignore");
   });
 
   // Break caught: a working-tree descriptor displays its anchor label as though

@@ -109,7 +109,7 @@ export interface ImpactPlan {
   changes: SymbolChange[];
   documentation: DocumentationImpact[];
   context: ContextBudgetReport;
-  ignored: { unsupported: number; excluded: number };
+  ignored: { unsupported: number; excluded: number; suppressed: number };
   digest: string;
 }
 
@@ -181,6 +181,7 @@ export type PlanCommandResult =
 export interface ImpactPlanningResult {
   plan: ImpactPlan;
   providerContext: ImpactProviderContext;
+  suppressed: { symbol: string; reason?: string }[];
 }
 
 export interface ParserModuleSnapshot {

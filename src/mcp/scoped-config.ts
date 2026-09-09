@@ -8,6 +8,11 @@ import {
   type AuthorizedMCPFile,
 } from "./repository-scope";
 import {
+  EMPTY_SUPPRESSIONS,
+  parseSuppressions,
+  type SuppressionConfig,
+} from "../config/suppressions";
+import {
   defaultPlanningConfig,
   parsePlanningConfig,
   type PlanningConfig,
@@ -489,6 +494,22 @@ export class MCPScopedConfigLoader {
     } catch (error) {
       if (MCPUnsafeConfigurationError.read(error) !== undefined) throw error;
       throw unsafeConfiguration();
+    }
+  }
+
+  /** Reads the optional root .aidocignore through the pinned repository scope. */
+  async loadSuppressions(): Promise<SuppressionConfig> {
+    try {
+      const file = await this.#scope.readOptionalFile(
+        this.#scope.rootDirectory(),
+        ".aidocignore",
+        { maxBytes: CONFIG_MAX_BYTES },
+      );
+      return file.content === null
+        ? EMPTY_SUPPRESSIONS
+        : parseSuppressions(file.content);
+    } catch {
+      return EMPTY_SUPPRESSIONS;
     }
   }
 

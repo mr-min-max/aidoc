@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { posix as pathPosix } from "node:path";
-import { type PlanningConfig } from "../config/planning";
+import type { SuppressionConfig } from "../config/suppressions";
+import type { PlanningConfig } from "../config/planning";
 import { createImpactPlan } from "../impact/planner";
 import {
   projectProviderContextForTarget,
@@ -55,6 +56,7 @@ export interface MCPUpdateWorkflowContext {
   readonly tokenCodec: PreparationTokenCodec;
   readonly trustPolicy: TrustPolicy;
   readonly loadPlanningConfig: () => Promise<Readonly<PlanningConfig>>;
+  readonly loadSuppressions?: () => Promise<SuppressionConfig>;
 }
 
 export interface PrepareDocumentationUpdateArguments {
@@ -96,8 +98,9 @@ export function createMCPUpdateWorkflowContext(
   trustPolicy = environmentTrustPolicy(),
   loadPlanningConfig: () => Promise<Readonly<PlanningConfig>> = () =>
     loadPlanningConfigForFreshScope(serverCwd),
+  loadSuppressions?: () => Promise<SuppressionConfig>,
 ): MCPUpdateWorkflowContext {
-  return { serverCwd, tokenCodec, trustPolicy, loadPlanningConfig };
+  return { serverCwd, tokenCodec, trustPolicy, loadPlanningConfig, loadSuppressions };
 }
 
 /** Provides the bounded direct-call compatibility context for a server directory. */
@@ -142,6 +145,10 @@ export async function prepareDocumentationUpdate(
     head: options.head,
     maxContextBytes: options.max_context_bytes,
     planningConfig,
+    suppressions:
+      context.loadSuppressions === undefined
+        ? undefined
+        : await context.loadSuppressions(),
   });
   const scope = await RepositoryWriteScope.open(context.serverCwd);
   const targets = await resolveDocumentationTargets({
@@ -227,6 +234,10 @@ export async function validateDocumentationDraft(
     head: claims.head,
     maxContextBytes: claims.maxContextBytes,
     planningConfig,
+    suppressions:
+      context.loadSuppressions === undefined
+        ? undefined
+        : await context.loadSuppressions(),
   });
   if (planning.plan.digest !== claims.planDigest) throw invalidPreparation();
 

@@ -10,8 +10,8 @@ import {
 import { discoverReadme, createImpactPlan } from "../impact/planner";
 import { toPlanError } from "../impact/canonical";
 import type { PlanningConfig } from "../config/planning";
+import type { SuppressionConfig } from "../config/suppressions";
 import { MCPRepositoryScopeError } from "./repository-scope";
-
 /** Checks documentation freshness through the authorized scope and shared plan. */
 export async function checkMCPDocumentationFreshness(input: {
   readonly scope: MCPRepositoryReadScope;
@@ -20,6 +20,7 @@ export async function checkMCPDocumentationFreshness(input: {
   readonly docFile: unknown;
   readonly since: unknown;
   readonly planningConfig: Readonly<PlanningConfig>;
+  readonly loadSuppressions?: () => Promise<SuppressionConfig>;
 }): Promise<FreshnessReport> {
   let targetPath = input.docFile;
   if (targetPath === undefined) {
@@ -41,6 +42,10 @@ export async function checkMCPDocumentationFreshness(input: {
       cwd: input.serverCwd,
       base: since,
       planningConfig: input.planningConfig,
+      suppressions:
+        input.loadSuppressions === undefined
+          ? undefined
+          : await input.loadSuppressions(),
     });
     const changedFiles = await input.scope.changedFiles(
       input.scope.rootDirectory(),

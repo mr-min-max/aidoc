@@ -433,7 +433,7 @@ describe("impact snapshot comparison", () => {
       summary,
       changes,
       documentation: [],
-      ignored: { unsupported: 2, excluded: 3 },
+      ignored: { unsupported: 2, excluded: 3, suppressed: 0 },
     };
     const first = digestImpactPayload(input);
     const second = digestImpactPayload({

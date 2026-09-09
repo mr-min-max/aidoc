@@ -57,9 +57,10 @@ export function formatImpactPlan(
     }
   }
 
-  lines.push(
-    `Context: ${plan.context.usedBytes} / ${plan.context.maxBytes} bytes`,
-  );
+  lines.push(`Context: ${plan.context.usedBytes} / ${plan.context.maxBytes} bytes`);
+  if (plan.ignored.suppressed > 0) {
+    lines.push(`${plan.ignored.suppressed} changes suppressed by .aidocignore`);
+  }
   if (verbose) {
     for (const change of plan.changes) {
       if (change.before === undefined && change.after === undefined) continue;

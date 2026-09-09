@@ -77,7 +77,7 @@ function updatePlanningResult(): ImpactPlanningResult {
         omittedRecords: 0,
         impactDigest,
       },
-      ignored: { unsupported: 0, excluded: 0 },
+      ignored: { unsupported: 0, excluded: 0, suppressed: 0 },
       digest: impactDigest,
     },
     providerContext: {
@@ -98,6 +98,7 @@ function updatePlanningResult(): ImpactPlanningResult {
       documentation,
       omittedRecords: 0,
     },
+    suppressed: [],
   };
 }
 

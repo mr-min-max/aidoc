@@ -117,10 +117,10 @@ function planningResult(impact: boolean): ImpactPlanningResult {
       omittedRecords: 0,
       impactDigest: providerContext.impactDigest,
     },
-    ignored: { unsupported: 0, excluded: 0 },
+    ignored: { unsupported: 0, excluded: 0, suppressed: 0 },
     digest: providerContext.impactDigest,
   };
-  return { plan, providerContext };
+  return { plan, providerContext, suppressed: [] };
 }
 
 describe("default aidoc entry", () => {
