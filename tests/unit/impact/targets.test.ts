@@ -95,7 +95,7 @@ function plan(
       omittedRecords: 0,
       impactDigest: "b".repeat(64),
     },
-    ignored: { unsupported: 0, excluded: 0 },
+    ignored: { unsupported: 0, excluded: 0, suppressed: 0 },
     digest: "c".repeat(64),
   };
 }

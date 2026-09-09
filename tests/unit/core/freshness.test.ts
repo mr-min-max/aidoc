@@ -60,7 +60,7 @@ function planFor(changes: SymbolChange[], documentation: ImpactPlan["documentati
       omittedRecords: 0,
       impactDigest: "b".repeat(64),
     },
-    ignored: { unsupported: 0, excluded: 0 },
+    ignored: { unsupported: 0, excluded: 0, suppressed: 0 },
     digest: "c".repeat(64),
   };
 }
@@ -85,6 +85,7 @@ describe("checkDocumentationFreshness integration boundaries", () => {
       jest.spyOn(planner, "createImpactPlan").mockResolvedValue({
         plan,
         providerContext: {} as never,
+        suppressed: [],
       });
       jest.spyOn(planner, "discoverReadme").mockResolvedValue("README.md");
       fs.writeFileSync(path.join(root, "README.md"), "# Demo\n\n## API\n\n`createUser`.\n");
@@ -110,6 +111,7 @@ describe("checkDocumentationFreshness integration boundaries", () => {
       jest.spyOn(planner, "createImpactPlan").mockResolvedValue({
         plan,
         providerContext: {} as never,
+        suppressed: [],
       });
       jest.spyOn(planner, "discoverReadme").mockResolvedValue("README.md");
 

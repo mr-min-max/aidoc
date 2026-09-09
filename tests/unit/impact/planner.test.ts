@@ -764,4 +764,56 @@ describe("createImpactPlan", () => {
       expect.objectContaining({ type: "git", commit: head }),
     );
   });
+  test("applies symbol, source-path, and independently observable doc suppressions", async () => {
+    const root = repository();
+    mkdirSync(join(root, "src"));
+    mkdirSync(join(root, "src", "internal"));
+    mkdirSync(join(root, "docs"));
+    mkdirSync(join(root, "docs", "legacy"));
+    writeFileSync(
+      join(root, "src", "user.ts"),
+      "export function createUser(email: string) { return email; }\nexport function visible(value: string) { return value; }\n",
+    );
+    writeFileSync(
+      join(root, "src", "internal", "helper.ts"),
+      "export function hidden(value: string) { return value; }\n",
+    );
+    writeFileSync(join(root, "README.md"), "# API\n\n`visible`\n");
+    writeFileSync(
+      join(root, "docs", "legacy", "guide.md"),
+      "# Legacy\n\n`visible`\n",
+    );
+    commit(root, "initial");
+    writeFileSync(
+      join(root, "src", "user.ts"),
+      "export function createUser(email: number) { return email; }\nexport function visible(value: number) { return value; }\n",
+    );
+    writeFileSync(
+      join(root, "src", "internal", "helper.ts"),
+      "export function hidden(value: number) { return value; }\n",
+    );
+    writeFileSync(
+      join(root, ".aidocignore"),
+      "createUser\nsrc/internal/**\ndocs/legacy/**.md\n",
+    );
+    const result = await createImpactPlan({ cwd: root });
+
+    expect(result.plan.changes.map((change) => change.qualifiedName)).toEqual([
+      "visible",
+    ]);
+    expect(result.plan.documentation).toHaveLength(1);
+    expect(result.plan.documentation[0]?.directReferences).toEqual([
+      expect.objectContaining({ file: "README.md", section: "API" }),
+    ]);
+    expect(result.plan.documentation[0]?.directReferences).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ file: "docs/legacy/guide.md" }),
+      ]),
+    );
+    expect(result.plan.ignored.suppressed).toBe(2);
+    expect(result.suppressed).toEqual([
+      { symbol: "hidden", reason: "src/internal/**" },
+      { symbol: "createUser", reason: "createUser" },
+    ]);
+  });
 });

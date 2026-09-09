@@ -127,6 +127,7 @@ describe("MCP impact planning", () => {
       .mockResolvedValue({
         plan,
         providerContext: {} as ImpactProviderContext,
+        suppressed: [],
       });
 
     const result = await handleToolCall(
@@ -152,6 +153,7 @@ describe("MCP impact planning", () => {
         outputDir: expect.any(String),
         maxContextBytes: expect.any(Number),
       }),
+      suppressions: { symbols: [], sourcePaths: [], docPaths: [] },
     });
   });
 
@@ -173,6 +175,7 @@ describe("MCP impact planning", () => {
       .mockResolvedValue({
         plan,
         providerContext: {} as ImpactProviderContext,
+        suppressed: [],
       });
 
     const result = await handleToolCall(
@@ -205,7 +208,35 @@ describe("MCP impact planning", () => {
         outputDir: expect.any(String),
         maxContextBytes: expect.any(Number),
       }),
+      suppressions: { symbols: [], sourcePaths: [], docPaths: [] },
     });
+  });
+
+  it("reads and applies root .aidocignore through the pinned MCP scope", async () => {
+    const fixture = immutableRepository();
+    roots.push(fixture.root, fixture.outside);
+    writeFileSync(join(fixture.root, ".aidocignore"), "greet\n");
+    writeFileSync(join(fixture.outside, ".aidocignore"), "Other.*\n");
+    const context = await createMCPServerContext(
+      fixture.root,
+      Object.create(null),
+    );
+    const readOptionalFile = jest.spyOn(context.scope, "readOptionalFile");
+
+    const result = (await handleToolCall(
+      "plan_documentation_impact",
+      { base: fixture.base, head: fixture.head },
+      context,
+    )) as ImpactPlan;
+
+    expect(result.changes).toEqual([]);
+    expect(result.documentation).toEqual([]);
+    expect(result.ignored.suppressed).toBe(1);
+    expect(readOptionalFile).toHaveBeenCalledWith(
+      context.scope.rootDirectory(),
+      ".aidocignore",
+      { maxBytes: 256 * 1024 },
+    );
   });
 
   it("reuses the context-owned scope and loader across provider-free calls", async () => {

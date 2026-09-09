@@ -10,6 +10,7 @@ import { scoreCommand } from "./commands/score";
 import { watchCommand } from "./commands/watch";
 import { checkCommand } from "./commands/check";
 import { planCommand } from "./commands/plan";
+import { reviewCommand } from "./commands/review";
 import { executeDefaultCommand } from "./commands/default";
 import { setLogLevel } from "../core/logger";
 import { readPackageVersion } from "../core/package-meta";
@@ -52,6 +53,7 @@ program.addCommand(scoreCommand);
 program.addCommand(watchCommand);
 program.addCommand(checkCommand);
 program.addCommand(planCommand);
+program.addCommand(reviewCommand);
 
 // Handle --mcp flag before parsing commands
 const args = process.argv.slice(2);

@@ -212,7 +212,7 @@ export function digestImpactPayload(input: {
   summary: ImpactSummary;
   changes: SymbolChange[];
   documentation: DocumentationImpact[];
-  ignored: { unsupported: number; excluded: number };
+  ignored: { unsupported: number; excluded: number; suppressed: number };
 }): string {
   return sha256Hex(
     canonicalStringify({

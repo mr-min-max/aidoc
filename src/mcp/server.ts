@@ -632,6 +632,7 @@ export async function createMCPServerContext(
     undefined,
     trustPolicyFromEnvironment(hostEnvironment),
     () => configLoader.loadPlanning(scope.rootDirectory()),
+    () => configLoader.loadSuppressions(),
   );
   return Object.freeze({
     serverCwd,
@@ -1051,6 +1052,7 @@ export async function handleToolCall(
         planningConfig: await context.configLoader.loadPlanning(
           context.scope.rootDirectory(),
         ),
+        loadSuppressions: () => context.configLoader.loadSuppressions(),
       });
       return {
         ...report,
@@ -1076,6 +1078,7 @@ export async function handleToolCall(
         head: options.head,
         maxContextBytes: options.maxContextBytes,
         planningConfig,
+        suppressions: await context.configLoader.loadSuppressions(),
       });
       return result.plan;
     }
