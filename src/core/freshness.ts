@@ -102,7 +102,7 @@ export function assessDocumentationFreshness(input: {
     );
 
   if (!input.targetExists) {
-    return makeReport({
+    return {
       status: "missing",
       target,
       targetChanged,
@@ -111,11 +111,11 @@ export function assessDocumentationFreshness(input: {
       unmappedSymbols: unmapped,
       sourceFiles,
       message: `Documentation target is missing: ${target}`,
-    });
+    };
   }
 
   if (referenced.length === 0) {
-    return makeReport({
+    return {
       status: "clean",
       target,
       targetChanged,
@@ -124,11 +124,11 @@ export function assessDocumentationFreshness(input: {
       unmappedSymbols: unmapped,
       sourceFiles,
       message: `No changed public symbol is mentioned in ${target}`,
-    });
+    };
   }
 
   if (!targetChanged) {
-    return makeReport({
+    return {
       status: "stale",
       target,
       targetChanged,
@@ -139,10 +139,10 @@ export function assessDocumentationFreshness(input: {
       message: `${target}: ${sections.length} sections mention changed public symbols and were not updated (${sections
         .map((section) => `${section.section}: ${section.symbols.join(", ")}`)
         .join("; ")})`,
-    });
+    };
   }
 
-  return makeReport({
+  return {
     status: "co-changed",
     target,
     targetChanged,
@@ -151,7 +151,7 @@ export function assessDocumentationFreshness(input: {
     unmappedSymbols: unmapped,
     sourceFiles,
     message: `${target} changed with the ${referenced.length} public symbol${referenced.length === 1 ? "" : "s"} it mentions; content correctness was not verified`,
-  });
+  };
 }
 
 /** Runs plan-backed freshness and sanitizes operational failures. */
@@ -185,7 +185,7 @@ export async function checkDocumentationFreshness(
     });
   } catch (error: unknown) {
     const planError = toPlanError(error);
-    return makeReport({
+    return {
       status: "unknown",
       target: normalizeDocPath(target ?? "README.md"),
       targetChanged: false,
@@ -194,13 +194,10 @@ export async function checkDocumentationFreshness(
       unmappedSymbols: [],
       sourceFiles: [],
       message: `Could not evaluate documentation freshness: ${planError.message}`,
-    });
+    };
   }
 }
 
-function makeReport(report: FreshnessReport): FreshnessReport {
-  return report;
-}
 
 function compareStrings(left: string, right: string): number {
   if (left === right) return 0;
