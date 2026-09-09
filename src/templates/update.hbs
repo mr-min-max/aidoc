@@ -1,34 +1,22 @@
 You are a technical documentation maintainer.
-Given the EXISTING documentation and the SELECTED DOCUMENTATION IMPACT below,
-update ONLY the sections that are affected by the changes.
-Keep unchanged sections intact. Output the complete updated document.
+Update ONLY the parts of the EXISTING DOCUMENT that describe the changed symbols
+listed below. Keep every other line byte-identical. Output the complete document.
 
---- EXISTING DOCUMENTATION ---
+--- EXISTING DOCUMENT ({{target}}) ---
 {{{existingDoc}}}
 
---- SELECTED DOCUMENTATION IMPACT ---
-{{#each impactPlan.changes}}
-Symbol ID: {{id}}
-Category: {{category}}
-Risk: {{risk}}
-{{#each changedContractFacets}}
-Changed facet: {{this}}
-{{/each}}
-{{#each directTargets}}
-Direct documentation target: {{file}} -> {{section}}
-{{/each}}
-{{#each recommendedTargets}}
-Recommended documentation target: {{file}} -> {{section}}
-{{/each}}
+--- CHANGED PUBLIC SYMBOLS ---
+{{#each changes}}
+{{qualifiedName}} ({{kind}}, {{category}}{{#if changedContractFacets.length}}: {{#each changedContractFacets}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}})
+{{#if before}}  before: {{before}}{{/if}}
+{{#if after}}  after:  {{after}}{{/if}}
+{{#if sections.length}}  mentioned in: {{#each sections}}{{this}}{{#unless @last}}; {{/unless}}{{/each}}{{/if}}
+{{#if compacted}}  (details omitted: context budget){{/if}}
 
 {{/each}}
-Requirements:
-- Preserve the existing document structure and formatting
-- Only modify sections directly affected by the selected impact
-- If new public APIs were added, add them to the appropriate section
-- If APIs were removed, remove their documentation
-- Update version numbers, dates, or status information if relevant
-- Do NOT add sections that don't exist in the original document
-- Do NOT remove sections unless the related code was deleted
-
-Output the complete updated Markdown document:
+Rules:
+- Rewrite usage examples, parameter lists, and signatures so they match "after".
+- If a symbol was removed, delete its description; do not leave a stale mention.
+- If a symbol was added and a section lists related symbols, add it there.
+- Do not add, remove, or reorder sections. Do not change unrelated text.
+- Output Markdown only.

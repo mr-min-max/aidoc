@@ -118,6 +118,7 @@ export class Generator {
     const envelope = renderUpdateGenerationEnvelope({
       templatesDir: this.templatesDir,
       existingDoc: context.existingDoc,
+      target: context.target,
       impactPlan: context.impactPlan,
     });
     return this.gateway.generate(envelope, { temperature: 0.2 });
@@ -159,7 +160,10 @@ export class Generator {
         throw new Error(`Template not found: ${templatePath}`);
       }
       const source = fs.readFileSync(templatePath, "utf8");
-      this.templateCache.set(name, Handlebars.compile(source));
+      this.templateCache.set(
+        name,
+        Handlebars.compile(source, { noEscape: true }),
+      );
     }
     return this.templateCache.get(name)!(context);
   }

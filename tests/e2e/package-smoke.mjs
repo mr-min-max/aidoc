@@ -240,7 +240,10 @@ try {
   assert.equal(planOutput.includes(rawSentinel), false);
 
   const demo = await runImpactDemo({ cliPath: packedCli, quiet: true });
-  assert.match(demo.human, /^Documentation impact: 2 public API changes/u);
+  assert.match(
+    demo.human,
+    /^Documentation impact: 1 public API change \(1 informational\)/u,
+  );
   assert.match(demo.human, /Context: \d+ \/ 12000 bytes/u);
   assert.match(demo.human, /Next: aidoc update/u);
   assert.equal(

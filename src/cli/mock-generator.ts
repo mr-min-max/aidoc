@@ -125,9 +125,19 @@ export class MockGenerator {
 
   /** Appends a deterministic update note for selected impact records. */
   async generateUpdate(ctx: UpdateContext): Promise<string> {
+    const deltas = ctx.impactPlan.changes.flatMap((change) => {
+      const before = "before" in change ? change.before : undefined;
+      const after = "after" in change ? change.after : undefined;
+      if (before === undefined && after === undefined) return [];
+      const name =
+        "qualifiedName" in change && change.qualifiedName
+          ? change.qualifiedName
+          : change.id;
+      return [`- ${name}: ${before ?? "(none)"} -> ${after ?? "(none)"}`];
+    });
     return (
       ctx.existingDoc +
-      `\n\n> 📅 Last updated: ${new Date().toISOString().split("T")[0]} (${ctx.impactPlan.changes.length} impact records)\n`
+      (deltas.length === 0 ? "" : `\n\n${deltas.join("\n")}\n`)
     );
   }
 }

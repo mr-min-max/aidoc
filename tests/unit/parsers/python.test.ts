@@ -161,14 +161,14 @@ class Service:
 
     try {
       await expect(
-        new PythonParser(runner).parseSource(
-          "src/broken.py",
-          "def broken(:\n",
-        ),
+        new PythonParser(runner).parseSource("src/broken.py", "def broken(:\n"),
       ).rejects.toThrow(
         "Failed to parse Python source (local python3 is 3.9; the project may need a newer interpreter; set AIDOC_PYTHON to choose one).",
       );
-      expect(calls.map(({ command }) => command)).toEqual(["python3", "python3"]);
+      expect(calls.map(({ command }) => command)).toEqual([
+        "python3",
+        "python3",
+      ]);
     } finally {
       if (original === undefined) delete process.env.AIDOC_PYTHON;
       else process.env.AIDOC_PYTHON = original;
@@ -285,8 +285,21 @@ def request(value: str = "secret-default") -> int:
         },
       ],
     });
-    expect(JSON.stringify(snapshot)).not.toContain("secret-default");
+    expect(snapshot.symbols[0].signature).toBe(
+      "def request(value: str='secret-default') -> int",
+    );
+    expect(snapshot.symbols[0].arity).toEqual({ required: 0, total: 1 });
     expect(JSON.stringify(snapshot)).not.toContain("secret docs");
+    const repeated = await parser.snapshot(
+      "src/client.py",
+      `def request(value: str = "secret-default") -> int:
+    """secret docs"""
+    return len(value) + 1
+`,
+    );
+    expect(repeated.symbols[0].documentationFingerprint).toBe(
+      snapshot.symbols[0].documentationFingerprint,
+    );
   });
 
   // Break caught: source positions, comments, or whitespace participate in fingerprints.
@@ -448,10 +461,8 @@ def \u{10400}():
     expect(returnChanged.symbols[0].contractFacets.parameters).toBe(
       baseline.symbols[0].contractFacets.parameters,
     );
-    for (const sourceValue of ["first-default", "second-default"]) {
-      expect(JSON.stringify(baseline)).not.toContain(sourceValue);
-      expect(JSON.stringify(defaultChanged)).not.toContain(sourceValue);
-    }
+    expect(baseline.symbols[0].signature).toContain("first-default");
+    expect(defaultChanged.symbols[0].signature).toContain("second-default");
   });
 
   // Break caught: executable body mutations are mistaken for contract changes.
@@ -589,7 +600,42 @@ class Service:
       { kind: "function", qualifiedName: "convert" },
       { kind: "method", qualifiedName: "Service.run" },
     ]);
-    expect(reordered).toEqual(first);
+    expect(
+      reordered.symbols.map(({ kind, qualifiedName }) => ({
+        kind,
+        qualifiedName,
+      })),
+    ).toEqual(
+      first.symbols.map(({ kind, qualifiedName }) => ({ kind, qualifiedName })),
+    );
+    for (const kind of ["function", "method"] as const) {
+      expect(
+        first.symbols.find((symbol) => symbol.kind === kind)?.signature,
+      ).toBe(
+        kind === "function"
+          ? "def convert(value: str) -> str | def convert(value: int) -> int"
+          : "def run(value: str) -> str | def run(value: int) -> int",
+      );
+      expect(
+        reordered.symbols.find((symbol) => symbol.kind === kind)?.signature,
+      ).toBe(
+        kind === "function"
+          ? "def convert(value: int) -> int | def convert(value: str) -> str"
+          : "def run(value: int) -> int | def run(value: str) -> str",
+      );
+    }
+    for (const kind of ["class", "function", "method"] as const) {
+      const original = first.symbols.find((symbol) => symbol.kind === kind);
+      const swapped = reordered.symbols.find((symbol) => symbol.kind === kind);
+      expect(swapped?.contractFacets).toEqual(original?.contractFacets);
+      expect(swapped?.contractFingerprint).toBe(original?.contractFingerprint);
+      expect(swapped?.implementationFingerprint).toBe(
+        original?.implementationFingerprint,
+      );
+      expect(swapped?.documentationFingerprint).toBe(
+        original?.documentationFingerprint,
+      );
+    }
     const originalFunction = first.symbols.find(
       ({ kind }) => kind === "function",
     );
@@ -907,13 +953,8 @@ class Service:
     expect(changedClass?.documentationFingerprint).toBe(
       originalClass?.documentationFingerprint,
     );
-    for (const sourceValue of [
-      "getter-contract-secret",
-      "setter-contract-secret",
-    ]) {
-      expect(JSON.stringify(first)).not.toContain(sourceValue);
-      expect(JSON.stringify(swapped)).not.toContain(sourceValue);
-    }
+    expect(originalMethod?.signature).toContain("getter-contract-secret");
+    expect(changedMethod?.signature).toContain("setter-contract-secret");
   });
 
   // Break caught: property accessor aggregation takes precedence over overload declarations.
@@ -981,13 +1022,8 @@ class Service:
     expect(changedClass?.documentationFingerprint).toBe(
       originalClass?.documentationFingerprint,
     );
-    for (const sourceValue of [
-      "overload-int-secret",
-      "overload-bytes-secret",
-    ]) {
-      expect(JSON.stringify(first)).not.toContain(sourceValue);
-      expect(JSON.stringify(changed)).not.toContain(sourceValue);
-    }
+    expect(originalMethod?.signature).toContain("overload-int-secret");
+    expect(changedMethod?.signature).toContain("overload-bytes-secret");
   });
 
   // Break caught: a shadowed earlier method still contributes to its owning class fingerprints.
@@ -1183,6 +1219,14 @@ class Service:
     expect(JSON.stringify(snapshot)).not.toContain(
       "method documentation sentinel",
     );
+    expect(snapshot.symbols[0]).toMatchObject({
+      signature: "class Service",
+    });
+    expect(snapshot.symbols[0]).not.toHaveProperty("arity");
+    expect(snapshot.symbols[1]).toMatchObject({
+      signature: "def request(value: str) -> int",
+      arity: { required: 1, total: 1 },
+    });
   });
 
   // Break caught: a static method parameter named self is mistaken for a bound receiver.
@@ -1254,6 +1298,55 @@ class Service:
     expect(renamedClass?.contractFacets.members).toBe(
       firstClass?.contractFacets.members,
     );
+  });
+
+  it("renders async, positional-only, keyword-only, variadic, and class signatures", async () => {
+    const snapshot = await parser.snapshot(
+      "src/signatures.py",
+      `async def request(value: int, /, label: str = "x", *args, trace: bool, **kwargs) -> str:
+    return label
+
+class Service(Base, Protocol):
+    pass
+`,
+    );
+    const request = snapshot.symbols.find(({ kind }) => kind === "function");
+    const service = snapshot.symbols.find(({ kind }) => kind === "class");
+
+    expect(request).toMatchObject({
+      signature:
+        "async def request(value: int, /, label: str='x', *args, trace: bool, **kwargs) -> str",
+      arity: { required: 2, total: 3 },
+    });
+    expect(service).toMatchObject({
+      signature: "class Service(Base, Protocol)",
+    });
+    expect(service).not.toHaveProperty("arity");
+  });
+
+  it("caps Python signatures at 400 characters with an ellipsis", async () => {
+    const snapshot = await parser.snapshot(
+      "src/long.py",
+      `def request(value: "${"x".repeat(500)}") -> None:
+    pass
+`,
+    );
+
+    expect(snapshot.symbols[0].signature).toHaveLength(400);
+    expect(snapshot.symbols[0].signature.endsWith("...")).toBe(true);
+  });
+
+  it("truncates astral Python signatures by code point", async () => {
+    const snapshot = await parser.snapshot(
+      "src/astral.py",
+      `def request(value: "${"😀".repeat(500)}") -> None:
+    pass
+`,
+    );
+    const signature = snapshot.symbols[0].signature;
+
+    expect(Array.from(signature)).toHaveLength(400);
+    expect(signature.endsWith("...")).toBe(true);
   });
 
   // Break caught: starred public assignment targets disappear from class fingerprints.
@@ -1567,6 +1660,8 @@ def request() -> int:
       language: "python",
       kind: "function",
       qualifiedName: "request",
+      signature: "def request()",
+      arity: { required: 0, total: 0 },
       contractFacets: {
         parameters: hash,
         modifiers: hash,
@@ -1625,6 +1720,69 @@ def request() -> int:
         {
           ...validSnapshot,
           symbols: [{ ...validSymbol, qualifiedName: "\u037A" }],
+        },
+      ],
+      [
+        "unsafe signature control",
+        {
+          ...validSnapshot,
+          symbols: [{ ...validSymbol, signature: "def request(\u0007)" }],
+        },
+      ],
+      [
+        "overlong signature",
+        {
+          ...validSnapshot,
+          symbols: [{ ...validSymbol, signature: "x".repeat(401) }],
+        },
+      ],
+      [
+        "missing callable arity",
+        {
+          ...validSnapshot,
+          symbols: [
+            Object.fromEntries(
+              Object.entries(validSymbol).filter(([key]) => key !== "arity"),
+            ),
+          ],
+        },
+      ],
+      [
+        "extra arity key",
+        {
+          ...validSnapshot,
+          symbols: [
+            {
+              ...validSymbol,
+              arity: { required: 0, total: 0, source: sentinel },
+            },
+          ],
+        },
+      ],
+      [
+        "invalid arity ordering",
+        {
+          ...validSnapshot,
+          symbols: [{ ...validSymbol, arity: { required: 2, total: 1 } }],
+        },
+      ],
+      [
+        "class arity",
+        {
+          ...validSnapshot,
+          symbols: [
+            {
+              ...validSymbol,
+              kind: "class",
+              qualifiedName: "Service",
+              signature: "class Service",
+              contractFacets: {
+                inheritance: hash,
+                members: hash,
+                modifiers: hash,
+              },
+            },
+          ],
         },
       ],
       [

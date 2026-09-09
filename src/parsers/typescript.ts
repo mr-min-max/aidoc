@@ -631,10 +631,22 @@ function mergeMethodContributions(
     ),
   );
 
+  const mergedSignatures = uniqueSorted(
+    contributions.map(({ snapshot }) => snapshot.signature),
+  );
+  const arities = contributions
+    .map(({ snapshot }) => snapshot.arity)
+    .filter(
+      (arity): arity is { required: number; total: number } =>
+        arity !== undefined,
+    );
+
   return {
     language: "typescript",
     kind: "method",
     qualifiedName: contributions[0].snapshot.qualifiedName,
+    signature: renderSignature(mergedSignatures.join(" | ")),
+    arity: mergeArities(arities),
     contractFacets,
     contractFingerprint:
       contracts.length === 1
@@ -729,6 +741,8 @@ function callableSnapshot(
     language: "typescript",
     kind,
     qualifiedName,
+    signature: renderCallableSignatures(qualifiedName, contractDeclarations),
+    arity: mergeArities(contractDeclarations.map(callableArity)),
     contractFacets,
     contractFingerprint: fingerprint(["callable", signatureShapes]),
     implementationFingerprint: fingerprint(
@@ -796,6 +810,8 @@ function interfaceMethodSnapshot(
     language: "typescript",
     kind: "method",
     qualifiedName,
+    signature: renderCallableSignatures(qualifiedName, declarations),
+    arity: mergeArities(declarations.map(callableArity)),
     contractFacets,
     contractFingerprint: fingerprint(["callable", signatureShapes]),
     implementationFingerprint: fingerprint([]),
@@ -826,6 +842,7 @@ function classSnapshot(
     language: "typescript",
     kind: "class",
     qualifiedName,
+    signature: renderClassSignature(declaration, qualifiedName),
     contractFacets,
     contractFingerprint: combinedContractFingerprint("class", contractFacets),
     implementationFingerprint: fingerprint(
@@ -895,6 +912,7 @@ function interfaceSnapshot(
         ...declaration.getMembers(),
       ]),
     ),
+    renderInterfaceSignature(declarations, qualifiedName),
   );
 }
 
@@ -918,6 +936,16 @@ function typeAliasSnapshot(
     qualifiedName,
     contractFacets,
     documentationFingerprint([declaration]),
+    renderSignature(
+      `type ${qualifiedName}${
+        declaration.getTypeParameters().length === 0
+          ? ""
+          : `<${declaration
+              .getTypeParameters()
+              .map((parameter) => parameter.getText())
+              .join(", ")}>`
+      } = ${declaration.getTypeNodeOrThrow().getText().slice(0, 200)}`,
+    ),
   );
 }
 
@@ -941,6 +969,13 @@ function enumSnapshot(
       ),
     ),
   };
+  const memberNames = [
+    ...new Set(
+      declarations.flatMap((declaration) =>
+        declaration.getMembers().map((member) => member.getName()),
+      ),
+    ),
+  ].sort(compareText);
   return declarationSnapshot(
     "enum",
     qualifiedName,
@@ -951,6 +986,7 @@ function enumSnapshot(
         ...declaration.getMembers(),
       ]),
     ),
+    renderSignature(`enum ${qualifiedName} { ${memberNames.join(", ")} }`),
   );
 }
 
@@ -983,6 +1019,12 @@ function variableSnapshot(binding: ExportedBinding): ParserSymbolSnapshot {
     language: "typescript",
     kind: "variable",
     qualifiedName: binding.exportedName,
+    signature: renderVariableSignature(
+      binding.exportedName,
+      declaration,
+      statement.getDeclarationKind(),
+      initializer,
+    ),
     contractFacets: facets,
     contractFingerprint: combinedContractFingerprint("variable", facets),
     implementationFingerprint:
@@ -1005,6 +1047,7 @@ function variableExpressionSnapshot(
     language: "typescript",
     kind: "variable",
     qualifiedName: binding.exportedName,
+    signature: renderSignature(`const ${binding.exportedName} = ...`),
     contractFacets: facets,
     contractFingerprint: combinedContractFingerprint("variable", facets),
     implementationFingerprint: fingerprint(normalizeAst(expression)),
@@ -1017,16 +1060,183 @@ function declarationSnapshot(
   qualifiedName: string,
   contractFacets: Partial<Record<ContractFacet, string>>,
   docs: string | null,
+  signature = `${kind} ${qualifiedName}`,
 ): ParserSymbolSnapshot {
   return {
     language: "typescript",
     kind,
     qualifiedName,
+    signature: renderSignature(signature),
     contractFacets,
     contractFingerprint: combinedContractFingerprint(kind, contractFacets),
     implementationFingerprint: fingerprint([]),
     documentationFingerprint: docs,
   };
+}
+
+function callableArity(declaration: CallableDeclaration | MethodSignature): {
+  required: number;
+  total: number;
+} {
+  const parameters = declaration.getParameters();
+  return {
+    required: parameters.filter(
+      (parameter) =>
+        !parameter.isOptional() &&
+        parameter.getInitializer() === undefined &&
+        !parameter.isRestParameter(),
+    ).length,
+    total: parameters.length,
+  };
+}
+
+function mergeArities(
+  arities: { required: number; total: number }[],
+): { required: number; total: number } | undefined {
+  if (arities.length === 0) return undefined;
+  return {
+    required: Math.min(...arities.map(({ required }) => required)),
+    total: Math.max(...arities.map(({ total }) => total)),
+  };
+}
+
+function renderSignature(value: string): string {
+  const codePoints = Array.from(
+    value.replace(/\s+/gu, " ").trim(),
+    (character) => {
+      const codePoint = character.codePointAt(0)!;
+      return codePoint >= 0xd800 && codePoint <= 0xdfff ? "\ufffd" : character;
+    },
+  );
+  return codePoints.length <= 400
+    ? codePoints.join("")
+    : `${codePoints.slice(0, 397).join("")}...`;
+}
+
+function renderParameter(parameter: ParameterDeclaration): string {
+  const name = parameter.isRestParameter()
+    ? `...${parameter.getName()}`
+    : parameter.getName();
+  const optional =
+    parameter.isOptional() && !parameter.isRestParameter() ? "?" : "";
+  const type = parameter.getTypeNode()?.getText();
+  const initializer = parameter.getInitializer();
+  return `${name}${optional}${type === undefined ? "" : `: ${type}`}${initializer === undefined ? "" : ` = ${initializer.getText()}`}`;
+}
+
+function renderCallableSignatures(
+  qualifiedName: string,
+  declarations: (CallableDeclaration | MethodSignature)[],
+): string {
+  const name = qualifiedName.split(".").at(-1) ?? qualifiedName;
+  return renderSignature(
+    declarations
+      .map((declaration) => {
+        const typeParameters = declaration
+          .getTypeParameters()
+          .map((parameter) => parameter.getText())
+          .join(", ");
+        const generic = typeParameters.length > 0 ? `<${typeParameters}>` : "";
+        const parameters = declaration
+          .getParameters()
+          .map(renderParameter)
+          .join(", ");
+        const returnType = renderCallableReturnType(declaration);
+        const asyncPrefix =
+          Node.isAsyncable(declaration) && declaration.isAsync()
+            ? "async "
+            : "";
+        return `${asyncPrefix}${name}${generic}(${parameters}): ${returnType}`;
+      })
+      .join(" | "),
+  );
+}
+
+function renderCallableReturnType(
+  declaration: CallableDeclaration | MethodSignature,
+): string {
+  const declared = declaration.getReturnTypeNode();
+  if (declared !== undefined) return declared.getText();
+
+  const inferred = declaration.getReturnType().getBaseTypeOfLiteralType();
+  if (inferred.isString()) return "string";
+  if (inferred.isNumber()) return "number";
+  if (inferred.isBoolean()) return "boolean";
+  if (inferred.isBigInt()) return "bigint";
+  if (inferred.isVoid()) return "void";
+  if (inferred.isUndefined()) return "undefined";
+  if (inferred.isNull()) return "null";
+  if (inferred.isNever()) return "never";
+  if (inferred.isUnknown()) return "unknown";
+  if (inferred.isAny()) return "any";
+  return "unknown";
+}
+
+function renderClassSignature(
+  declaration: ClassDeclaration,
+  qualifiedName: string,
+): string {
+  const typeParameters = declaration
+    .getTypeParameters()
+    .map((parameter) => parameter.getText())
+    .join(", ");
+  const generic = typeParameters.length > 0 ? `<${typeParameters}>` : "";
+  const extendsType = declaration.getExtends()?.getText();
+  const implementsTypes = declaration
+    .getImplements()
+    .map((heritage) => heritage.getText());
+  return renderSignature(
+    `class ${qualifiedName}${generic}${extendsType === undefined ? "" : ` extends ${extendsType}`}${implementsTypes.length === 0 ? "" : ` implements ${implementsTypes.join(", ")}`}`,
+  );
+}
+function renderInterfaceSignature(
+  declarations: InterfaceDeclaration[],
+  qualifiedName: string,
+): string {
+  const typeParameters = [
+    ...new Set(
+      declarations.flatMap((declaration) =>
+        declaration.getTypeParameters().map((parameter) => parameter.getText()),
+      ),
+    ),
+  ];
+  const generic =
+    typeParameters.length > 0 ? `<${typeParameters.join(", ")}>` : "";
+  const extendsTypes = [
+    ...new Set(
+      declarations.flatMap((declaration) =>
+        declaration.getExtends().map((heritage) => heritage.getText()),
+      ),
+    ),
+  ];
+  return renderSignature(
+    `interface ${qualifiedName}${generic}${extendsTypes.length === 0 ? "" : ` extends ${extendsTypes.join(", ")}`}`,
+  );
+}
+
+function renderVariableSignature(
+  name: string,
+  declaration: VariableDeclaration,
+  declarationKind: string,
+  initializer: Node | undefined,
+): string {
+  const type = declaration.getTypeNode()?.getText();
+  if (type !== undefined) {
+    return renderSignature(`${declarationKind} ${name}: ${type}`);
+  }
+  if (
+    initializer !== undefined &&
+    Node.isObjectLiteralExpression(initializer)
+  ) {
+    const properties = initializer
+      .getProperties()
+      .map((property) =>
+        Node.hasName(property) ? property.getName() : property.getKindName(),
+      )
+      .join(", ");
+    return renderSignature(`${declarationKind} ${name} = { ${properties} }`);
+  }
+  return renderSignature(`${declarationKind} ${name} = ...`);
 }
 
 function publicClassMemberShapes(declaration: ClassDeclaration): unknown[] {

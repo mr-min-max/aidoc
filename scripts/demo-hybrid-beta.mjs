@@ -29,6 +29,7 @@ const CHECK_NAMES = [
   "all_targets_require_explicit_behavior",
   "mcp_prepare_validate_approved",
   "mcp_prepare_validate_did_not_write",
+  "prompt_contains_signatures",
   "forged_preparation_blocked",
   "secret_candidate_redacted_or_blocked",
   "codex_plugin_smoke_passed",
@@ -200,6 +201,14 @@ async function runMcpEvidence(fixture) {
         throw new Error("MCP preparation shape failed");
       }
       preparations.push(preparation);
+      if (
+        !preparation.generation.prompt.includes("createUser(email: string)") ||
+        !preparation.generation.prompt.includes(
+          "createUser(email: string, role: string)",
+        )
+      ) {
+        throw new Error("MCP prompt signatures missing");
+      }
     }
 
     const candidate = [
@@ -334,6 +343,7 @@ function formatPresentation(report) {
     "Host contract: prepare -> host draft -> validate",
     "Provider calls: none",
     "Repository writes: none",
+    "Prompt: before/after signatures included",
     "Result: PASS",
     "",
   ].join("\n");
@@ -459,6 +469,7 @@ async function runDemo() {
       all_targets_require_explicit_behavior: allCheck,
       mcp_prepare_validate_approved: mcp.approved,
       mcp_prepare_validate_did_not_write: mcp.noWrite,
+      prompt_contains_signatures: true,
       forged_preparation_blocked: mcp.forgedBlocked,
       secret_candidate_redacted_or_blocked: mcp.secretSafe,
       codex_plugin_smoke_passed: plugin.code === 0,

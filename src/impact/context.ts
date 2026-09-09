@@ -357,6 +357,8 @@ function projectFullChange(
     kind,
     ...(qualifiedName === undefined ? {} : { qualifiedName }),
     ...(facets === undefined ? {} : { changedContractFacets: facets }),
+    ...(isSafeSignatureText(change.before) ? { before: change.before } : {}),
+    ...(isSafeSignatureText(change.after) ? { after: change.after } : {}),
   };
 }
 
@@ -496,6 +498,23 @@ function isRepositoryRelativePath(value: unknown): value is string {
     !normalized.startsWith("../") &&
     normalized === value
   );
+}
+
+function isSafeSignatureText(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const codePoints = Array.from(value);
+  if (codePoints.length > 400) return false;
+  for (const character of codePoints) {
+    const codePoint = character.codePointAt(0)!;
+    if (
+      codePoint <= 31 ||
+      codePoint === 127 ||
+      (codePoint >= 0xd800 && codePoint <= 0xdfff)
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function isSafeIdentityText(value: unknown): value is string {

@@ -65,6 +65,8 @@ const SNAPSHOT_SYMBOL_KEYS = [
   "language",
   "kind",
   "qualifiedName",
+  "signature",
+  "arity",
   "contractFacets",
   "contractFingerprint",
   "implementationFingerprint",
@@ -102,10 +104,7 @@ function resolvePythonExecutable(): string {
   const hasUnsafeCharacter = /[\s\p{Cc}]/u.test(configured);
   const isBareExecutable =
     !configured.includes("/") && !configured.includes("\\");
-  if (
-    hasUnsafeCharacter ||
-    (!isBareExecutable && !isAbsolute(configured))
-  ) {
+  if (hasUnsafeCharacter || (!isBareExecutable && !isAbsolute(configured))) {
     throw createSafeParserError(
       "Invalid AIDOC_PYTHON value.",
       "Invalid Python executable override.",
@@ -128,18 +127,12 @@ function readPythonVersion(
   const cached = executableCache.get(executable);
   if (cached !== undefined) return cached;
 
-  const version = executePython(
-    executable,
-    ["-c", PYTHON_VERSION_SCRIPT],
-    {
-      timeout: PYTHON_EXECUTION_TIMEOUT,
-      maxBuffer: PYTHON_EXECUTION_MAX_BUFFER,
-    },
-  )
+  const version = executePython(executable, ["-c", PYTHON_VERSION_SCRIPT], {
+    timeout: PYTHON_EXECUTION_TIMEOUT,
+    maxBuffer: PYTHON_EXECUTION_MAX_BUFFER,
+  })
     .then(({ stdout }) => {
-      const match = /^\(\s*(\d+)\s*,\s*(\d+)\s*\)\s*$/u.exec(
-        stdout.trim(),
-      );
+      const match = /^\(\s*(\d+)\s*,\s*(\d+)\s*\)\s*$/u.exec(stdout.trim());
       if (match === null) return undefined;
       return { major: Number(match[1]), minor: Number(match[2]) };
     })
@@ -223,6 +216,23 @@ function isExactRecord(
 
 function isSnapshotHash(value: unknown): value is string {
   return typeof value === "string" && SNAPSHOT_HASH_PATTERN.test(value);
+}
+
+function isSafeSnapshotSignature(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const codePoints = Array.from(value);
+  if (codePoints.length > 400) return false;
+  for (const character of codePoints) {
+    const codePoint = character.codePointAt(0)!;
+    if (
+      codePoint <= 31 ||
+      codePoint === 127 ||
+      (codePoint >= 0xd800 && codePoint <= 0xdfff)
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function isPublicPythonIdentifier(value: string): boolean {
@@ -423,12 +433,45 @@ def callable_contract_payloads(node, is_method=False):
         payloads['return'] = ast_payload(node.returns)
     return payloads
 
-def build_symbol(kind, qualified_name, contract_payloads, implementation, node):
+def render_signature(value):
+    collapsed = ' '.join(value.split())
+    return collapsed if len(collapsed) <= 400 else collapsed[:397] + '...'
+
+def callable_signature_and_arity(node, is_method=False):
+    arguments = copy.deepcopy(node.args)
+    if is_method and not is_static_method(node):
+        arguments = drop_bound_method_receiver(arguments)
+    prefix = 'async def' if isinstance(node, ast.AsyncFunctionDef) else 'def'
+    if hasattr(ast, 'unparse'):
+        rendered_args = ast.unparse(arguments)
+        rendered_returns = ast.unparse(node.returns) if node.returns is not None else ''
+    else:
+        rendered_args = '...'
+        rendered_returns = ''
+    result = f'{prefix} {node.name}({rendered_args})'
+    if rendered_returns:
+        result += f' -> {rendered_returns}'
+    positional = arguments.posonlyargs + arguments.args
+    required = len(positional) - len(arguments.defaults)
+    required += sum(1 for default in arguments.kw_defaults if default is None)
+    total = len(positional) + len(arguments.kwonlyargs)
+    return render_signature(result), {'required': required, 'total': total}
+
+def class_signature(node):
+    if not node.bases or not hasattr(ast, 'unparse'):
+        return render_signature('class ' + node.name)
+    return render_signature(
+        'class ' + node.name + '(' + ', '.join(
+            ast.unparse(base) for base in node.bases
+        ) + ')'
+    )
+
+def build_symbol(kind, qualified_name, contract_payloads, implementation, node, signature=None, arity=None):
     contract_facets = {
         name: hash_payload(payload)
         for name, payload in contract_payloads.items()
     }
-    return {
+    result = {
         'language': 'python',
         'kind': kind,
         'qualifiedName': qualified_name,
@@ -437,15 +480,13 @@ def build_symbol(kind, qualified_name, contract_payloads, implementation, node):
         'implementationFingerprint': hash_payload(implementation),
         'documentationFingerprint': documentation_fingerprint(node),
     }
+    if signature is not None:
+        result['signature'] = signature
+    if arity is not None:
+        result['arity'] = arity
+    return result
 
-def callable_symbol(node, kind, qualified_name, is_method=False):
-    return build_symbol(
-        kind,
-        qualified_name,
-        callable_contract_payloads(node, is_method),
-        body_payload(node.body),
-        node,
-    )
+
 
 def canonical_payload(payload):
     return json.dumps(
@@ -557,8 +598,17 @@ def callable_group_implementation_payload(nodes, is_method=False):
 
 def callable_group_symbol(nodes, kind, qualified_name, is_method=False):
     if len(nodes) == 1:
-        return callable_symbol(nodes[0], kind, qualified_name, is_method)
-
+        node = nodes[0]
+        signature, arity = callable_signature_and_arity(node, is_method)
+        return build_symbol(
+            kind,
+            qualified_name,
+            callable_contract_payloads(node, is_method),
+            body_payload(node.body),
+            node,
+            signature,
+            arity,
+        )
     contract_nodes = callable_group_contract_nodes(nodes, is_method)
     symbol = build_symbol(
         kind,
@@ -593,6 +643,17 @@ def callable_group_symbol(nodes, kind, qualified_name, is_method=False):
         hash_payload({'documentation': documentation})
         if documentation else None
     )
+    signatures = [
+        callable_signature_and_arity(node, is_method)
+        for node in contract_nodes
+    ]
+    symbol['signature'] = render_signature(
+        ' | '.join(item[0] for item in signatures)
+    )
+    symbol['arity'] = {
+        'required': min(item[1]['required'] for item in signatures),
+        'total': max(item[1]['total'] for item in signatures),
+    }
     return symbol
 
 def group_public_callables(nodes):
@@ -794,7 +855,9 @@ def class_symbol(node):
         contract_payloads,
         class_implementation_payload(node),
         node,
+        class_signature(node),
     )
+
 
 def dependency_modules(tree):
     modules = []
@@ -1114,13 +1177,33 @@ export class PythonParser implements LanguageParser {
   }
 
   private mapSnapshotSymbol(raw: unknown): ParserSymbolSnapshot {
+    if (!isRecord(raw)) throw invalidSnapshotOutput();
+    const kind = raw.kind;
+    if (kind !== "function" && kind !== "class" && kind !== "method") {
+      throw invalidSnapshotOutput();
+    }
+
+    const expectedKeys =
+      kind === "class"
+        ? SNAPSHOT_SYMBOL_KEYS.filter((key) => key !== "arity")
+        : SNAPSHOT_SYMBOL_KEYS;
+    if (!hasExactKeys(raw, expectedKeys)) throw invalidSnapshotOutput();
+
+    const arity = raw.arity;
+    const validArity =
+      kind === "class"
+        ? arity === undefined
+        : isExactRecord(arity, ["required", "total"]) &&
+          Number.isSafeInteger(arity.required) &&
+          Number.isSafeInteger(arity.total) &&
+          (arity.required as number) >= 0 &&
+          (arity.total as number) >= 0 &&
+          (arity.required as number) <= (arity.total as number);
     if (
-      !isExactRecord(raw, SNAPSHOT_SYMBOL_KEYS) ||
       raw.language !== "python" ||
-      (raw.kind !== "function" &&
-        raw.kind !== "class" &&
-        raw.kind !== "method") ||
-      !isSafeQualifiedName(raw.kind, raw.qualifiedName) ||
+      !isSafeQualifiedName(kind, raw.qualifiedName) ||
+      !isSafeSnapshotSignature(raw.signature) ||
+      !validArity ||
       !isSnapshotHash(raw.contractFingerprint) ||
       !isSnapshotHash(raw.implementationFingerprint) ||
       (raw.documentationFingerprint !== null &&
@@ -1131,9 +1214,13 @@ export class PythonParser implements LanguageParser {
 
     return {
       language: "python",
-      kind: raw.kind,
+      kind,
       qualifiedName: raw.qualifiedName,
-      contractFacets: this.mapContractFacets(raw.kind, raw.contractFacets),
+      signature: raw.signature,
+      ...(kind === "class"
+        ? {}
+        : { arity: arity as { required: number; total: number } }),
+      contractFacets: this.mapContractFacets(kind, raw.contractFacets),
       contractFingerprint: raw.contractFingerprint,
       implementationFingerprint: raw.implementationFingerprint,
       documentationFingerprint: raw.documentationFingerprint,
@@ -1149,7 +1236,6 @@ export class PythonParser implements LanguageParser {
         ? (["inheritance", "members", "modifiers"] as const)
         : (["parameters", "modifiers"] as const);
     if (!isRecord(raw)) throw invalidSnapshotOutput();
-
     const keys = Object.keys(raw);
     const hasValidKeys =
       kind === "class"
@@ -1159,14 +1245,11 @@ export class PythonParser implements LanguageParser {
     if (!hasValidKeys || keys.some((facet) => !isSnapshotHash(raw[facet]))) {
       throw invalidSnapshotOutput();
     }
-
     const mapped: Partial<Record<ContractFacet, string>> = {};
-    for (const facet of keys as ContractFacet[]) {
+    for (const facet of keys as ContractFacet[])
       mapped[facet] = raw[facet] as string;
-    }
     return mapped;
   }
-
   private mapFunction(raw: Record<string, unknown>): FunctionInfo {
     return {
       name: raw.name as string,

@@ -195,6 +195,55 @@ describe("impact provider context budgeting", () => {
       omittedRecords: 0,
     });
   });
+  it("projects safe signatures and drops them before compact fallback", () => {
+    const item = change("contract-changed", "transform", {
+      before: "b".repeat(400),
+      after: "a".repeat(400),
+      digest: digest("9"),
+    });
+    const roomy = build([item]);
+
+    expect(roomy.providerContext.changes).toEqual([
+      expect.objectContaining({
+        before: "b".repeat(400),
+        after: "a".repeat(400),
+      }),
+    ]);
+
+    const compacted = build([item], 1024);
+    expect(compacted.providerContext.changes).toEqual([
+      {
+        id: item.digest,
+        category: item.category,
+        risk: item.risk,
+        kind: item.kind,
+        compacted: true,
+      },
+    ]);
+  });
+
+  it.each([
+    ["control", "transform(value:\u0007 string): void"],
+    ["line break", "transform(\nvalue: string): void"],
+    ["overlength", "x".repeat(401)],
+  ])(
+    "omits an unsafe %s signature without rejecting its change",
+    (_label, unsafe) => {
+      const item = change("contract-changed", "transform", {
+        before: unsafe,
+        after: "transform(value: string): void",
+      });
+      const result = build([item]);
+
+      expect(result.providerContext.changes).toEqual([
+        expect.objectContaining({
+          qualifiedName: "transform",
+          after: "transform(value: string): void",
+        }),
+      ]);
+      expect(result.providerContext.changes[0]).not.toHaveProperty("before");
+    },
+  );
 
   it("uses exact canonical UTF-8 bytes at a boundary without slicing JSON", () => {
     const changes = [

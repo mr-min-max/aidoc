@@ -162,7 +162,11 @@ export async function executeUpdateCommand(
       const genSpinner = ora(`Updating ${target.path} with AI...`).start();
       try {
         const updatedDoc = await ctx.generator.generateUpdate(
-          buildUpdateContext(documentTarget.existingText!, projectedContext),
+          buildUpdateContext(
+            documentTarget.existingText!,
+            projectedContext,
+            target.path,
+          ),
         );
         genSpinner.succeed(chalk.green(`Generated ${target.path}`));
         await writeDoc(documentTarget, updatedDoc, toWriteDocOptions(options));

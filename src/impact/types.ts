@@ -52,6 +52,12 @@ export interface SymbolChange {
   kind: SymbolKind | "module";
   qualifiedName?: string;
   changedContractFacets?: ContractFacet[];
+  /** Value-bearing one-line signature rendered from the AST. Never raw source text. */
+  before?: string;
+  /** Signature at the head revision. */
+  after?: string;
+  /** Callable arity at the head revision, or at the base revision when removed. */
+  arity?: { required: number; total: number };
   digest: string;
 }
 
@@ -126,7 +132,11 @@ export type ImpactProviderChange =
       | "kind"
       | "qualifiedName"
       | "changedContractFacets"
-    > & { compacted?: false })
+    > & {
+      before?: string;
+      after?: string;
+      compacted?: false;
+    })
   | {
       id: string;
       category: ChangeCategory;
@@ -183,6 +193,10 @@ export interface ParserSymbolSnapshot {
   language: ImpactLanguage;
   kind: SymbolKind;
   qualifiedName: string;
+  /** Value-bearing one-line signature rendered from the AST. Never raw source text. */
+  signature: string;
+  /** Callables only. Required = parameters without default/optional/rest. */
+  arity?: { required: number; total: number };
   contractFacets: Partial<Record<ContractFacet, string | null>>;
   contractFingerprint: string;
   implementationFingerprint: string;

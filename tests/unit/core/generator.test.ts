@@ -75,6 +75,8 @@ function updateImpactContext(): ImpactProviderContext {
         kind: "function",
         qualifiedName: "transform",
         changedContractFacets: ["parameters", "return"],
+        before: 'transform(input: string = "RAW_DEFAULT_SENTINEL"): string',
+        after: "transform(input: number = 42): number",
       },
     ],
     documentation: [
@@ -271,23 +273,23 @@ describe("Generator", () => {
       provider.response = "# Updated Doc";
       const result = await generator.generateUpdate({
         existingDoc: `# Old Doc\n${fakeSecret}`,
+        target: "README.md",
         impactPlan: updateImpactContext(),
       });
 
       expect(result).toBe("# Updated Doc");
       expect(provider.lastPrompt).toContain("# Old Doc");
       expect(provider.lastPrompt).toContain(
-        "typescript:src/index.ts#function:transform",
+        "transform (function, contract-changed",
       );
       expect(provider.lastPrompt).toContain("contract-changed");
-      expect(provider.lastPrompt).toContain("potentially-breaking");
       expect(provider.lastPrompt).toContain("parameters");
       expect(provider.lastPrompt).toContain("README.md");
       expect(provider.lastPrompt).toContain("API");
       expect(provider.lastPrompt).not.toContain(fakeSecret);
     });
 
-    it("never transports raw source, signatures, diffs, or repository roots", async () => {
+    it("transports AST-rendered signatures without raw bodies, diffs, or roots", async () => {
       const root = impactRepository();
       try {
         const result = await createImpactPlan({
@@ -298,20 +300,20 @@ describe("Generator", () => {
 
         await generator.generateUpdate({
           existingDoc: "# Project\n\n## API\n\nUse `transform`.\n",
+          target: "README.md",
           impactPlan: result.providerContext,
         });
 
         expect(provider.calls).toHaveLength(1);
-        expect(provider.lastPrompt).toContain("#function:transform");
-        expect(provider.lastPrompt).toContain("contract-changed");
-        expect(provider.lastPrompt).toContain("review-required");
-        expect(provider.lastPrompt).toContain("parameters");
-        expect(provider.lastPrompt).toContain("README.md");
-        expect(provider.lastPrompt).not.toMatch(
-          /RAW_COMMENT_SENTINEL|RAW_DEFAULT_SENTINEL|RAW_BODY_SENTINEL|HEAD_COMMENT_SENTINEL|HEAD_BODY_SENTINEL/u,
+        expect(provider.lastPrompt).toContain(
+          'before: transform(input?: string = "RAW_DEFAULT_SENTINEL"): string',
         );
-        expect(provider.lastPrompt).not.toContain(
-          "export function transform(input: number = 42): number",
+        expect(provider.lastPrompt).toContain(
+          "after:  transform(input?: number = 42): number",
+        );
+        expect(provider.lastPrompt).toContain("EXISTING DOCUMENT (README.md)");
+        expect(provider.lastPrompt).not.toMatch(
+          /RAW_COMMENT_SENTINEL|RAW_BODY_SENTINEL|HEAD_COMMENT_SENTINEL|HEAD_BODY_SENTINEL/u,
         );
         expect(provider.lastPrompt).not.toMatch(/@@|--- a\/|\+\+\+ b\//u);
         expect(provider.lastPrompt).not.toContain(root);
@@ -332,6 +334,7 @@ describe("Generator", () => {
       await expect(
         strictGenerator.generateUpdate({
           existingDoc: `# Existing\n${boundarySpanningPrivateKey()}`,
+          target: "README.md",
           impactPlan: updateImpactContext(),
         }),
       ).rejects.toMatchObject({ code: "TRUST_SECRET_BLOCKED" });

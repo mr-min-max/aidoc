@@ -83,6 +83,9 @@ export function compareSnapshots(files: ParsedFileSnapshots[]): SymbolChange[] {
               qualifiedName: previous.qualifiedName,
               beforeId: symbolId(file.beforePath ?? "", previous),
               afterId: symbolId(file.afterPath ?? "", current),
+              before: previous.signature,
+              after: current.signature,
+              ...(current.arity === undefined ? {} : { arity: current.arity }),
             }),
           );
         } else {
@@ -174,7 +177,14 @@ export function summarizeImpact(
   let publicApiChanges = 0;
   for (const change of changes) {
     byCategory[change.category] += 1;
-    if (change.scope === "symbol") publicApiChanges += 1;
+    if (
+      change.scope === "symbol" &&
+      (change.category === "added" ||
+        change.category === "removed" ||
+        change.category === "contract-changed" ||
+        change.category === "moved")
+    )
+      publicApiChanges += 1;
     if (change.risk === "potentially-breaking") potentiallyBreaking += 1;
     else if (change.risk === "review-required") reviewRequired += 1;
     else informational += 1;
@@ -230,12 +240,23 @@ function compareSymbol(
       createChange({
         scope: "symbol",
         category: "contract-changed",
-        risk: "review-required",
+        // Conservative arity rule: adding required inputs or removing accepted
+        // inputs is potentially breaking; renames and type changes remain review-only.
+        risk:
+          before.arity !== undefined &&
+          after.arity !== undefined &&
+          (after.arity.required > before.arity.required ||
+            after.arity.total < before.arity.total)
+            ? "potentially-breaking"
+            : "review-required",
         language: after.language,
         path,
         kind: after.kind,
         qualifiedName: after.qualifiedName,
         changedContractFacets,
+        before: before.signature,
+        after: after.signature,
+        ...(after.arity === undefined ? {} : { arity: after.arity }),
       }),
     );
     return;
@@ -291,8 +312,12 @@ function addOne(
       risk: category === "removed" ? "potentially-breaking" : "informational",
       language: symbol.language,
       path: path ?? "",
+      ...(symbol.arity === undefined ? {} : { arity: symbol.arity }),
       kind: symbol.kind,
       qualifiedName: symbol.qualifiedName,
+      ...(category === "added"
+        ? { after: symbol.signature }
+        : { before: symbol.signature }),
     }),
   );
 }

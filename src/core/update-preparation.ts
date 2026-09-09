@@ -1,10 +1,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import Handlebars from "handlebars";
-import type {
-  DocumentationReference,
-  ImpactProviderContext,
-} from "../impact/types";
+import type { ImpactProviderContext } from "../impact/types";
 
 export interface UpdateGenerationEnvelope {
   readonly operation: "update";
@@ -12,24 +9,22 @@ export interface UpdateGenerationEnvelope {
   readonly prompt: string;
 }
 
-interface UpdateTemplateTarget {
-  file: string;
-  section: string;
-}
-
 interface UpdateTemplateChange {
-  id: string;
+  qualifiedName: string;
+  kind: string;
   category: string;
-  risk: string;
   changedContractFacets: string[];
-  directTargets: UpdateTemplateTarget[];
-  recommendedTargets: UpdateTemplateTarget[];
+  before?: string;
+  after?: string;
+  compacted: boolean;
+  sections: string[];
 }
 
 /** Renders the exact update envelope shared by direct and provider-free flows. */
 export function renderUpdateGenerationEnvelope(input: {
   templatesDir: string;
   existingDoc: string;
+  target: string;
   impactPlan: ImpactProviderContext;
 }): UpdateGenerationEnvelope {
   const templatePath = path.join(input.templatesDir, "update.hbs");
@@ -43,14 +38,15 @@ export function renderUpdateGenerationEnvelope(input: {
   } catch {
     throw new Error("Template unavailable.");
   }
-  const render = Handlebars.compile(source);
+  const render = Handlebars.compile(source, { noEscape: true });
   return {
     operation: "update",
     systemPrompt:
       "You are a documentation updater. Preserve the existing structure and only modify sections affected by code changes.",
     prompt: render({
+      target: input.target,
       existingDoc: input.existingDoc,
-      impactPlan: updateTemplatePlan(input.impactPlan),
+      ...updateTemplatePlan(input.impactPlan),
     }),
   };
 }
@@ -64,25 +60,23 @@ function updateTemplatePlan(impactPlan: ImpactProviderContext): {
   return {
     changes: impactPlan.changes.map((change) => {
       const matching = documentation.get(change.id);
+      const direct = matching?.directReferences ?? [];
+      const recommended = matching?.recommendations ?? [];
+      const sections = [
+        ...new Set([...direct, ...recommended].map(({ section }) => section)),
+      ].sort();
+      const full =
+        "compacted" in change && change.compacted === true ? undefined : change;
       return {
-        id: change.id,
+        qualifiedName: full?.qualifiedName ?? change.id,
+        kind: full?.kind ?? change.kind,
         category: change.category,
-        risk: change.risk,
-        changedContractFacets:
-          "changedContractFacets" in change
-            ? (change.changedContractFacets ?? [])
-            : [],
-        directTargets: projectUpdateTargets(matching?.directReferences ?? []),
-        recommendedTargets: projectUpdateTargets(
-          matching?.recommendations ?? [],
-        ),
+        changedContractFacets: full?.changedContractFacets ?? [],
+        ...(full?.before === undefined ? {} : { before: full.before }),
+        ...(full?.after === undefined ? {} : { after: full.after }),
+        compacted: "compacted" in change && change.compacted === true,
+        sections,
       };
     }),
   };
-}
-
-function projectUpdateTargets(
-  references: readonly DocumentationReference[],
-): UpdateTemplateTarget[] {
-  return references.map(({ file, section }) => ({ file, section }));
 }
