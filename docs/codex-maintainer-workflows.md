@@ -40,7 +40,8 @@ repository:
 - Maintainers review every generated patch before merge.
 - Secrets and API keys are not committed or stored in templates.
 - The project remains provider-agnostic; OpenAI support must go through
-  `LLMProvider`.
+  `LLMProvider`, whose `generate` accepts an optional trailing `AbortSignal` so a
+  caller can cancel an in-flight request.
 - Prompt text remains template-driven in `src/templates/`.
 - Code structure extraction remains AST-first; regex parsing is not accepted for
   new language parsers.
