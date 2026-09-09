@@ -133,26 +133,18 @@ if [ "$mode" = "review" ]; then
     comments_stderr="$runner_temp/aidoc-review-comments.err"
     comments_status=0
     comment_id=""
-    token_user_status=0
     if [ "$comment" = "true" ]; then
       GH_TOKEN="$github_token" gh api "repos/$repo/issues/$pr_number/comments" --paginate > "$comments" 2> "$comments_stderr" || comments_status=$?
       if [ "$comments_status" -eq 0 ] && [ -s "$comments" ]; then
-        token_user="${GITHUB_ACTOR:-github-actions[bot]}"
-        token_user_stderr="$runner_temp/aidoc-review-user.err"
-        token_user_from_api=""
-        token_user_from_api="$(GH_TOKEN="$github_token" gh api user --jq '.login' 2> "$token_user_stderr")" || token_user_status=$?
-        if [ "$token_user_status" -ne 0 ]; then
-          user_error="$(cat "$token_user_stderr")"
-          case "$user_error" in
-            *403*|*Forbidden*) posting_notice ;;
-            *) mark_operation_failure "$token_user_status" ;;
-          esac
-        elif [ -n "$token_user_from_api" ]; then
+        # The default GITHUB_TOKEN is a GitHub App installation access token and
+        # GET /user is not available to it, so an identity lookup failure must fall
+        # back to the documented bot login instead of skipping the comment.
+        token_user="github-actions[bot]"
+        token_user_from_api="$(GH_TOKEN="$github_token" gh api user --jq '.login' 2>/dev/null)" || token_user_from_api=""
+        if [ -n "$token_user_from_api" ]; then
           token_user="$token_user_from_api"
         fi
-        if [ "$token_user_status" -eq 0 ]; then
-          comment_id="$(jq -s -r --arg marker '<!-- aidoc-review -->' --arg user "$token_user" 'add | map(select(((.body // "") | startswith($marker)) and ((.user.login // "") == $user))) | .[0].id // empty' "$comments")"
-        fi
+        comment_id="$(jq -s -r --arg marker '<!-- aidoc-review -->' --arg user "$token_user" 'add | map(select(((.body // "") | startswith($marker)) and ((.user.login // "") == $user))) | .[0].id // empty' "$comments")"
       elif [ "$comments_status" -ne 0 ]; then
         comments_error="$(cat "$comments_stderr")"
         case "$comments_error" in
@@ -161,7 +153,7 @@ if [ "$mode" = "review" ]; then
         esac
       fi
 
-      if [ "$comments_status" -eq 0 ] && [ "$token_user_status" -eq 0 ]; then
+      if [ "$comments_status" -eq 0 ]; then
         if [ "$public_api_changes" = "0" ] || [ -z "$public_api_changes" ]; then
           if [ -n "$comment_id" ]; then
             delete_status=0

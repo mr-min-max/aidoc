@@ -52,7 +52,7 @@ sections, and whether each section changed in the pull request:
 **Needs a documentation update**
 - `README.md` > API: `createUser`
 
-<sub>Deterministic AST analysis; no model was used.</sub>
+<sub>Deterministic AST analysis; no model was used. Suppress a symbol with `.aidocignore`. <a href="https://github.com/mr-min-max/aidoc">AiDoc</a></sub>
 ```
 
 Review mode needs `permissions: contents: read` and `pull-requests: write` for
