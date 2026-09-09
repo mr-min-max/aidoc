@@ -57,11 +57,13 @@ function commit(message) {
 }
 
 function check(target, since) {
-  const result = spawnSync(
-    process.execPath,
-    [cli, "check", "--target", target, "--since", since, "--json"],
-    { cwd: repo, encoding: "utf8" },
-  );
+  const args = [cli, "check"];
+  if (target !== undefined) args.push("--target", target);
+  args.push("--since", since, "--json");
+  const result = spawnSync(process.execPath, args, {
+    cwd: repo,
+    encoding: "utf8",
+  });
   const lines = result.stdout.trim().split(/\r?\n/).filter(Boolean);
   assert.equal(lines.length, 1, `expected one JSON line: ${result.stdout}`);
   return { status: result.status, report: JSON.parse(lines[0]) };
@@ -72,7 +74,7 @@ try {
   git("config", "user.name", "aidoc test");
   git("config", "user.email", "aidoc-test@example.invalid");
   mkdirSync(join(repo, "src"));
-  writeFileSync(join(repo, "README.md"), "# Fixture\n");
+  writeFileSync(join(repo, "README.md"), "# Fixture\n\n## API\n\n`api` is public.\n");
   writeFileSync(
     join(repo, "src", "index.ts"),
     "export function api(): number { return 1; }\n",
@@ -88,8 +90,11 @@ try {
       status: "clean",
       target: "README.md",
       targetChanged: false,
+      referencedSymbols: [],
+      sections: [],
+      unmappedSymbols: [],
       sourceFiles: [],
-      message: "No documentation-relevant source changes detected",
+      message: "No changed public symbol is mentioned in README.md",
     },
   });
 
@@ -110,11 +115,43 @@ try {
   assert.equal(unknown.status, 2);
   assert.equal(unknown.report.status, "unknown");
 
-  writeFileSync(join(repo, "README.md"), "# Fixture updated\n");
+  writeFileSync(
+    join(repo, "README.md"),
+    "# Fixture updated\n\n## API\n\n`api` changed.\n",
+  );
   commit("fixture: docs co-change");
   const coChanged = check("README.md", base);
   assert.equal(coChanged.status, 0);
   assert.equal(coChanged.report.status, "co-changed");
+
+  writeFileSync(
+    join(repo, "src", "index.ts"),
+    "export function api(value: string): number { return value.length; }\n",
+  );
+  writeFileSync(
+    join(repo, "README.md"),
+    "# Fixture updated\n\n## API\n\n`api(value)` changed again.\n",
+  );
+  git("mv", "README.md", "readme.md");
+  const lowercaseBase = git("rev-parse", "HEAD");
+  commit("fixture: lowercase README co-change");
+  const lowercaseCoChanged = check(undefined, lowercaseBase);
+  assert.equal(lowercaseCoChanged.status, 0);
+  assert.equal(lowercaseCoChanged.report.status, "co-changed");
+  assert.equal(lowercaseCoChanged.report.target, "readme.md");
+
+  writeFileSync(join(repo, "readme.md"), "# Fixture updated\n");
+  commit("fixture: unrelated documentation baseline");
+  writeFileSync(
+    join(repo, "src", "other.ts"),
+    "function helper() { return 1; }\nexport function other() { return helper(); }\n",
+  );
+  const unrelatedBase = git("rev-parse", "HEAD");
+  commit("fixture: unrelated public helper");
+  const unrelatedClean = check(undefined, unrelatedBase);
+  assert.equal(unrelatedClean.status, 0);
+  assert.equal(unrelatedClean.report.status, "clean");
+  assert.deepEqual(unrelatedClean.report.unmappedSymbols, ["other"]);
 
   writeFileSync(
     join(repo, "package.json"),

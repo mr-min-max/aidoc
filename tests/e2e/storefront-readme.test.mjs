@@ -275,7 +275,7 @@ test("preserves the canonical change story, capability map, and caveats", () => 
   }
   assert.match(
     readme,
-    /`aidoc check` is an AST-backed co-change guard, not semantic proof\./u,
+    /`aidoc check` fails only for unchanged sections that mention changed public symbols; a co-change is not semantic proof\./u,
   );
   assert.match(
     readme,

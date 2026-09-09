@@ -268,27 +268,45 @@ boundaries as other real CLI generation.
 
 ### `aidoc check`
 
-Runs the AST-backed source/document co-change guard. It parses changed supported
-source files and checks whether the selected Markdown target changed in the same
-Git range. It does not compare generated prose and is not semantic proof that a
-document is correct.
+Runs the deterministic, plan-driven documentation freshness guard. A target is
+`stale` only when a Markdown section directly mentions a changed public symbol
+and the target was not modified in the selected Git range. It does not compare
+generated prose, so a co-change does not prove content correctness.
+
+Recommendations (such as an API or changelog suggestion) are not direct
+evidence. Unmapped symbols do not fail the check, and implementation-only
+changes fail only when the changed symbol is directly mentioned in the target.
 
 ```bash
 aidoc check
 aidoc check --target docs/API.md --since origin/main
-aidoc check --json
+aidoc check --base origin/main --to HEAD --json
 ```
 
-Options:
+With no `--target`, AiDoc discovers the repository's root `README.md` without
+assuming capitalization, including `readme.md` and `Readme.md`. The default
+base is `HEAD~1`; `--base` is an alias for `--since`, and `--to` defaults to the
+working tree. Use `--json` for a report containing `status`, `target`,
+`targetChanged`, `referencedSymbols`, `sections`, `unmappedSymbols`,
+`sourceFiles`, and `message`.
 
-- `--target <file>` selects the document. The default is `README.md`.
-- `--since <ref>` selects the Git ref. The default is `HEAD~1`.
-- `--json` emits the machine-readable freshness report.
+Statuses and exit codes are:
 
-The report status is `clean`, `co-changed`, `stale`, `missing`, or
-`unknown`. `clean` and `co-changed` exit with status `0`; `stale` and
-`missing` exit with status `1`; operationally unknown results exit with
-status `2`.
+- `clean` (0): no changed public symbol is mentioned in the target, including
+  an unrelated internal change or a recommendation-only mapping.
+- `co-changed` (0): directly referenced symbols and the target changed together;
+  content correctness was not verified.
+- `stale` (1): directly referenced symbols changed but the target did not; the
+  text output lists each affected section and symbol.
+- `missing` (1): the selected target does not exist.
+- `unknown` (2): an operational or planning failure prevented evaluation.
+
+For example, `README.md: 1 sections mention changed public symbols and were not
+updated (API: createUser)` is stale; `README.md changed with the 1 public symbol
+it mentions; content correctness was not verified` is co-changed; and `No
+changed public symbol is mentioned in README.md` is clean. A missing target emits
+`Documentation target is missing: docs/API.md` and exits 1; an operational
+failure emits `Could not evaluate documentation freshness: ...` and exits 2.
 
 ### `aidoc score`
 

@@ -270,7 +270,7 @@ async function runRepositoryIsolationRoundTrip(
       (tool) => tool.name === "check_docs_freshness",
     );
     assert.ok(freshnessTool);
-    assert.match(freshnessTool.description ?? "", /co-change/iu);
+    assert.match(freshnessTool.description ?? "", /directly mention changed symbols/iu);
 
     for (const directory of [".", "src"]) {
       const { result, text } = await callText(
@@ -638,7 +638,7 @@ try {
   commitFixture(repositoryB, hooks, "external fixture: sentinel");
 
   mkdirSync(join(repositoryA, "src"), { recursive: true });
-  writeFileSync(join(repositoryA, "README.md"), "# MCP fixture\n");
+  writeFileSync(join(repositoryA, "README.md"), "# MCP fixture\n\n## API\n\n`api` is public.\n");
   writeFileSync(
     join(repositoryA, "src", "index.ts"),
     [

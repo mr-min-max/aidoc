@@ -56,6 +56,7 @@ export AIDOC_MODEL="$model"
 changed="false"
 changed_files=()
 summary_lines=()
+check_exit_status=0
 if [ -n "$changed_files_file" ]; then
   : > "$changed_files_file"
 fi
@@ -72,8 +73,14 @@ for raw_command in "${command_list[@]}"; do
   esac
 
   if [ "$mode" = "check" ]; then
-    aidoc check --target "$output_file" --since "$since"
-    summary_lines+=("Co-change check passed for $output_file")
+    check_status=0
+    check_report="$(aidoc check --target "$output_file" --since "$since" --json)" || check_status=$?
+    check_message="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).message)' "$check_report")"
+    summary_lines+=("$check_message")
+    if [ "$check_status" -ne 0 ]; then
+      check_exit_status="$check_status"
+      break
+    fi
     continue
   fi
 
@@ -121,3 +128,7 @@ done
   printf '%s\n' "${summary_lines[@]}"
   echo "AIDOC_SUMMARY_EOF"
 } >> "$GITHUB_OUTPUT"
+
+if [ "$check_exit_status" -ne 0 ]; then
+  exit "$check_exit_status"
+fi
