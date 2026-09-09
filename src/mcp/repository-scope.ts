@@ -671,18 +671,20 @@ export class MCPRepositoryReadScope {
     return value;
   }
 
-  /** Returns validated, sorted, selected-directory Git paths from a fixed Git invocation. */
+  /** Returns validated, sorted Git paths between refs or from a ref to the working tree. */
   async changedFiles(
     directory: AuthorizedMCPDirectory,
     fromRef: string,
-    toRef = "HEAD",
+    toRef?: string,
   ): Promise<readonly string[]> {
     const record = this.requireDirectory(directory);
     const safeFromRef = this.validateGitRef(fromRef, "");
-    const safeToRef = this.validateGitRef(toRef, "HEAD");
+    const safeToRef =
+      toRef === undefined ? undefined : this.validateGitRef(toRef, "");
     await requireStableDirectory(this.#state, record);
 
-    const range = `${safeFromRef}..${safeToRef}`;
+    const revision =
+      safeToRef === undefined ? safeFromRef : `${safeFromRef}..${safeToRef}`;
     let stdout: Buffer;
     try {
       const result = await execFileAsync(
@@ -695,7 +697,7 @@ export class MCPRepositoryReadScope {
           "--no-textconv",
           "-z",
           "--end-of-options",
-          range,
+          revision,
           "--",
         ],
         {

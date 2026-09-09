@@ -9,19 +9,24 @@ const checkMock = checkDocumentationFreshness as jest.MockedFunction<
   typeof checkDocumentationFreshness
 >;
 
+const report = (status: "clean" | "co-changed" | "stale" | "missing" | "unknown") => ({
+  status,
+  target: "README.md",
+  targetChanged: status === "co-changed",
+  referencedSymbols: status === "stale" ? ["createUser"] : [],
+  sections: status === "stale" ? [{ section: "API", slug: "api", symbols: ["createUser"] }] : [],
+  unmappedSymbols: [],
+  sourceFiles: status === "clean" ? [] : ["src/index.ts"],
+  message: status,
+});
+
 describe("runCheckCommand", () => {
   afterEach(() => {
     jest.restoreAllMocks();
   });
 
   it("prints one JSON report and returns 1 for stale documentation", async () => {
-    checkMock.mockResolvedValue({
-      status: "stale",
-      target: "README.md",
-      targetChanged: false,
-      sourceFiles: ["src/index.ts"],
-      message: "README.md did not co-change",
-    });
+    checkMock.mockResolvedValue(report("stale"));
     const write = jest
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
@@ -41,10 +46,7 @@ describe("runCheckCommand", () => {
 
   it("returns 2 when the deterministic check cannot be evaluated", async () => {
     checkMock.mockResolvedValue({
-      status: "unknown",
-      target: "README.md",
-      targetChanged: false,
-      sourceFiles: [],
+      ...report("unknown"),
       message: "Git base is unavailable",
     });
     jest.spyOn(process.stdout, "write").mockImplementation(() => true);
@@ -59,13 +61,7 @@ describe("runCheckCommand", () => {
     ["co-changed", 0],
     ["missing", 1],
   ] as const)("maps %s to exit code %i", async (status, expected) => {
-    checkMock.mockResolvedValue({
-      status,
-      target: "README.md",
-      targetChanged: status === "co-changed",
-      sourceFiles: status === "clean" ? [] : ["src/index.ts"],
-      message: status,
-    });
+    checkMock.mockResolvedValue(report(status));
     jest.spyOn(process.stdout, "write").mockImplementation(() => true);
 
     await expect(

@@ -1,3 +1,4 @@
+import { discoverReadme } from "./planner";
 import { posix as pathPosix } from "node:path";
 import {
   RepositoryWriteScope,
@@ -230,11 +231,10 @@ async function prepareExplicitTargets(
     compareStrings(left.path, right.path),
   );
 }
-
 async function prepareReadmeFallback(
   scope: RepositoryWriteScope,
 ): Promise<ResolvedDocumentationTarget[]> {
-  const prepared = await scope.prepare("README.md");
+  const prepared = await scope.prepare(await discoverReadme(scope.root) ?? "README.md");
   if (prepared.existingText === null) return [];
   assertMarkdownTarget(prepared.displayPath);
   return [

@@ -3,8 +3,10 @@ import chalk from "chalk";
 import { checkDocumentationFreshness } from "../../core/freshness";
 
 interface CheckOptions {
-  target: string;
-  since: string;
+  target?: string;
+  since?: string;
+  base?: string;
+  to?: string;
   json?: boolean;
 }
 
@@ -16,7 +18,8 @@ export async function runCheckCommand(
   const report = await checkDocumentationFreshness(
     cwd,
     options.target,
-    options.since,
+    options.base ?? options.since ?? "HEAD~1",
+    options.to ?? "HEAD",
   );
 
   if (options.json) {
@@ -29,6 +32,14 @@ export async function runCheckCommand(
           ? chalk.yellow
           : chalk.red;
     process.stdout.write(`${color(report.message)}\n`);
+    for (const section of report.sections) {
+      process.stdout.write(`  - ${section.section}: ${section.symbols.join(", ")}\n`);
+    }
+    if (report.unmappedSymbols.length > 0) {
+      process.stdout.write(
+        `${chalk.dim(`  unmapped: ${report.unmappedSymbols.join(", ")}`)}\n`,
+      );
+    }
   }
 
   if (report.status === "clean" || report.status === "co-changed") return 0;
@@ -39,9 +50,14 @@ export async function runCheckCommand(
 /** Creates the Commander definition for the `aidoc check` command. */
 export function createCheckCommand(): Command {
   return new Command("check")
-    .description("Check whether a document co-changed with AST-backed source")
-    .option("--target <file>", "Documentation file to check", "README.md")
+    .description("Check whether documentation sections mention changed symbols")
+    .option(
+      "--target <file>",
+      "Documentation file to check (default: the repository README as discovered)",
+    )
     .option("--since <ref>", "Git ref to compare against", "HEAD~1")
+    .option("--base <ref>", "Alias for --since")
+    .option("--to <ref>", "Git ref to compare to (default: working tree)")
     .option("--json", "Print a machine-readable report")
     .action(async (options: CheckOptions) => {
       process.exitCode = await runCheckCommand(options);

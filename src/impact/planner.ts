@@ -256,7 +256,7 @@ async function loadDocumentationFiles(
   configuredOutputDir: string,
   exclude: string[],
 ): Promise<DocumentationFile[]> {
-  const candidates = new Set<string>(["README.md", "CHANGELOG.md"]);
+  const candidates = new Set<string>(await rootMarkdownFiles(root));
   for (const directory of ["docs", normalizeOutputDir(configuredOutputDir)]) {
     if (directory === undefined) continue;
     for (const path of await markdownFilesUnder(root, directory)) {
@@ -271,6 +271,34 @@ async function loadDocumentationFiles(
     if (content !== undefined) files.push({ path, content });
   }
   return files;
+}
+
+/** Returns the repository-relative README path as it exists on disk, if any. */
+export async function discoverReadme(root: string): Promise<string | undefined> {
+  const files = await rootMarkdownFiles(root);
+  return files.find((file) => file.toLowerCase() === "readme.md");
+}
+
+async function rootMarkdownFiles(root: string): Promise<string[]> {
+  let entries;
+  try {
+    const rootStat = await fs.lstat(root, { bigint: true });
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) return [];
+    entries = await fs.readdir(root, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .sort((left, right) => compareStrings(left.name, right.name))
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        !entry.isSymbolicLink() &&
+        (entry.name.toLowerCase() === "readme.md" ||
+          entry.name.toLowerCase() === "changelog.md") &&
+        isSafeRelativePath(entry.name),
+    )
+    .map((entry) => entry.name);
 }
 
 async function readSafeDocumentationFile(

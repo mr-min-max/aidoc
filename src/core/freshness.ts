@@ -1,8 +1,9 @@
-import * as fs from "fs";
-import * as path from "path";
-import { getChangedFiles } from "../git/history";
-import { getParserForFile } from "../parsers/registry";
-import { getSafeErrorDiagnostic } from "../security/diagnostics";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { getChangedFiles, getGitRoot } from "../git/history";
+import { createImpactPlan, discoverReadme } from "../impact/planner";
+import { toPlanError } from "../impact/canonical";
+import type { ImpactPlan } from "../impact/types";
 
 export type DocumentationCheckStatus =
   | "clean"
@@ -11,142 +12,197 @@ export type DocumentationCheckStatus =
   | "missing"
   | "unknown";
 
+export interface StaleSection {
+  section: string;
+  slug: string;
+  symbols: string[];
+}
+
 export interface FreshnessReport {
   status: DocumentationCheckStatus;
   target: string;
   targetChanged: boolean;
+  /** Changed public symbols that this document mentions (direct references). */
+  referencedSymbols: string[];
+  /** Sections that mention changed symbols; empty unless status is stale/co-changed. */
+  sections: StaleSection[];
+  /** Changed public symbols not mentioned anywhere in discovered documentation. */
+  unmappedSymbols: string[];
+  /** Kept for compatibility with the old report: AST-backed changed source paths. */
   sourceFiles: string[];
   message: string;
 }
 
-function normalize(file: string): string {
-  return file.replaceAll(path.sep, "/").replace(/^\.\//, "");
+/** Normalizes repository-relative documentation paths without changing case. */
+export function normalizeDocPath(value: string): string {
+  return value.replaceAll("\\", "/").replace(/^\.\//u, "");
 }
 
-function isTestPath(file: string): boolean {
-  return (
-    /(^|\/)(tests?|__tests__)\//.test(file) ||
-    /\.(test|spec)\.[^.]+$/.test(file)
+/** Builds a freshness report from the shared deterministic impact plan. */
+export function assessDocumentationFreshness(input: {
+  plan: ImpactPlan;
+  changedFiles: readonly string[];
+  target: string;
+  targetExists: boolean;
+}): FreshnessReport {
+  const target = normalizeDocPath(input.target);
+  const changedFiles = input.changedFiles.map(normalizeDocPath);
+  const targetChanged = changedFiles.includes(target);
+  const symbolChanges = new Map(
+    input.plan.changes
+      .filter((change) => change.scope === "symbol")
+      .map((change) => [change.id, change]),
   );
-}
+  const referencesBySection = new Map<
+    string,
+    { section: string; slug: string; symbols: Set<string> }
+  >();
+  const referencedSymbols = new Set<string>();
 
-/** Returns whether a normalized changed path is an AST-backed source candidate. */
-export function isDocumentationSourcePath(file: string): boolean {
-  if (typeof file !== "string") return false;
-  const normalized = normalize(file);
-  const parser = getParserForFile(normalized);
-  return (
-    !isTestPath(normalized) &&
-    parser !== null &&
-    typeof parser.parseSource === "function"
-  );
-}
-
-function isCliDocumentationSourcePath(file: string): boolean {
-  if (typeof file !== "string") return false;
-  const normalized = normalize(file);
-  return !isTestPath(normalized) && getParserForFile(normalized) !== null;
-}
-
-/** Parses changed CLI source files and returns the supported normalized paths. */
-export async function collectAstSourceFiles(
-  cwd: string,
-  changedFiles: string[],
-): Promise<string[]> {
-  const sourceFiles: string[] = [];
-
-  for (const changedFile of changedFiles.map(normalize)) {
-    if (!isCliDocumentationSourcePath(changedFile)) continue;
-    const parser = getParserForFile(changedFile);
-    if (!parser) continue;
-
-    const absoluteFile = path.resolve(cwd, changedFile);
-    if (!fs.existsSync(absoluteFile)) {
-      throw new Error(
-        `Changed supported source file does not exist: ${changedFile}`,
-      );
+  for (const impact of input.plan.documentation) {
+    const change = symbolChanges.get(impact.changeId);
+    if (change?.qualifiedName === undefined) continue;
+    for (const reference of impact.directReferences) {
+      if (normalizeDocPath(reference.file) !== target) continue;
+      referencedSymbols.add(change.qualifiedName);
+      const key = `${reference.slug}\u0000${reference.section}`;
+      const section = referencesBySection.get(key) ?? {
+        section: reference.section,
+        slug: reference.slug,
+        symbols: new Set<string>(),
+      };
+      section.symbols.add(change.qualifiedName);
+      referencesBySection.set(key, section);
     }
-    await parser.parse(absoluteFile);
-
-    sourceFiles.push(changedFile);
   }
 
-  return sourceFiles.sort();
-}
+  const unmappedSymbols = input.plan.documentation
+    .filter((impact) => impact.unmapped)
+    .map((impact) => symbolChanges.get(impact.changeId)?.qualifiedName)
+    .filter((name): name is string => name !== undefined);
+  const sourceFiles = [
+    ...new Set(
+      input.plan.changes
+        .filter((change) => change.scope === "symbol")
+        .map((change) => normalizeDocPath(change.path)),
+    ),
+  ].sort(compareStrings);
+  const referenced = [...referencedSymbols].sort(compareStrings);
+  const unmapped = [...new Set(unmappedSymbols)].sort(compareStrings);
+  const sections = [...referencesBySection.values()]
+    .map((section) => ({
+      section: section.section,
+      slug: section.slug,
+      symbols: [...section.symbols].sort(compareStrings),
+    }))
+    .sort(
+      (left, right) =>
+        compareStrings(left.slug, right.slug) ||
+        compareStrings(left.section, right.section),
+    );
 
-/** Classifies documentation freshness from changed, AST-backed, and target paths. */
-export function assessDocumentationFreshness(
-  changedFiles: string[],
-  sourceFiles: string[],
-  target: string,
-  targetExists: boolean,
-): FreshnessReport {
-  const normalizedTarget = normalize(target);
-  const normalizedChanges = changedFiles.map(normalize);
-  const normalizedSourceFiles = sourceFiles.map(normalize).sort();
-  const targetChanged = normalizedChanges.includes(normalizedTarget);
-
-  if (!targetExists) {
-    return {
+  if (!input.targetExists) {
+    return makeReport({
       status: "missing",
-      target: normalizedTarget,
+      target,
       targetChanged,
-      sourceFiles: normalizedSourceFiles,
-      message: `Documentation target is missing: ${normalizedTarget}`,
-    };
+      referencedSymbols: referenced,
+      sections: [],
+      unmappedSymbols: unmapped,
+      sourceFiles,
+      message: `Documentation target is missing: ${target}`,
+    });
   }
 
-  if (normalizedSourceFiles.length > 0 && !targetChanged) {
-    return {
+  if (referenced.length === 0) {
+    return makeReport({
+      status: "clean",
+      target,
+      targetChanged,
+      referencedSymbols: [],
+      sections: [],
+      unmappedSymbols: unmapped,
+      sourceFiles,
+      message: `No changed public symbol is mentioned in ${target}`,
+    });
+  }
+
+  if (!targetChanged) {
+    return makeReport({
       status: "stale",
-      target: normalizedTarget,
+      target,
       targetChanged,
-      sourceFiles: normalizedSourceFiles,
-      message: `${normalizedSourceFiles.length} AST-backed source file(s) changed without ${normalizedTarget}`,
-    };
+      referencedSymbols: referenced,
+      sections,
+      unmappedSymbols: unmapped,
+      sourceFiles,
+      message: `${target}: ${sections.length} sections mention changed public symbols and were not updated (${sections
+        .map((section) => `${section.section}: ${section.symbols.join(", ")}`)
+        .join("; ")})`,
+    });
   }
 
-  const status: DocumentationCheckStatus =
-    normalizedSourceFiles.length === 0 ? "clean" : "co-changed";
-  return {
-    status,
-    target: normalizedTarget,
+  return makeReport({
+    status: "co-changed",
+    target,
     targetChanged,
-    sourceFiles: normalizedSourceFiles,
-    message:
-      normalizedSourceFiles.length === 0
-        ? "No documentation-relevant source changes detected"
-        : `${normalizedTarget} changed with the affected source files; content correctness was not verified`,
-  };
+    referencedSymbols: referenced,
+    sections,
+    unmappedSymbols: unmapped,
+    sourceFiles,
+    message: `${target} changed with the ${referenced.length} public symbol${referenced.length === 1 ? "" : "s"} it mentions; content correctness was not verified`,
+  });
 }
 
-/** Runs the filesystem-backed CLI freshness check and sanitizes operational failures. */
+/** Runs plan-backed freshness and sanitizes operational failures. */
 export async function checkDocumentationFreshness(
   cwd: string,
-  target: string,
+  target: string | undefined,
   since: string,
   to = "HEAD",
 ): Promise<FreshnessReport> {
-  const absoluteTarget = path.resolve(cwd, target);
-  const relativeTarget = normalize(path.relative(cwd, absoluteTarget));
-
   try {
-    const changedFiles = await getChangedFiles(since, to, cwd);
-    const sourceFiles = await collectAstSourceFiles(cwd, changedFiles);
-    return assessDocumentationFreshness(
-      changedFiles,
-      sourceFiles,
-      relativeTarget,
-      fs.existsSync(absoluteTarget),
+    const root = await getGitRoot(cwd);
+    const planning = await createImpactPlan({
+      cwd,
+      base: since,
+      head: to === "HEAD" ? undefined : to,
+    });
+    const discovered = target === undefined ? await discoverReadme(root) : undefined;
+    const requestedTarget = target === undefined ? discovered ?? "README.md" : target;
+    const absoluteTarget = path.resolve(root, requestedTarget);
+    const relativeTarget = normalizeDocPath(path.relative(root, absoluteTarget));
+    const changedFiles = await getChangedFiles(
+      since,
+      to === "HEAD" ? undefined : to,
+      cwd,
     );
-  } catch (error: unknown) {
-    const diagnostic = getSafeErrorDiagnostic(error);
-    return {
-      status: "unknown",
+    return assessDocumentationFreshness({
+      plan: planning.plan,
+      changedFiles,
       target: relativeTarget,
+      targetExists: fs.existsSync(absoluteTarget),
+    });
+  } catch (error: unknown) {
+    const planError = toPlanError(error);
+    return makeReport({
+      status: "unknown",
+      target: normalizeDocPath(target ?? "README.md"),
       targetChanged: false,
+      referencedSymbols: [],
+      sections: [],
+      unmappedSymbols: [],
       sourceFiles: [],
-      message: `Could not evaluate documentation freshness: ${diagnostic.message}`,
-    };
+      message: `Could not evaluate documentation freshness: ${planError.message}`,
+    });
   }
+}
+
+function makeReport(report: FreshnessReport): FreshnessReport {
+  return report;
+}
+
+function compareStrings(left: string, right: string): number {
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
 }

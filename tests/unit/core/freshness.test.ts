@@ -1,212 +1,232 @@
 jest.mock("../../../src/git/history", () => ({
   getChangedFiles: jest.fn(),
+  getGitRoot: jest.fn(),
 }));
 
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import { getChangedFiles } from "../../../src/git/history";
-import * as parserRegistry from "../../../src/parsers/registry";
-import { PythonParser } from "../../../src/parsers/python";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { getChangedFiles, getGitRoot } from "../../../src/git/history";
+import { mapDocumentationImpact } from "../../../src/impact/documentation";
+import { PlanFailure, type ImpactPlan, type SymbolChange } from "../../../src/impact/types";
+import * as planner from "../../../src/impact/planner";
 import {
   assessDocumentationFreshness,
   checkDocumentationFreshness,
-  isDocumentationSourcePath,
 } from "../../../src/core/freshness";
 
+const change = (overrides: Partial<SymbolChange> = {}): SymbolChange => ({
+  scope: "symbol",
+  id: "change-create-user",
+  category: "contract-changed",
+  risk: "review-required",
+  language: "typescript",
+  path: "src/user.ts",
+  kind: "function",
+  qualifiedName: "createUser",
+  digest: "a".repeat(64),
+  ...overrides,
+});
+
+function planFor(changes: SymbolChange[], documentation: ImpactPlan["documentation"]): ImpactPlan {
+  return {
+    schemaVersion: "aidoc.impact-plan.v1",
+    base: { type: "git", label: "base", commit: "a".repeat(40) },
+    head: { type: "working-tree", label: "working-tree" },
+    summary: {
+      totalChanges: changes.length,
+      publicApiChanges: changes.length,
+      potentiallyBreaking: 0,
+      reviewRequired: changes.length,
+      informational: 0,
+      unmapped: documentation.filter((item) => item.unmapped).length,
+      byCategory: {
+        added: 0,
+        removed: 0,
+        moved: 0,
+        "contract-changed": changes.length,
+        "implementation-changed": 0,
+        "documentation-changed": 0,
+        "dependency-changed": 0,
+      },
+    },
+    changes,
+    documentation,
+    context: {
+      maxBytes: 12000,
+      usedBytes: 1,
+      totalRecords: changes.length,
+      includedRecords: changes.length,
+      omittedRecords: 0,
+      impactDigest: "b".repeat(64),
+    },
+    ignored: { unsupported: 0, excluded: 0 },
+    digest: "c".repeat(64),
+  };
+}
+
+function mappedPlan(changes: SymbolChange[], markdown: string): ImpactPlan {
+  return planFor(changes, mapDocumentationImpact(changes, [{ path: "README.md", content: markdown }]));
+}
+
+describe("checkDocumentationFreshness integration boundaries", () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+    (getChangedFiles as jest.Mock).mockReset();
+    (getGitRoot as jest.Mock).mockReset();
+  });
+
+  it("uses the working-tree changed-file list when --to is omitted", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-freshness-worktree-"));
+    try {
+      const plan = mappedPlan([change()], "# Demo\n\n## API\n\n`createUser`.\n");
+      (getGitRoot as jest.Mock).mockResolvedValue(root);
+      (getChangedFiles as jest.Mock).mockResolvedValue(["src/user.ts", "README.md"]);
+      jest.spyOn(planner, "createImpactPlan").mockResolvedValue({
+        plan,
+        providerContext: {} as never,
+      });
+      jest.spyOn(planner, "discoverReadme").mockResolvedValue("README.md");
+      fs.writeFileSync(path.join(root, "README.md"), "# Demo\n\n## API\n\n`createUser`.\n");
+
+      const report = await checkDocumentationFreshness(root, undefined, "base");
+
+      expect(report.status).toBe("co-changed");
+      expect(getChangedFiles).toHaveBeenCalledWith("base", undefined, root);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("resolves a discovered README against the repository root from a subdirectory", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-freshness-root-"));
+    const cwd = path.join(root, "packages", "app");
+    try {
+      fs.mkdirSync(cwd, { recursive: true });
+      fs.writeFileSync(path.join(root, "README.md"), "# Demo\n");
+      const plan = planFor([], []);
+      (getGitRoot as jest.Mock).mockResolvedValue(root);
+      (getChangedFiles as jest.Mock).mockResolvedValue([]);
+      jest.spyOn(planner, "createImpactPlan").mockResolvedValue({
+        plan,
+        providerContext: {} as never,
+      });
+      jest.spyOn(planner, "discoverReadme").mockResolvedValue("README.md");
+
+      const report = await checkDocumentationFreshness(cwd, undefined, "base");
+
+      expect(report.status).toBe("clean");
+      expect(report.target).toBe("README.md");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("assessDocumentationFreshness", () => {
-  it("normalizes and classifies documentation source paths", () => {
-    expect(isDocumentationSourcePath("src/index.ts")).toBe(true);
-    expect(isDocumentationSourcePath("./src/index.ts")).toBe(true);
-    expect(isDocumentationSourcePath("tests/index.test.ts")).toBe(false);
-    expect(isDocumentationSourcePath("package.json")).toBe(false);
-  });
-  it("marks a missing target as missing", () => {
-    const report = assessDocumentationFreshness(
-      ["src/index.ts"],
-      ["src/index.ts"],
-      "README.md",
-      false,
-    );
-    expect(report.status).toBe("missing");
-  });
+  it("marks a changed symbol mentioned in an unchanged README section stale", () => {
+    const report = assessDocumentationFreshness({
+      plan: mappedPlan([change()], "# Demo\n\n## API\n\n`createUser(email)` creates a user.\n"),
+      changedFiles: ["src/user.ts"],
+      target: "README.md",
+      targetExists: true,
+    });
 
-  it("marks docs stale when source changed without the target", () => {
-    const report = assessDocumentationFreshness(
-      ["src/index.ts", "tests/index.test.ts"],
-      ["src/index.ts"],
-      "README.md",
-      true,
-    );
     expect(report.status).toBe("stale");
-    expect(report.sourceFiles).toEqual(["src/index.ts"]);
-    expect(report.targetChanged).toBe(false);
+    expect(report.sections).toEqual([
+      { section: "API", slug: "api", symbols: ["createUser"] },
+    ]);
+    expect(report.referencedSymbols).toEqual(["createUser"]);
   });
 
-  it("reports an explicit co-change when target and source both changed", () => {
-    const report = assessDocumentationFreshness(
-      ["src/index.ts", "README.md"],
-      ["src/index.ts"],
-      "README.md",
-      true,
-    );
+  it("marks a referenced README co-changed with its source co-changed", () => {
+    const report = assessDocumentationFreshness({
+      plan: mappedPlan([change()], "# Demo\n\n## API\n\n`createUser(email)` creates a user.\n"),
+      changedFiles: ["src/user.ts", "./README.md"],
+      target: "README.md",
+      targetExists: true,
+    });
+
     expect(report.status).toBe("co-changed");
     expect(report.targetChanged).toBe(true);
   });
 
-  it("ignores test-only and non-source changes", () => {
-    const report = assessDocumentationFreshness(
-      ["tests/index.test.ts", "package-lock.json"],
-      [],
-      "README.md",
-      true,
-    );
+  it("keeps an unmapped changed symbol clean and reports it", () => {
+    const changed = change({ qualifiedName: "unmentioned", category: "implementation-changed" });
+    const report = assessDocumentationFreshness({
+      plan: mappedPlan([changed], "# Demo\n\n## API\n\nNo symbols here.\n"),
+      changedFiles: ["src/user.ts"],
+      target: "README.md",
+      targetExists: true,
+    });
+
     expect(report.status).toBe("clean");
-    expect(report.sourceFiles).toEqual([]);
+    expect(report.unmappedSymbols).toEqual(["unmentioned"]);
   });
-});
 
-it("returns stale from the Git-backed AST boundary", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-freshness-"));
-  try {
-    fs.mkdirSync(path.join(root, "src"));
-    fs.writeFileSync(
-      path.join(root, "src", "index.ts"),
-      "export function currentApi(): string { return 'ok'; }\n",
-    );
-    fs.writeFileSync(path.join(root, "README.md"), "# Docs\n");
-    (getChangedFiles as jest.Mock).mockResolvedValue(["src/index.ts"]);
-    const report = await checkDocumentationFreshness(
-      root,
-      "README.md",
-      "HEAD~1",
-    );
-    expect(report.status).toBe("stale");
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-it("returns unknown when changed TypeScript has syntax diagnostics", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-freshness-"));
-  try {
-    fs.mkdirSync(path.join(root, "src"));
-    fs.writeFileSync(
-      path.join(root, "src", "broken.ts"),
-      "export function broken(: string { return 'no'; }\n",
-    );
-    fs.writeFileSync(path.join(root, "README.md"), "# Docs\n");
-    (getChangedFiles as jest.Mock).mockResolvedValue(["src/broken.ts"]);
-
-    const report = await checkDocumentationFreshness(
-      root,
-      "README.md",
-      "HEAD~1",
-    );
-
-    expect(report.status).toBe("unknown");
-    expect(report.message).toMatch(/syntax/i);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-it("keeps a genuinely parsed empty source file AST-backed", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-freshness-"));
-  try {
-    fs.mkdirSync(path.join(root, "src"));
-    fs.writeFileSync(path.join(root, "src", "empty.ts"), "");
-    fs.writeFileSync(path.join(root, "README.md"), "# Docs\n");
-    (getChangedFiles as jest.Mock).mockResolvedValue(["src/empty.ts"]);
-
-    const report = await checkDocumentationFreshness(
-      root,
-      "README.md",
-      "HEAD~1",
-    );
+  it("treats an implementation change as stale when directly mentioned", () => {
+    const report = assessDocumentationFreshness({
+      plan: mappedPlan(
+        [change({ category: "implementation-changed" })],
+        "# Demo\n\n## API\n\n`createUser` creates a user.\n",
+      ),
+      changedFiles: ["src/user.ts"],
+      target: "README.md",
+      targetExists: true,
+    });
 
     expect(report.status).toBe("stale");
-    expect(report.sourceFiles).toEqual(["src/empty.ts"]);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-it("returns unknown when a changed supported source file no longer exists", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-freshness-"));
-  try {
-    fs.writeFileSync(path.join(root, "README.md"), "# Docs\n");
-    (getChangedFiles as jest.Mock).mockResolvedValue(["src/deleted.ts"]);
-
-    const report = await checkDocumentationFreshness(
-      root,
-      "README.md",
-      "HEAD~1",
-    );
-
-    expect(report.status).toBe("unknown");
-    expect(report.message).toMatch(/does not exist/i);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-it("returns unknown when Python runtime execution is unavailable", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-freshness-"));
-  const unavailable = Object.assign(new Error("spawn python3 ENOENT"), {
-    code: "ENOENT",
   });
-  const parser = new PythonParser(async () => {
-    throw unavailable;
+
+  it("does not count recommendation-only mappings for a README target", () => {
+    const report = assessDocumentationFreshness({
+      plan: planFor(
+        [change({ category: "added" })],
+        mapDocumentationImpact([change({ category: "added" })], [
+          { path: "README.md", content: "# Demo\n" },
+          { path: "docs/API.md", content: "# API\n" },
+        ]),
+      ),
+      changedFiles: ["src/user.ts"],
+      target: "README.md",
+      targetExists: true,
+    });
+
+    expect(report.status).toBe("clean");
   });
-  const parserSpy = jest
-    .spyOn(parserRegistry, "getParserForFile")
-    .mockReturnValue(parser);
 
-  try {
-    fs.mkdirSync(path.join(root, "src"));
-    fs.writeFileSync(path.join(root, "src", "module.py"), "");
-    fs.writeFileSync(path.join(root, "README.md"), "# Docs\n");
-    (getChangedFiles as jest.Mock).mockResolvedValue(["src/module.py"]);
+  it("reports a missing target", () => {
+    const report = assessDocumentationFreshness({
+      plan: mappedPlan([change()], "# Demo\n\n## API\n\n`createUser`.\n"),
+      changedFiles: ["src/user.ts"],
+      target: "README.md",
+      targetExists: false,
+    });
 
-    const report = await checkDocumentationFreshness(
-      root,
-      "README.md",
-      "HEAD~1",
-    );
+    expect(report.status).toBe("missing");
+  });
 
-    expect(report.status).toBe("unknown");
-    expect(report.message).toMatch(/Python parser unavailable/i);
-  } finally {
-    parserSpy.mockRestore();
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
+  it("maps a planning failure to unknown without exposing a path", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-freshness-plan-"));
+    try {
+      (getGitRoot as jest.Mock).mockResolvedValue(root);
+      jest
+        .spyOn(planner, "createImpactPlan")
+        .mockRejectedValue(new PlanFailure("PLAN_PARSE_FAILED", "Unable to parse changed source.", "sensitive/source.ts"));
 
-it("does not return malformed Python source through freshness diagnostics", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-freshness-"));
-  const fakeSourceSecret = ["sk", "proj", "W".repeat(32)].join("-");
-  try {
-    fs.mkdirSync(path.join(root, "src"));
-    fs.writeFileSync(
-      path.join(root, "src", "broken.py"),
-      `def broken(${fakeSourceSecret}:\n`,
-    );
-    fs.writeFileSync(path.join(root, "README.md"), "# Docs\n");
-    (getChangedFiles as jest.Mock).mockResolvedValue(["src/broken.py"]);
+      const report = await checkDocumentationFreshness(root, undefined, "HEAD~1");
 
-    const report = await checkDocumentationFreshness(
-      root,
-      "README.md",
-      "HEAD~1",
-    );
+      expect(report.status).toBe("unknown");
+      expect(report.message).not.toContain("sensitive/source.ts");
+      expect(report.target).toBe("README.md");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+      jest.restoreAllMocks();
+    }
+  });
 
-    expect(report.status).toBe("unknown");
-    expect(report.message).not.toContain(fakeSourceSecret);
-    expect(report.message).toMatch(
-      /Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\))?\./u,
-    );
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
+  afterEach(() => {
+    (getChangedFiles as jest.Mock).mockReset();
+    (getGitRoot as jest.Mock).mockReset();
+  });
 });
