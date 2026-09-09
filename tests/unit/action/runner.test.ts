@@ -106,6 +106,10 @@ if [ "\${AIDOC_GH_MODE:-}" = "label-delete" ] && [[ "$*" == *"-X DELETE"* ]] && 
   exit 1
 fi
 if [ "$1" = "api" ] && [ "$2" = "user" ]; then
+  if [ "\${AIDOC_GH_USER_FORBIDDEN:-false}" = "true" ]; then
+    printf '%s\n' 'gh: Resource not accessible by integration (HTTP 403)' >&2
+    exit 1
+  fi
   printf '%s\n' 'github-actions[bot]'
 elif [ "$1" = "api" ] && [[ "$*" == *"/comments"* ]] && [[ "$*" != *"/comments/"* ]]; then
   printf '%s\n' "\${AIDOC_GH_COMMENTS:-[]}"
@@ -337,6 +341,23 @@ describe("action/run.sh", () => {
     expect(result.ghLog).toContain("api user --jq .login");
     expect(result.ghLog).toContain("api -X PATCH repos/owner/repo/issues/7/comments/42 --input");
     expect(result.ghLog).not.toContain("api -X POST repos/owner/repo/issues/7/comments --input");
+  });
+
+  it("stays sticky when the installation token cannot read GET /user", () => {
+    const result = runRunner({
+      AIDOC_INPUT_MODE: "review",
+      AIDOC_PR_BASE_SHA: "HEAD",
+      AIDOC_PR_HEAD_SHA: "HEAD",
+      AIDOC_REPOSITORY: "owner/repo",
+      AIDOC_PR_NUMBER: "7",
+      AIDOC_INPUT_GITHUB_TOKEN: "token",
+      AIDOC_GH_USER_FORBIDDEN: "true",
+      AIDOC_GH_COMMENTS: '[{"id":42,"body":"<!-- aidoc-review -->\\nold","user":{"login":"github-actions[bot]"}}]',
+    });
+    expect(result.status).toBe(0);
+    expect(result.ghLog).toContain("api -X PATCH repos/owner/repo/issues/7/comments/42 --input");
+    expect(result.ghLog).not.toContain("api -X POST repos/owner/repo/issues/7/comments --input");
+    expect(result.stdout).not.toContain("read-only token");
   });
 
   it("posts a marked comment when no token-owned comment exists", () => {
