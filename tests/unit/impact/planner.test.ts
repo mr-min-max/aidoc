@@ -105,10 +105,12 @@ describe("createImpactPlan", () => {
         expect.objectContaining({
           category: "contract-changed",
           path: "index.ts",
+          before: "greet(name: string): string",
+          after: "greet(name: number): number",
+          arity: { required: 1, total: 1 },
         }),
       ]),
     );
-    expect(JSON.stringify(result)).not.toContain("name: number");
   });
 
   test("returns stable plans and scans only selected markdown files", async () => {

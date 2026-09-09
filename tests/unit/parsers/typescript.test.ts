@@ -476,7 +476,10 @@ describe("TypeScriptParser", () => {
     expect(formatted.symbols[0].documentationFingerprint).not.toBe(
       first.symbols[0].documentationFingerprint,
     );
-    expect(JSON.stringify(first)).not.toContain("alpha");
+    expect(first.symbols[0].signature).toBe(
+      'request(value?: string = "alpha"): number',
+    );
+    expect(first.symbols[0].arity).toEqual({ required: 0, total: 1 });
     expect(JSON.stringify(first)).not.toContain("public docs");
   });
 
@@ -597,8 +600,8 @@ describe("TypeScriptParser", () => {
     expect(updated.implementationFingerprint).toBe(
       original.implementationFingerprint,
     );
-    expect(JSON.stringify(first)).not.toContain("default-one");
-    expect(JSON.stringify(changed)).not.toContain("default-two");
+    expect(original.signature).toContain("default-one");
+    expect(updated.signature).toContain("default-two");
   });
 
   // Break caught: implementation literals or operators contaminate the declared contract.
@@ -1166,6 +1169,18 @@ describe("TypeScriptParser", () => {
       { kind: "interface", qualifiedName: "Api" },
       { kind: "type", qualifiedName: "Result" },
     ]);
+    const byName = new Map(
+      snapshot.symbols.map((symbol) => [symbol.qualifiedName, symbol]),
+    );
+    expect(byName.get("Service")).toMatchObject({ signature: "class Service" });
+    expect(byName.get("Service")).not.toHaveProperty("arity");
+    expect(byName.get("Api")).toMatchObject({ signature: "interface Api" });
+    expect(byName.get("Result")).toMatchObject({
+      signature: "type Result = string | number",
+    });
+    expect(byName.get("Mode")).toMatchObject({
+      signature: "enum Mode { Fast, Safe }",
+    });
   });
 
   // Break caught: inheritance, public member shape, or modifier syntax is missing from its facet.
@@ -1240,6 +1255,13 @@ describe("TypeScriptParser", () => {
     expect(reordered.symbols[0].contractFacets).toEqual(
       first.symbols[0].contractFacets,
     );
+    expect(first.symbols[0].signature).toBe(
+      "convert(value: string): string | convert(value: number): number",
+    );
+    expect(reordered.symbols[0].signature).toBe(
+      "convert(value: number): number | convert(value: string): string",
+    );
+    expect(first.symbols[0].arity).toEqual({ required: 1, total: 1 });
   });
 
   // Break caught: executable defaults hidden by public overloads disappear from every fingerprint.
@@ -1352,6 +1374,90 @@ describe("TypeScriptParser", () => {
       "Api",
     ]);
     expect(reordered.symbols).toEqual(first.symbols);
+    expect(reordered.symbols.map(({ signature }) => signature)).toEqual(
+      first.symbols.map(({ signature }) => signature),
+    );
+  });
+
+  it("renders generic callable, class, interface, and variable signatures", async () => {
+    const snapshot = await parser.snapshot(
+      "src/signatures.ts",
+      `export async function request<T>(value: T, count?: number = 1, ...rest: T[]): Promise<T> { return value; }
+export class Service<T> extends Base<T> implements Api<T>, Disposable {}
+export interface Options<T> extends BaseOptions<T>, Shared {}
+export const CONFIG: Readonly<{ retries: number }> = { retries: 3 };
+export const SHAPE = { beta: 2, alpha: 1 };
+export const VALUE = compute();`,
+    );
+    const byName = new Map(
+      snapshot.symbols.map((symbol) => [symbol.qualifiedName, symbol]),
+    );
+
+    expect(byName.get("request")).toMatchObject({
+      signature:
+        "async request<T>(value: T, count?: number = 1, ...rest: T[]): Promise<T>",
+      arity: { required: 1, total: 3 },
+    });
+    expect(byName.get("Service")).toMatchObject({
+      signature:
+        "class Service<T> extends Base<T> implements Api<T>, Disposable",
+    });
+    expect(byName.get("Options")).toMatchObject({
+      signature: "interface Options<T> extends BaseOptions<T>, Shared",
+    });
+    expect(byName.get("CONFIG")).toMatchObject({
+      signature: "const CONFIG: Readonly<{ retries: number }>",
+    });
+    expect(byName.get("SHAPE")).toMatchObject({
+      signature: "const SHAPE = { beta, alpha }",
+    });
+    expect(byName.get("VALUE")).toMatchObject({
+      signature: "const VALUE = ...",
+    });
+  });
+
+  it("caps TypeScript callable signatures at 400 characters with an ellipsis", async () => {
+    const snapshot = await parser.snapshot(
+      "src/long.ts",
+      `export function request(value: "${"x".repeat(500)}"): void {}`,
+    );
+
+    expect(snapshot.symbols[0].signature).toHaveLength(400);
+    expect(snapshot.symbols[0].signature.endsWith("...")).toBe(true);
+  });
+
+  it("truncates astral signatures by code point without lone surrogates", async () => {
+    const snapshot = await parser.snapshot(
+      "src/astral.ts",
+      `export function request(value: "${"😀".repeat(500)}"): void {}`,
+    );
+    const signature = snapshot.symbols[0].signature;
+
+    expect(Array.from(signature)).toHaveLength(400);
+    expect(signature.endsWith("...")).toBe(true);
+    expect(
+      Array.from(signature).some((character) => {
+        const codePoint = character.codePointAt(0)!;
+        return codePoint >= 0xd800 && codePoint <= 0xdfff;
+      }),
+    ).toBe(false);
+  });
+
+  it("widens inferred primitive returns without exposing body literals", async () => {
+    const stringSnapshot = await parser.snapshot(
+      "src/string.ts",
+      `export function createUser(email: string) { return email; }`,
+    );
+    const objectSnapshot = await parser.snapshot(
+      "src/object.ts",
+      `export function value() { return { token: "BODY_ONLY_SECRET" } as const; }`,
+    );
+
+    expect(stringSnapshot.symbols[0].signature).toBe(
+      "createUser(email: string): string",
+    );
+    expect(objectSnapshot.symbols[0].signature).toBe("value(): unknown");
+    expect(JSON.stringify(objectSnapshot)).not.toContain("BODY_ONLY_SECRET");
   });
 
   // Break caught: merged-interface hashes encode declaration partition boundaries instead of effective shape.

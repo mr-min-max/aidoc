@@ -22,8 +22,9 @@ export function formatImpactPlan(
   presentation?: ImpactPlanPresentation,
 ): string {
   const count = plan.summary.publicApiChanges;
+  const informational = plan.summary.informational;
   const lines = [
-    `Documentation impact: ${count} public API ${plural(count, "change", "changes")}`,
+    `Documentation impact: ${count} public API ${plural(count, "change", "changes")}${informational > 0 ? ` (${informational} informational)` : ""}`,
   ];
 
   if (!hasDocumentationImpact(plan)) {
@@ -60,6 +61,12 @@ export function formatImpactPlan(
     `Context: ${plan.context.usedBytes} / ${plan.context.maxBytes} bytes`,
   );
   if (verbose) {
+    for (const change of plan.changes) {
+      if (change.before === undefined && change.after === undefined) continue;
+      lines.push(`Change: ${change.qualifiedName ?? change.id}`);
+      if (change.before !== undefined) lines.push(`  before: ${change.before}`);
+      if (change.after !== undefined) lines.push(`  after:  ${change.after}`);
+    }
     lines.push(`Base: ${formatSnapshot(plan.base)}`);
     lines.push(`Head: ${formatSnapshot(plan.head)}`);
   }

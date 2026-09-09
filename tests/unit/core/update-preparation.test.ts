@@ -43,6 +43,8 @@ function impactContext(): ImpactProviderContext {
         kind: "function",
         qualifiedName: "transform",
         changedContractFacets: ["parameters", "return"],
+        before: "transform(input: string): string",
+        after: "transform(input: string, options?: Options): number",
       },
     ],
     documentation: [
@@ -83,6 +85,7 @@ describe("renderUpdateGenerationEnvelope", () => {
     const generator = new Generator(provider, templatesDir);
     const input = {
       existingDoc: "# Existing\n\n## API\n\nUse transform.\n",
+      target: "README.md",
       impactPlan: impactContext(),
     };
 
@@ -90,6 +93,7 @@ describe("renderUpdateGenerationEnvelope", () => {
     const envelope = renderUpdateGenerationEnvelope({
       templatesDir,
       existingDoc: input.existingDoc,
+      target: "README.md",
       impactPlan: input.impactPlan,
     });
     const inspectionProvider = new RecordingProvider();
@@ -112,6 +116,7 @@ describe("renderUpdateGenerationEnvelope", () => {
     const envelope = renderUpdateGenerationEnvelope({
       templatesDir,
       existingDoc: "# Existing\n",
+      target: "README.md",
       impactPlan: impactContext(),
     });
 
@@ -123,6 +128,68 @@ describe("renderUpdateGenerationEnvelope", () => {
     });
   });
 
+  it("renders an unescaped grouped signature delta with sorted unique sections", () => {
+    const context = impactContext();
+    context.documentation[0].directReferences.push({
+      file: "README.md",
+      section: "`aidoc api`",
+      slug: "aidoc-api",
+      reason: "heading",
+    });
+    context.documentation[0].recommendations.push({
+      file: "README.md",
+      section: "API",
+      slug: "api",
+      reason: "api-documentation",
+    });
+    const envelope = renderUpdateGenerationEnvelope({
+      templatesDir,
+      existingDoc: "# Existing\n",
+      target: "README.md",
+      impactPlan: context,
+    });
+
+    expect(envelope.prompt).toContain("--- EXISTING DOCUMENT (README.md) ---");
+    expect(envelope.prompt).toContain(
+      "transform (function, contract-changed: parameters, return)",
+    );
+    expect(envelope.prompt).toContain(
+      "  before: transform(input: string): string",
+    );
+    expect(envelope.prompt).toContain(
+      "  after:  transform(input: string, options?: Options): number",
+    );
+    expect(envelope.prompt).toContain("  mentioned in: API; `aidoc api`");
+    expect(envelope.prompt).not.toContain("&#x");
+  });
+
+  it("labels compacted changes without inventing unavailable signatures", () => {
+    const context = impactContext();
+    context.changes = [
+      {
+        id: "b".repeat(64),
+        category: "contract-changed",
+        risk: "review-required",
+        kind: "function",
+        compacted: true,
+      },
+    ];
+    context.documentation = [];
+    const envelope = renderUpdateGenerationEnvelope({
+      templatesDir,
+      existingDoc: "# Existing\n",
+      target: "README.md",
+      impactPlan: context,
+    });
+
+    expect(envelope.prompt).toContain(
+      `${"b".repeat(64)} (function, contract-changed)`,
+    );
+    expect(envelope.prompt).toContain("(details omitted: context budget)");
+    expect(envelope.prompt).not.toContain("before:");
+    expect(envelope.prompt).not.toContain("after:");
+  });
+
   it("uses a value-free diagnostic when the template directory is missing", () => {
     const templatesDir = "/Users/alice/private/project/templates";
 
@@ -130,6 +197,7 @@ describe("renderUpdateGenerationEnvelope", () => {
       renderUpdateGenerationEnvelope({
         templatesDir,
         existingDoc: "# Existing\n",
+        target: "README.md",
         impactPlan: impactContext(),
       }),
     ).toThrow("Template not found.");
@@ -138,6 +206,7 @@ describe("renderUpdateGenerationEnvelope", () => {
       renderUpdateGenerationEnvelope({
         templatesDir,
         existingDoc: "# Existing\n",
+        target: "README.md",
         impactPlan: impactContext(),
       });
     } catch (error: unknown) {

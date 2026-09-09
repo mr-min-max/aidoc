@@ -48,7 +48,10 @@ async function commit(repository, hooks, message) {
 function validateDemo(human, result) {
   assert.equal(result?.ok, true, "demo planning must succeed");
   assert.equal(typeof result.plan, "object", "demo must return a plan");
-  assert.match(human, /^Documentation impact: 2 public API changes/u);
+  assert.match(
+    human,
+    /^Documentation impact: 1 public API change \(1 informational\)/u,
+  );
   assert.match(human, /Context: \d+ \/ 12000 bytes/u);
   assert.match(human, /Next: aidoc update/u);
   assert.equal(

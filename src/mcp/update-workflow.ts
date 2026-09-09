@@ -169,6 +169,7 @@ export async function prepareDocumentationUpdate(
   const envelope = renderUpdateGenerationEnvelope({
     templatesDir: resolveTemplatesDir(),
     existingDoc,
+    target: targetPath,
     impactPlan: projectedContext,
   });
   const inspected = inspectInput(context.trustPolicy, envelope, [
@@ -261,6 +262,7 @@ export async function validateDocumentationDraft(
   const envelope = renderUpdateGenerationEnvelope({
     templatesDir: resolveTemplatesDir(),
     existingDoc,
+    target: targetPath,
     impactPlan: projectedContext,
   });
   const inspected = inspectOutput(

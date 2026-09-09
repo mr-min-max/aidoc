@@ -2,6 +2,7 @@ import type { ImpactProviderContext } from "../impact/types";
 
 export interface UpdateContext {
   existingDoc: string;
+  target: string;
   impactPlan: ImpactProviderContext;
 }
 
@@ -9,6 +10,7 @@ export interface UpdateContext {
 export function buildUpdateContext(
   existingDoc: string,
   impactPlan: ImpactProviderContext,
+  target: string,
 ): UpdateContext {
-  return { existingDoc, impactPlan };
+  return { existingDoc, target, impactPlan };
 }

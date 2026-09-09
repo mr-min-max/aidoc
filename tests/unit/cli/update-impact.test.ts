@@ -8,6 +8,7 @@ import {
 } from "../../../src/cli/commands/update";
 import { defaultConfig } from "../../../src/config/loader";
 import * as impactPlanner from "../../../src/impact/planner";
+import { MockGenerator } from "../../../src/cli/mock-generator";
 import * as targetResolver from "../../../src/impact/targets";
 import type {
   ImpactPlan,
@@ -260,6 +261,7 @@ describe("update impact flow", () => {
     expect(resolveTargets).toHaveBeenCalled();
     expect(generateUpdate).toHaveBeenCalledWith({
       existingDoc: "# Existing\n",
+      target: "README.md",
       impactPlan: result.providerContext,
     });
     expect(writeDoc).toHaveBeenCalledWith(
@@ -915,6 +917,36 @@ describe("multi-target update ordering", () => {
     expect(events).not.toContain("write:docs/API.md");
     expect(consoleLog.mock.calls.flat().join(" ")).toContain(
       "Partial update: 1 of 3 selected targets completed; remaining targets were skipped.",
+    );
+  });
+
+  it("renders deterministic mock signature deltas without a date", async () => {
+    const generator = new MockGenerator();
+    const context = planningResult(true).providerContext;
+    context.changes = [
+      {
+        ...context.changes[0],
+        before: "greet(name: string): string",
+        after: "greet(name: string, title?: string): string",
+      },
+      {
+        id: "typescript:src/index.ts#function:implementation",
+        category: "implementation-changed",
+        risk: "informational",
+        path: "src/index.ts",
+        kind: "function",
+        qualifiedName: "implementation",
+      },
+    ];
+
+    await expect(
+      generator.generateUpdate({
+        existingDoc: "# Existing\n",
+        target: "README.md",
+        impactPlan: context,
+      }),
+    ).resolves.toBe(
+      "# Existing\n\n\n- greet: greet(name: string): string -> greet(name: string, title?: string): string\n",
     );
   });
 });

@@ -69,7 +69,9 @@ describe("impact-plan output", () => {
   it("renders a concise, honestly labelled human summary", () => {
     const output = formatImpactPlan(plan());
 
-    expect(output).toMatch(/^Documentation impact: 3 public API changes\n/);
+    expect(output).toMatch(
+      /^Documentation impact: 3 public API changes \(1 informational\)\n/,
+    );
     expect(output).toContain("! 1 potentially breaking change");
     expect(output).toContain(
       "Direct documentation references:\n  docs/API.md -> LLMProvider",
@@ -114,6 +116,30 @@ describe("impact-plan output", () => {
     );
   });
 
+  it("prints before and after signatures only in verbose output", () => {
+    const change = {
+      scope: "symbol" as const,
+      id: "typescript:src/index.ts#function:transform",
+      category: "contract-changed" as const,
+      risk: "potentially-breaking" as const,
+      language: "typescript" as const,
+      path: "src/index.ts",
+      kind: "function" as const,
+      qualifiedName: "transform",
+      before: "transform(value: string): string",
+      after: "transform(value: string, count: number): string",
+      digest: "d".repeat(64),
+    };
+    const withChange = plan({ changes: [change] });
+
+    expect(formatImpactPlan(withChange)).not.toContain("before:");
+    const verbose = formatImpactPlan(withChange, true);
+    expect(verbose).toContain("  before: transform(value: string): string");
+    expect(verbose).toContain(
+      "  after:  transform(value: string, count: number): string",
+    );
+  });
+
   // Break caught: zero impact still emits noisy empty sections or suggests
   // that work is required.
   it("keeps zero-impact output short and actionable", () => {
@@ -135,6 +161,43 @@ describe("impact-plan output", () => {
       "Documentation impact: 0 public API changes\n" +
         "No documentation updates are indicated.\n" +
         "Context: 0 / 12000 bytes",
+    );
+  });
+
+  it("reports no updates for an unmapped implementation-only plan", () => {
+    const implementation = {
+      scope: "symbol" as const,
+      id: "typescript:src/index.ts#function:transform",
+      category: "implementation-changed" as const,
+      risk: "informational" as const,
+      language: "typescript" as const,
+      path: "src/index.ts",
+      kind: "function" as const,
+      qualifiedName: "transform",
+      digest: "d".repeat(64),
+    };
+    const implementationOnly = plan({
+      summary: {
+        ...plan().summary,
+        totalChanges: 1,
+        publicApiChanges: 0,
+        potentiallyBreaking: 0,
+        reviewRequired: 0,
+        informational: 1,
+        unmapped: 0,
+        byCategory: {
+          ...plan().summary.byCategory,
+          "contract-changed": 0,
+          "implementation-changed": 1,
+          "documentation-changed": 0,
+        },
+      },
+      changes: [implementation],
+      documentation: [],
+    });
+
+    expect(formatImpactPlan(implementationOnly)).toContain(
+      "No documentation updates are indicated.",
     );
   });
 

@@ -88,6 +88,7 @@ test("emits deterministic, canonical, credential-free hybrid beta evidence", asy
     all_targets_require_explicit_behavior: true,
     mcp_prepare_validate_approved: true,
     mcp_prepare_validate_did_not_write: true,
+    prompt_contains_signatures: true,
     forged_preparation_blocked: true,
     secret_candidate_redacted_or_blocked: true,
     codex_plugin_smoke_passed: true,

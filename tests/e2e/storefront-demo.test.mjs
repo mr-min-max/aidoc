@@ -25,6 +25,7 @@ test("renders the exact provider-free storefront story", async () => {
       "Host contract: prepare -> host draft -> validate",
       "Provider calls: none",
       "Repository writes: none",
+      "Prompt: before/after signatures included",
       "Result: PASS",
       "",
     ].join("\n"),

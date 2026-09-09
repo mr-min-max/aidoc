@@ -54,12 +54,17 @@ describe("buildUpdateContext", () => {
   // Break caught: update generation regresses to accepting raw changed-file or
   // diff fields instead of the planner's byte-bounded provider projection.
   it("keeps the existing document and bounded impact plan as separate inputs", () => {
-    const context = buildUpdateContext("# Existing\n", impactPlan);
+    const context = buildUpdateContext("# Existing\n", impactPlan, "README.md");
 
     expect(context).toEqual({
       existingDoc: "# Existing\n",
+      target: "README.md",
       impactPlan,
     });
-    expect(Object.keys(context).sort()).toEqual(["existingDoc", "impactPlan"]);
+    expect(Object.keys(context).sort()).toEqual([
+      "existingDoc",
+      "impactPlan",
+      "target",
+    ]);
   });
 });

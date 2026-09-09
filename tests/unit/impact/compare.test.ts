@@ -22,6 +22,7 @@ function symbol(
     language: "typescript",
     kind: "function",
     qualifiedName,
+    signature: `${qualifiedName}(): void`,
     contractFacets: { parameters: hash("a"), return: hash("b") },
     contractFingerprint: hash("c"),
     implementationFingerprint: hash("d"),
@@ -212,6 +213,100 @@ describe("impact snapshot comparison", () => {
     });
   });
 
+  it("propagates signatures and callable arity by change category", () => {
+    const beforeContract = symbol("contract", {
+      signature: "contract(value?: string): void",
+      arity: { required: 0, total: 1 },
+      contractFingerprint: hash("1"),
+    });
+    const afterContract = symbol("contract", {
+      signature: "contract(value: string, count: number): void",
+      arity: { required: 2, total: 2 },
+      contractFingerprint: hash("2"),
+    });
+    const changes = compareSnapshots([
+      file(
+        "modified",
+        module("src/api.ts", [
+          beforeContract,
+          symbol("removed", {
+            signature: "removed(value: string): void",
+            arity: { required: 1, total: 1 },
+          }),
+        ]),
+        module("src/api.ts", [
+          afterContract,
+          symbol("added", {
+            signature: "added(value?: string): void",
+            arity: { required: 0, total: 1 },
+          }),
+        ]),
+        "src/api.ts",
+        "src/api.ts",
+      ),
+    ]);
+
+    expect(
+      changes.find(({ qualifiedName }) => qualifiedName === "contract"),
+    ).toMatchObject({
+      category: "contract-changed",
+      risk: "potentially-breaking",
+      before: "contract(value?: string): void",
+      after: "contract(value: string, count: number): void",
+      arity: { required: 2, total: 2 },
+    });
+    expect(
+      changes.find(({ qualifiedName }) => qualifiedName === "removed"),
+    ).toMatchObject({
+      category: "removed",
+      before: "removed(value: string): void",
+      arity: { required: 1, total: 1 },
+    });
+    expect(
+      changes.find(({ qualifiedName }) => qualifiedName === "added"),
+    ).toMatchObject({
+      category: "added",
+      after: "added(value?: string): void",
+      arity: { required: 0, total: 1 },
+    });
+  });
+
+  it("upgrades arity risk only when required count grows or total count shrinks", () => {
+    const cases = [
+      [
+        { required: 1, total: 2 },
+        { required: 2, total: 2 },
+        "potentially-breaking",
+      ],
+      [
+        { required: 1, total: 2 },
+        { required: 1, total: 1 },
+        "potentially-breaking",
+      ],
+      [{ required: 1, total: 1 }, { required: 1, total: 2 }, "review-required"],
+    ] as const;
+
+    const risks = cases.map(
+      ([before, after]) =>
+        compareSnapshots([
+          file(
+            "modified",
+            module("src/api.ts", [symbol("call", { arity: { ...before } })]),
+            module("src/api.ts", [
+              symbol("call", {
+                arity: { ...after },
+                contractFingerprint: hash("1"),
+              }),
+            ]),
+            "src/api.ts",
+            "src/api.ts",
+          ),
+        ])[0].risk,
+    );
+
+    expect(risks).toEqual(cases.map(([, , expected]) => expected));
+  });
+
   it("uses stable IDs, ordering, and repeatable digests", () => {
     const files: ParsedFileSnapshots[] = [
       file(
@@ -281,6 +376,37 @@ describe("impact snapshot comparison", () => {
         "documentation-changed": 0,
         "dependency-changed": 0,
       },
+    });
+  });
+
+  it("excludes implementation and documentation changes from public API totals", () => {
+    const implementation = compareSnapshots([
+      file(
+        "modified",
+        module("src/api.ts", [symbol("implementation")]),
+        module("src/api.ts", [
+          symbol("implementation", { implementationFingerprint: hash("1") }),
+        ]),
+        "src/api.ts",
+        "src/api.ts",
+      ),
+    ])[0];
+    const documentation = compareSnapshots([
+      file(
+        "modified",
+        module("src/api.ts", [symbol("documentation")]),
+        module("src/api.ts", [
+          symbol("documentation", { documentationFingerprint: hash("1") }),
+        ]),
+        "src/api.ts",
+        "src/api.ts",
+      ),
+    ])[0];
+
+    expect(summarizeImpact([implementation, documentation])).toMatchObject({
+      totalChanges: 2,
+      publicApiChanges: 0,
+      informational: 2,
     });
   });
 
