@@ -164,7 +164,9 @@ describe("impact-plan output", () => {
     );
   });
 
-  it("reports no updates for an unmapped implementation-only plan", () => {
+  // Break caught: an implementation-only change with no mapped section silently
+  // disappears from the report instead of being listed as unmapped.
+  it("lists an unmapped implementation-only change with explicit-target guidance", () => {
     const implementation = {
       scope: "symbol" as const,
       id: "typescript:src/index.ts#function:transform",
@@ -184,7 +186,7 @@ describe("impact-plan output", () => {
         potentiallyBreaking: 0,
         reviewRequired: 0,
         informational: 1,
-        unmapped: 0,
+        unmapped: 1,
         byCategory: {
           ...plan().summary.byCategory,
           "contract-changed": 0,
@@ -193,11 +195,24 @@ describe("impact-plan output", () => {
         },
       },
       changes: [implementation],
-      documentation: [],
+      documentation: [
+        {
+          changeId: implementation.id,
+          directReferences: [],
+          recommendations: [],
+          unmapped: true,
+        },
+      ],
     });
 
-    expect(formatImpactPlan(implementationOnly)).toContain(
-      "No documentation updates are indicated.",
+    expect(formatImpactPlan(implementationOnly)).toBe(
+      "Documentation impact: 0 public API changes (1 informational)\n" +
+        "\n" +
+        "1 changed symbol is not mapped to documentation.\n" +
+        "Context: 812 / 12000 bytes\n" +
+        "\n" +
+        "No safe automatic documentation target was found.\n" +
+        "Use --target <file> to choose an existing Markdown file.",
     );
   });
 
