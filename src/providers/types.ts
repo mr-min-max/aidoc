@@ -7,7 +7,11 @@ export interface GenerateOptions {
 
 export interface LLMProvider {
   readonly name: string;
-  generate(prompt: string, options?: GenerateOptions): Promise<string>;
+  generate(
+    prompt: string,
+    options?: GenerateOptions,
+    signal?: AbortSignal,
+  ): Promise<string>;
   /** Streams tokens as they arrive. Optional — falls back to generate() if absent. */
   generateStream?(
     prompt: string,
