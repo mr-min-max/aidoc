@@ -44,6 +44,24 @@ describe("runCheckCommand", () => {
     });
   });
 
+  it("prints stale sections in text mode and returns 1", async () => {
+    const staleReport = {
+      ...report("stale"),
+      message: "README.md: 1 sections mention changed public symbols and were not updated (API: createUser)",
+    };
+    checkMock.mockResolvedValue(staleReport);
+    const write = jest
+      .spyOn(process.stdout, "write")
+      .mockImplementation(() => true);
+
+    const code = await runCheckCommand({ target: "README.md", since: "HEAD~1" });
+
+    expect(code).toBe(1);
+    expect(String(write.mock.calls.map(([value]) => value).join(""))).toBe(
+      "README.md: 1 sections mention changed public symbols and were not updated (API: createUser)\n  - API: createUser\n",
+    );
+  });
+
   it("returns 2 when the deterministic check cannot be evaluated", async () => {
     checkMock.mockResolvedValue({
       ...report("unknown"),

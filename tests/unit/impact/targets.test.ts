@@ -301,6 +301,27 @@ describe("documentation target resolution", () => {
     expect(result[0]?.reasons).toEqual(["unmapped-public-change-fallback"]);
   });
 
+  it("uses a case-variant README for the unmapped fallback", async () => {
+    rmSync(join(root, "README.md"));
+    writeFileSync(join(root, "Readme.md"), "# README\n");
+    const scope = await openScope(root);
+
+    const result = await resolveDocumentationTargets({
+      plan: plan([
+        {
+          changeId: "change-1",
+          directReferences: [],
+          recommendations: [],
+          unmapped: true,
+        },
+      ]),
+      scope,
+      explicitTargets: undefined,
+    });
+
+    expect(result.map(({ path }) => path)).toEqual(["Readme.md"]);
+  });
+
   it("does not invent a README fallback when it is absent", async () => {
     rmSync(join(root, "README.md"));
     const scope = await openScope(root);

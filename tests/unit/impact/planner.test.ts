@@ -113,6 +113,35 @@ describe("createImpactPlan", () => {
     );
   });
 
+  test("discovers a case-variant root README and maps direct references", async () => {
+    const root = repository();
+    writeFileSync(
+      join(root, "index.ts"),
+      "export function greet(name: string) { return name; }\n",
+    );
+    writeFileSync(
+      join(root, "Readme.md"),
+      "# Project\n\n## API\n\n`greet` welcomes a user.\n",
+    );
+    commit(root, "initial");
+    writeFileSync(
+      join(root, "index.ts"),
+      "export function greet(name: number) { return name; }\n",
+    );
+
+    const result = await createImpactPlan({ cwd: root });
+
+    expect(result.plan.documentation).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          directReferences: expect.arrayContaining([
+            expect.objectContaining({ file: "Readme.md", section: "API" }),
+          ]),
+        }),
+      ]),
+    );
+  });
+
   test("returns stable plans and scans only selected markdown files", async () => {
     const root = repository();
     mkdirSync(join(root, "docs"));

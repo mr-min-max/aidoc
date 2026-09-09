@@ -8,6 +8,7 @@ All notable changes to this project are documented in this file.
 - Provider update context propagates safe signatures, groups changes in an unescaped plain-text prompt, and preserves schema v1 additive semantics.
 - Impact summaries count only contract-level public API changes and report informational implementation/documentation changes separately.
 - Verbose plans and deterministic mock updates show before/after signatures; the provider-free storefront demo proves prompt sufficiency.
+- Breaking: `check` now follows the impact plan: it fails only when an unchanged Markdown section directly mentions a changed public symbol. Its JSON report includes the target, referenced symbols, stale sections, unmapped symbols, source files, and message; clean, co-changed, stale, missing, and unknown statuses retain exit codes 0, 0, 1, 1, and 2.
 
 - Parser: enumerate arrow-function, function-expression, default, aliased, and constant exports. New impact symbol kind `variable`.
 - Removed historical planning records from the public tree; Git history retains them.

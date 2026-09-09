@@ -20,7 +20,7 @@ boundaries, see [PUBLIC_BETA.md](./PUBLIC_BETA.md).
 The mode input accepts exactly:
 
 - generate creates or updates the selected documentation files;
-- check runs the deterministic AST-backed source/document co-change guard.
+- check runs the deterministic, plan-driven freshness guard and fails only when an unchanged Markdown section directly mentions a changed public symbol.
 
 The commands input is a comma-separated list. Each value is trimmed and must
 be one of:
@@ -32,8 +32,9 @@ be one of:
 
 In generate mode, each command invokes the corresponding CLI command with
 --output, --yes, and --strict-output. In check mode, each command invokes
-aidoc check --target <file> --since <since>. Check mode does not generate or
-write documentation and does not need an API key.
+aidoc check --target <file> --since <since> --json and appends the report message
+to the Action summary. Check mode does not generate or write documentation and
+does not need an API key.
 
 ## Inputs
 
@@ -164,11 +165,15 @@ jobs:
           commands: readme,api
 ```
 
-Check mode reports a document as stale when AST-parseable source changed in
-the selected range without the target document changing in that range. A
-successful co-changed result does not prove that the document content is
-semantically correct, and check mode never compares non-deterministic LLM
-output.
+Check mode uses the same plan-driven freshness semantics as the CLI. A target is
+`stale` only when a Markdown section directly mentions a changed public symbol
+and the target was not modified in the selected range. Recommendations and
+unmapped symbols do not fail the check; implementation-only changes fail only
+when the changed symbol is directly mentioned. The default CLI target is the
+repository README discovered on disk, so `readme.md` is supported. Check mode
+passes `--json` internally and exposes each report message in the Action
+summary. A successful co-change does not prove that document content is correct,
+and the check never compares non-deterministic LLM output.
 
 For a push workflow, the repository's prior commit can be supplied with
 ${{ github.event.before }} when that ref is present in the checkout.

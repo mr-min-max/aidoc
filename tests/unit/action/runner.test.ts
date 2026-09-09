@@ -17,6 +17,14 @@ function setupFakeAidoc(root: string): string {
 set -euo pipefail
 printf '%s\n' "$*" >> "$AIDOC_FAKE_LOG"
 printf 'trust-policy=%s\norigin=%s\n' "\${AIDOC_TRUST_POLICY:-}" "\${AIDOC_ORIGIN:-}" >> "$AIDOC_FAKE_LOG"
+if [ "$1" = "check" ]; then
+  if [ "\${AIDOC_FAKE_CHECK_RESULT:-clean}" = "stale" ]; then
+    printf '%s\n' '{"status":"stale","target":"README.md","targetChanged":false,"referencedSymbols":["createUser"],"sections":[{"section":"API","slug":"api","symbols":["createUser"]}],"unmappedSymbols":[],"sourceFiles":["src/user.ts"],"message":"README.md is stale for changed public symbols"}'
+  else
+    printf '%s\n' '{"status":"clean","target":"README.md","targetChanged":false,"referencedSymbols":[],"sections":[],"unmappedSymbols":[],"sourceFiles":[],"message":"No changed public symbol is mentioned in README.md"}'
+  fi
+  exit "\${AIDOC_FAKE_EXIT:-0}"
+fi
 if [ "\${AIDOC_FAKE_EXIT:-0}" != "0" ]; then
   exit "$AIDOC_FAKE_EXIT"
 fi
@@ -184,14 +192,31 @@ describe("action/run.sh", () => {
     ).not.toContain(fakeOpenAiKey);
   });
 
-  it("uses deterministic check mode without an API key", () => {
+  it("uses deterministic check mode without an API key and reports its message", () => {
     const result = runRunner({
       AIDOC_INPUT_MODE: "check",
       AIDOC_INPUT_API_KEY: "",
     });
     expect(result.status).toBe(0);
-    expect(result.log).toContain("check --target ./README.md --since HEAD~1");
+    expect(result.log).toContain("check --target ./README.md --since HEAD~1 --json");
     expect(result.log).not.toContain("--mock");
+    expect(result.output).toContain(
+      "summary<<AIDOC_SUMMARY_EOF\nNo changed public symbol is mentioned in README.md\n",
+    );
+  });
+
+  it("reports a stale check message before propagating the failure", () => {
+    const result = runRunner({
+      AIDOC_INPUT_MODE: "check",
+      AIDOC_INPUT_API_KEY: "",
+      AIDOC_FAKE_CHECK_RESULT: "stale",
+      AIDOC_FAKE_EXIT: "1",
+    });
+
+    expect(result.status).toBe(1);
+    expect(result.output).toContain(
+      "summary<<AIDOC_SUMMARY_EOF\nREADME.md is stale for changed public symbols\n",
+    );
   });
 });
 

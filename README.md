@@ -58,7 +58,7 @@ AST-derived coverage:
 | Plan impact                     | `aidoc plan`   |
 | Update affected Markdown        | `aidoc update` |
 | Watch and regenerate            | `aidoc watch`  |
-| Check source/document co-change | `aidoc check`  |
+| Fail CI only when a doc section that mentions a changed public symbol was not updated | `aidoc check`  |
 | Score AST coverage              | `aidoc score`  |
 
 Planning, checking, and scoring without an output path are deterministic and
@@ -301,7 +301,7 @@ provider construction or a document write. During impact planning, unsupported
 or configured-excluded files are counted as limits and are not sent to a
 provider.
 
-`aidoc check` is an AST-backed co-change guard, not semantic proof.
+`aidoc check` fails only for unchanged sections that mention changed public symbols; a co-change is not semantic proof.
 `aidoc score` is AST-derived documentation coverage, not prose quality.
 Provider-backed output can still be wrong, so review every diff. The current
 beta does not promise a documentation website, autonomous updates, or an
