@@ -149,6 +149,10 @@ export class RepositoryWriteScope {
       gitEntryIdentity,
     );
   }
+  /** Returns the canonical repository root pinned by this scope. */
+  get root(): string {
+    return this.#root;
+  }
 
   /** Validates and snapshots one contained target before any replacement is allowed. */
   async prepare(rawTarget: string): Promise<PreparedRepositoryTarget> {

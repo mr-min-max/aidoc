@@ -41,14 +41,18 @@ export async function getDiff(
   return git.diff([`${fromRef}..${toRef}`]);
 }
 
-/** Lists files changed between two git refs. */
+/** Lists files changed between two git refs or from a ref to the working tree. */
 export async function getChangedFiles(
   fromRef: string,
-  toRef: string = "HEAD",
+  toRef?: string,
   cwd?: string,
 ): Promise<string[]> {
   const git = cwd ? simpleGit(cwd) : simpleGit();
-  const result = await git.diff(["--name-only", `${fromRef}..${toRef}`]);
+  const args =
+    toRef === undefined
+      ? ["--name-only", fromRef]
+      : ["--name-only", `${fromRef}..${toRef}`];
+  const result = await git.diff(args);
   return result.trim().split("\n").filter(Boolean);
 }
 

@@ -1,101 +1,72 @@
+import { getGitRoot } from "../git/history";
 import type {
   AuthorizedMCPDirectory,
   MCPRepositoryReadScope,
 } from "./repository-scope";
 import {
   assessDocumentationFreshness,
-  isDocumentationSourcePath,
   type FreshnessReport,
 } from "../core/freshness";
-import { getParserForFile } from "../parsers/registry";
+import { discoverReadme, createImpactPlan } from "../impact/planner";
+import { toPlanError } from "../impact/canonical";
+import type { PlanningConfig } from "../config/planning";
 import { MCPRepositoryScopeError } from "./repository-scope";
 
-const DEFAULT_DOCUMENTATION_FILE = "README.md";
-const DEFAULT_SINCE_REF = "HEAD~5";
-const DEFAULT_TO_REF = "HEAD";
-
-/**
- * Checks documentation freshness using only authorized, captured repository
- * snapshots. The ordinary CLI freshness implementation deliberately remains
- * separate because it has different filesystem and Git ownership semantics.
- */
+/** Checks documentation freshness through the authorized scope and shared plan. */
 export async function checkMCPDocumentationFreshness(input: {
   readonly scope: MCPRepositoryReadScope;
+  readonly serverCwd: string;
   readonly directory: AuthorizedMCPDirectory;
   readonly docFile: unknown;
   readonly since: unknown;
-  readonly to?: string;
+  readonly planningConfig: Readonly<PlanningConfig>;
 }): Promise<FreshnessReport> {
+  let targetPath = input.docFile;
+  if (targetPath === undefined) {
+    const root = await getGitRoot(input.serverCwd);
+    targetPath = (await discoverReadme(root)) ?? "README.md";
+  }
   const targetFile = await input.scope.readOptionalFile(
-    input.directory,
-    input.docFile === undefined ? DEFAULT_DOCUMENTATION_FILE : input.docFile,
-  );
-  const since = input.scope.validateGitRef(input.since, DEFAULT_SINCE_REF);
-  const to = input.scope.validateGitRef(input.to, DEFAULT_TO_REF);
-  const changedFiles = await input.scope.changedFiles(
-    input.directory,
-    since,
-    to,
+    input.docFile === undefined ? input.scope.rootDirectory() : input.directory,
+    targetPath,
   );
   const target = targetFile.displayPath;
-  const targetExists = targetFile.content !== null;
-  const sourceFiles: string[] = [];
+  const since =
+    input.since === undefined
+      ? undefined
+      : input.scope.validateGitRef(input.since, "");
 
-  for (const changedFile of changedFiles) {
-    if (!isDocumentationSourcePath(changedFile)) continue;
-    sourceFiles.push(changedFile);
-
-    const sourceFile = await input.scope.readOptionalFile(
+  try {
+    const planning = await createImpactPlan({
+      cwd: input.serverCwd,
+      base: since,
+      planningConfig: input.planningConfig,
+    });
+    const changedFiles = await input.scope.changedFiles(
       input.scope.rootDirectory(),
-      changedFile,
+      planning.plan.base.commit ?? planning.plan.base.label,
+      planning.plan.head.type === "working-tree"
+        ? undefined
+        : (planning.plan.head.commit ?? planning.plan.head.label),
     );
-    if (sourceFile.content === null) {
-      return unknownReport(
-        changedFiles,
-        sourceFiles,
-        target,
-        "Could not evaluate documentation freshness: a changed source snapshot is unavailable.",
-      );
-    }
-
-    const parser = getParserForFile(changedFile);
-    if (parser === null || parser.parseSource === undefined) continue;
-    try {
-      await parser.parseSource(changedFile, sourceFile.content);
-    } catch (error: unknown) {
-      if (MCPRepositoryScopeError.read(error) !== undefined) throw error;
-      return unknownReport(
-        changedFiles,
-        sourceFiles,
-        target,
-        safeOperationalMessage(),
-      );
-    }
+    return assessDocumentationFreshness({
+      plan: planning.plan,
+      changedFiles,
+      target,
+      targetExists: targetFile.content !== null,
+    });
+  } catch (error: unknown) {
+    if (MCPRepositoryScopeError.read(error) !== undefined) throw error;
+    const planError = toPlanError(error);
+    return {
+      status: "unknown",
+      target,
+      targetChanged: false,
+      referencedSymbols: [],
+      sections: [],
+      unmappedSymbols: [],
+      sourceFiles: [],
+      message: `Could not evaluate documentation freshness: ${planError.message}`,
+    };
   }
-
-  return assessDocumentationFreshness(
-    [...changedFiles],
-    sourceFiles,
-    target,
-    targetExists,
-  );
-}
-
-function unknownReport(
-  changedFiles: readonly string[],
-  sourceFiles: readonly string[],
-  target: string,
-  message: string,
-): FreshnessReport {
-  return {
-    status: "unknown",
-    target,
-    targetChanged: changedFiles.includes(target),
-    sourceFiles: [...sourceFiles].sort(),
-    message,
-  };
-}
-
-function safeOperationalMessage(): string {
-  return "Could not evaluate documentation freshness: the source parser failed safely.";
 }

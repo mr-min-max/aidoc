@@ -414,7 +414,7 @@ export const TOOLS: Tool[] = [
   {
     name: "check_docs_freshness",
     description:
-      "Run an AST-backed documentation co-change guard. This detects source/doc co-change and does not verify semantic correctness.",
+      "Run plan-driven documentation freshness checks. This reports stale sections that directly mention changed symbols and does not verify semantic correctness.",
     inputSchema: {
       type: "object",
       properties: {
@@ -426,13 +426,11 @@ export const TOOLS: Tool[] = [
         doc_file: {
           type: "string",
           description:
-            "Path to the documentation file to check (relative to directory)",
-          default: "README.md",
+            "Path to the documentation file to check (relative to directory; default: discovered repository README)",
         },
         since: {
           type: "string",
-          description: "Git ref to compare against (default: HEAD~5)",
-          default: "HEAD~5",
+          description: "Optional Git ref to compare against (default: planner base discovery)",
         },
       },
       required: ["directory"],
@@ -1046,9 +1044,13 @@ export async function handleToolCall(
       );
       const report = await checkMCPDocumentationFreshness({
         scope: context.scope,
+        serverCwd: context.serverCwd,
         directory,
         docFile: legacyArgs.doc_file,
         since: legacyArgs.since,
+        planningConfig: await context.configLoader.loadPlanning(
+          context.scope.rootDirectory(),
+        ),
       });
       return {
         ...report,

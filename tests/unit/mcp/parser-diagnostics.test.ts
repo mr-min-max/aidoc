@@ -61,8 +61,9 @@ describe("MCP parser diagnostics", () => {
       expect(result.status).toBe("unknown");
       expect(result.message).not.toContain(fakeSourceSecret);
       expect(JSON.stringify(result)).not.toContain(fakeSourceSecret);
+      expect(JSON.stringify(result)).not.toContain(root);
       expect(result.message).toBe(
-        "Could not evaluate documentation freshness: the source parser failed safely.",
+        "Could not evaluate documentation freshness: Unable to parse changed source.",
       );
     } finally {
       fs.rmSync(root, { recursive: true, force: true });

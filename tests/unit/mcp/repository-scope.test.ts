@@ -646,6 +646,19 @@ describe("MCP repository read scope", () => {
     expect(rootChanges.some((file) => file.startsWith("/"))).toBe(false);
   });
 
+  it("includes tracked working-tree changes when no head ref is supplied", async () => {
+    const { root, outside } = fixture();
+    roots.push(root, outside);
+    const base = git(root, "rev-parse", "HEAD");
+    writeFileSync(join(root, "README.md"), "# changed documentation\n");
+    writeFileSync(join(root, "src", "index.ts"), "export const root = false;\n");
+    const scope = await MCPRepositoryReadScope.open(root);
+
+    await expect(
+      scope.changedFiles(scope.rootDirectory(), base),
+    ).resolves.toEqual(["README.md", "src/index.ts"]);
+  });
+
   it("sanitizes Git environment and rejects unsafe or value-bearing Git failures", async () => {
     const { root, outside } = fixture();
     roots.push(root, outside);
