@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "repo": "sindresorhus/ky",
+      "language": "typescript",
+      "pr": 874,
+      "base": "06375efbacfc1bdc96f7a4de7560684b765e1274",
+      "head": "3419113b48e034fdcf8fa6bd3be3da7b3d0d758f"
+    },
+    {
+      "repo": "expressjs/express",
+      "language": "javascript",
+      "pr": 7366,
+      "base": "ba006766fb964571723138708eacaba0f55759cd",
+      "head": "ae6dd37680e3a00618d6c8a3e522f0ee4eeba1a4"
+    },
+    {
+      "repo": "pallets/click",
+      "language": "python",
+      "pr": 3764,
+      "base": "150d1071d69c5cdad7de78590013ffe56cf9e3bb",
+      "head": "1f9cd54f686eb343cec714230ad825ce972739ab"
+    },
+    {
+      "repo": "psf/requests",
+      "language": "python",
+      "pr": 7505,
+      "base": "6f205ff422bccd5e4c4fc0b64c5f3e7df5181db6",
+      "head": "6f66281a1d6326b1b9c4ac09ca30de0fc4e6ef43"
+    }
+  ]
+}
