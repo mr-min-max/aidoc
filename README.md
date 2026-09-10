@@ -2,10 +2,6 @@
 
 Formerly aidoc.
 
-<p align="center">
-  <img src="./docs/assets/demo/staledocs-flow-poster-source.png" alt="StaleDocs: Documentation that keeps up with your code. A code change becomes an impact plan and a reviewable documentation update." width="900">
-</p>
-
 StaleDocs reads your code, finds public API changes in a pull request, and tells you which documentation sections now describe the old behavior.
 
 ## Add to a repository in one file
@@ -24,8 +20,6 @@ jobs:
         with:
           mode: review
 ```
-
-![Example StaleDocs pull request review comment](./docs/assets/review-comment.png)
 
 ## What the comment contains
 
