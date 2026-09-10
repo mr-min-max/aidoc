@@ -12,6 +12,8 @@ interface CompositeStep {
 }
 
 interface CompositeAction {
+  name?: string;
+  description?: string;
   inputs?: Record<string, { default?: unknown; description?: string }>;
   runs: { using: string; steps: CompositeStep[] };
 }
@@ -44,5 +46,10 @@ describe("composite Action metadata", () => {
     expect(metadata.inputs?.labels?.default).toBe("true");
     expect(metadata.inputs?.["github-token"]?.default).toBe("${{ github.token }}");
     expect(metadata.inputs?.source?.default).toBe("npm");
+  });
+
+  it("keeps the Marketplace listing publishable", () => {
+    expect(metadata.description ?? "").not.toBe("");
+    expect((metadata.description ?? "").length).toBeLessThan(125);
   });
 });
