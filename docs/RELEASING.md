@@ -29,13 +29,14 @@ which makes this a required owner step and not a defect. The recorded procedure 
 3. Configure the trusted publisher on npmjs.com: organization `mr-min-max`, repository
    `staledocs`, workflow `release.yml`, no environment.
 4. Revoke the granular token and confirm `npm token list` reports none.
-5. Run `npm unpublish staledocs@0.0.1`. npm allows this within 72 hours. Removing every
-   version of a name blocks republishing that name for 24 hours, so `0.0.1` must be
-   removed only after a real version exists, or the release tag must wait out that
-   window. Publishing `0.3.0-beta.1` first and removing `0.0.1` afterwards avoids the
-   block entirely.
-6. Push the release tag. The workflow then publishes `0.3.0-beta.1` through OIDC with
+5. Push the release tag. The workflow publishes `0.3.0-beta.1` through OIDC with
    provenance, exactly like the previous releases.
+6. After the real version exists, run `npm unpublish staledocs@0.0.1`. npm allows
+   this within 72 hours. Removing every version of a name blocks republishing that
+   name for 24 hours, so the placeholder must remain until the real version is
+   published.
+7. Move npm `latest` to `0.3.0-beta.1` and deprecate the old package with the rename
+   command recorded below.
 
 `0.0.1` is burned permanently: npm never allows a name and version pair to be reused.
 That is acceptable for a placeholder outside the published range.
