@@ -14,6 +14,32 @@ The old package `@mr-min-max/aidoc-gen` is not changed by this branch. After Sta
 
 The owner also renames the GitHub repository to `staledocs` before the release tag, updates the npm Trusted Publisher to `mr-min-max/staledocs` and `release.yml`, and creates the moving major tag with `git tag -f v0 v0.3.0-beta.1 && git push -f origin v0` after publication. These are owner-only external actions.
 
+### Claiming the new npm name before the release tag
+
+npm cannot configure a Trusted Publisher for a package that does not exist, so the
+first version under a new name cannot be published by OIDC. `staledocs` is unpublished,
+which makes this a required owner step and not a defect. The recorded procedure is:
+
+1. Rename the GitHub repository first, so the trusted publisher can name the final
+   repository.
+2. Publish a throwaway `0.0.1` placeholder from a trusted terminal with a one-day
+   granular token restricted to publishing. Nothing from this repository is published:
+   pack the placeholder from an empty temporary directory whose `package.json` declares
+   only `staledocs` and `0.0.1`.
+3. Configure the trusted publisher on npmjs.com: organization `mr-min-max`, repository
+   `staledocs`, workflow `release.yml`, no environment.
+4. Revoke the granular token and confirm `npm token list` reports none.
+5. Run `npm unpublish staledocs@0.0.1`. npm allows this within 72 hours. Removing every
+   version of a name blocks republishing that name for 24 hours, so `0.0.1` must be
+   removed only after a real version exists, or the release tag must wait out that
+   window. Publishing `0.3.0-beta.1` first and removing `0.0.1` afterwards avoids the
+   block entirely.
+6. Push the release tag. The workflow then publishes `0.3.0-beta.1` through OIDC with
+   provenance, exactly like the previous releases.
+
+`0.0.1` is burned permanently: npm never allows a name and version pair to be reused.
+That is acceptable for a placeholder outside the published range.
+
 ### Repository metadata
 
 Description: Finds documentation that no longer matches your code. Deterministic AST check for pull requests; no API key. TypeScript, JavaScript, Python.
