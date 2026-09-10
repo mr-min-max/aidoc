@@ -78,3 +78,4 @@ Public beta `0.3.0-beta.1`.
 - [Security](./SECURITY.md)
 - [Limitations](./docs/LIMITATIONS.md)
 - [Changelog](./CHANGELOG.md)
+- [Evaluations](./docs/EVALUATIONS.md)
