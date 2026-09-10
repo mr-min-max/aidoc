@@ -119,7 +119,7 @@ describe("release workflow", () => {
     expect(pack.run).toContain("checksum=");
 
     const smoke = verify.steps[smokeIndex];
-    expect(smoke.env?.AIDOC_TEST_TARBALL).toBe(
+    expect(smoke.env?.STALEDOCS_TEST_TARBALL).toBe(
       "${{ steps.pack.outputs.tarball }}",
     );
     expect(smoke.run).toContain("npm run test:package");
@@ -179,8 +179,8 @@ describe("release workflow", () => {
       step.uses?.startsWith("actions/download-artifact@"),
     );
     expect(download?.with).toEqual({
-      name: "aidoc-npm-package",
-      path: "${{ runner.temp }}/aidoc-artifact",
+      name: "staledocs-npm-package",
+      path: "${{ runner.temp }}/staledocs-artifact",
     });
 
     const validate = stepNamed(publish, "Validate verified artifact");
@@ -236,8 +236,8 @@ describe("release workflow", () => {
     );
 
     expect(download?.with).toEqual({
-      name: "aidoc-npm-package",
-      path: "${{ runner.temp }}/aidoc-artifact",
+      name: "staledocs-npm-package",
+      path: "${{ runner.temp }}/staledocs-artifact",
     });
     expect(validate.run).toContain("sha256sum --check --strict");
     expect(release?.with).toMatchObject({

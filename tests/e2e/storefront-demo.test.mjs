@@ -19,7 +19,7 @@ test("renders the exact provider-free storefront story", async () => {
   assert.equal(
     stdout,
     [
-      "AiDoc storefront demo",
+      "StaleDocs storefront demo",
       "Change: createUser(email) -> createUser(email, role)",
       "Impact: README.md, docs/API.md",
       "Host contract: prepare -> host draft -> validate",

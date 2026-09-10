@@ -1,4 +1,4 @@
-# Contributing to aidoc
+# Contributing to staledocs
 
 First off, thanks for taking the time to contribute! 🎉
 
@@ -10,7 +10,7 @@ Use Node.js `>=22.12.0`.
 2. Install the locked dependency graph: `npm ci`.
 3. Build the CLI: `npm run build`
 4. Verify the provider-free path: `node dist/cli/index.js plan`.
-5. Optionally run `npm link` to use `aidoc` globally while developing.
+5. Optionally run `npm link` to use `staledocs` globally while developing.
 
 ## Running Tests
 
@@ -42,7 +42,7 @@ contact details in issues, fixtures, logs, or pull requests.
 
 ## Architecture
 
-`aidoc` uses a modular architecture with the following principles:
+`staledocs` uses a modular architecture with the following principles:
 
 1. **AST First, LLM Second** — We rely on deterministic AST parsing (`ts-morph` for TS, Python's `ast` module for Python) to extract code structure BEFORE sending anything to the LLM. Do not try to parse code using regex.
 
@@ -87,7 +87,7 @@ Good starter tasks usually fit one of these areas:
 - Add focused tests around CLI flags and output validation.
 - Improve documentation examples for `score`, `watch`, and MCP usage.
 
-Check issues labeled [`good first issue`](https://github.com/mr-min-max/aidoc/labels/good%20first%20issue)
+Check issues labeled [`good first issue`](https://github.com/mr-min-max/staledocs/labels/good%20first%20issue)
 for tasks with current acceptance criteria.
 
 ## Code Style

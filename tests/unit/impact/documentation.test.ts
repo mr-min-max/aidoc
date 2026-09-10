@@ -278,7 +278,7 @@ describe("documentation impact mapping", () => {
     ];
     const files: DocumentationFile[] = [
       { path: "CHANGELOG.md", content: "# Changelog\nRelease notes." },
-      { path: "README.md", content: "# AiDoc\nGetting started." },
+      { path: "README.md", content: "# StaleDocs\nGetting started." },
       { path: "docs/API.md", content: "# API Reference\nPublic surface." },
       {
         path: "docs/architecture.md",

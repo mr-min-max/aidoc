@@ -11,9 +11,9 @@ describe("loadConfig environment overrides", () => {
   let root: string;
 
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-config-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-config-"));
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({ provider: "openai", model: "file-model" }),
     );
   });
@@ -24,14 +24,14 @@ describe("loadConfig environment overrides", () => {
 
   it("applies validated Action environment values over file config", () => {
     const config = loadConfig(root, {
-      AIDOC_PROVIDER: "anthropic",
-      AIDOC_MODEL: "env-model",
-      AIDOC_PROVIDER_BASE_URL: "https://gateway.example.test/v1",
-      AIDOC_ALLOW_LOCAL_HTTP: "true",
-      AIDOC_QWEN_REGION: "singapore",
-      AIDOC_QWEN_WORKSPACE_ID: "workspace-123",
-      AIDOC_OLLAMA_HOST: "http://ollama.internal:11434",
-      AIDOC_TRUST_POLICY: "strict",
+      STALEDOCS_PROVIDER: "anthropic",
+      STALEDOCS_MODEL: "env-model",
+      STALEDOCS_PROVIDER_BASE_URL: "https://gateway.example.test/v1",
+      STALEDOCS_ALLOW_LOCAL_HTTP: "true",
+      STALEDOCS_QWEN_REGION: "singapore",
+      STALEDOCS_QWEN_WORKSPACE_ID: "workspace-123",
+      STALEDOCS_OLLAMA_HOST: "http://ollama.internal:11434",
+      STALEDOCS_TRUST_POLICY: "strict",
     });
 
     expect(config.provider).toBe("anthropic");
@@ -46,13 +46,13 @@ describe("loadConfig environment overrides", () => {
 
   it("rejects an invalid provider instead of silently using OpenAI", () => {
     expect(() =>
-      loadConfig(root, { AIDOC_PROVIDER: "not-a-provider" }),
+      loadConfig(root, { STALEDOCS_PROVIDER: "not-a-provider" }),
     ).toThrow(/Unknown provider/);
   });
 
   it("leaves the model unset so each provider can apply its own default", () => {
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({ provider: "anthropic" }),
     );
     const config = loadConfig(root, {});
@@ -61,7 +61,7 @@ describe("loadConfig environment overrides", () => {
 
   it("does not treat an invalid local-http environment value as permission", () => {
     const config = loadConfig(root, {
-      AIDOC_ALLOW_LOCAL_HTTP: "yes",
+      STALEDOCS_ALLOW_LOCAL_HTTP: "yes",
     });
 
     expect(config.allowLocalHttp).toBe(false);
@@ -69,12 +69,12 @@ describe("loadConfig environment overrides", () => {
 
   it("projects only own data environment values", () => {
     const getter = jest.fn(() => "should-not-run");
-    const env = Object.create({ AIDOC_PROVIDER: "inherited" }) as Record<
+    const env = Object.create({ STALEDOCS_PROVIDER: "inherited" }) as Record<
       string,
       string
     >;
-    Object.defineProperty(env, "AIDOC_MODEL", { get: getter });
-    env.AIDOC_ALLOW_LOCAL_HTTP = "false";
+    Object.defineProperty(env, "STALEDOCS_MODEL", { get: getter });
+    env.STALEDOCS_ALLOW_LOCAL_HTTP = "false";
     env.UNKNOWN = "ignored";
 
     expect(environmentConfig(env)).toEqual({ allowLocalHttp: false });
@@ -91,7 +91,7 @@ describe("loadConfig environment overrides", () => {
     expect(
       parseConfigValues(
         { provider: "openai", apiKey: "file-key" },
-        { AIDOC_PROVIDER: "anthropic" },
+        { STALEDOCS_PROVIDER: "anthropic" },
       ).apiKey,
     ).toBeUndefined();
   });

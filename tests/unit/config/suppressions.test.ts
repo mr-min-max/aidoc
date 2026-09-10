@@ -1,6 +1,6 @@
 import { parseSuppressions, matchingSuppression } from "../../../src/config/suppressions";
 
-describe(".aidocignore suppressions", () => {
+describe(".staledocsignore suppressions", () => {
   it("parses symbols, source paths, and documentation paths while ignoring comments and invalid lines", () => {
     const result = parseSuppressions(`
 # known debt

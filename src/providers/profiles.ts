@@ -67,7 +67,7 @@ export const PROVIDER_PROFILES: readonly ProviderProfile[] = Object.freeze([
   profile({
     name: "openai-compatible",
     displayName: "OpenAI-compatible endpoint",
-    credentialEnv: "AIDOC_COMPAT_API_KEY",
+    credentialEnv: "STALEDOCS_COMPAT_API_KEY",
     transport: "openai-compatible-chat",
     boundary: "remote",
   }),

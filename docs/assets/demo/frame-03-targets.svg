@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:aidoc="urn:aidoc:assets" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc" data-safe-margin="64" data-protected-margin="80" data-step="3" data-visual-system="dimensional-code-to-docs-v1">
-  <title id="title">AiDoc demo step 3: Bounded draft</title>
+  <title id="title">StaleDocs demo step 3: Bounded draft</title>
   <desc id="desc">The stable scene focuses on the README and API documentation sheets prepared from bounded context.</desc>
   <metadata>
-    <aidoc:copy><aidoc:line>AiDoc</aidoc:line><aidoc:line>Bounded draft</aidoc:line><aidoc:line>README.md + docs/API.md</aidoc:line><aidoc:line>3 / 5</aidoc:line><aidoc:line>No provider calls</aidoc:line><aidoc:line>No repository writes</aidoc:line><aidoc:line>You decide what is applied</aidoc:line></aidoc:copy>
+    <aidoc:copy><aidoc:line>StaleDocs</aidoc:line><aidoc:line>Bounded draft</aidoc:line><aidoc:line>README.md + docs/API.md</aidoc:line><aidoc:line>3 / 5</aidoc:line><aidoc:line>No provider calls</aidoc:line><aidoc:line>No repository writes</aidoc:line><aidoc:line>You decide what is applied</aidoc:line></aidoc:copy>
     <aidoc:evidence><aidoc:fact>README.md</aidoc:fact><aidoc:fact>docs/API.md</aidoc:fact><aidoc:fact>bounded host draft</aidoc:fact></aidoc:evidence>
   </metadata>
   <rect width="1280" height="720" fill="#F4F1EA"/>

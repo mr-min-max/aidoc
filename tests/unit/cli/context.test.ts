@@ -26,10 +26,10 @@ describe("loadCommandContext", () => {
   });
 
   it("loads configuration from the project directory being analyzed", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-context-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-context-"));
     try {
       fs.writeFileSync(
-        path.join(root, ".aidocrc.json"),
+        path.join(root, ".staledocsrc.json"),
         JSON.stringify({ model: "project-model" }),
       );
       const ctx = await loadCommandContext({ mock: true }, root);
@@ -139,11 +139,11 @@ describe("loadCommandContext", () => {
 
   it("passes an approved command loopback endpoint and effective local permission to the factory", async () => {
     const root = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-context-endpoint-"),
+      path.join(os.tmpdir(), "staledocs-context-endpoint-"),
     );
     try {
       fs.writeFileSync(
-        path.join(root, ".aidocrc.json"),
+        path.join(root, ".staledocsrc.json"),
         JSON.stringify({
           provider: "openai-compatible",
           model: "project-model",
@@ -156,7 +156,7 @@ describe("loadCommandContext", () => {
         model: "command-model",
         source: "command",
         boundary: "remote",
-        credentialEnv: "AIDOC_COMPAT_API_KEY",
+        credentialEnv: "STALEDOCS_COMPAT_API_KEY",
         endpoint: {
           url: new URL("http://127.0.0.1:8080/v1"),
           origin: "http://127.0.0.1:8080",
@@ -206,11 +206,11 @@ describe("loadCommandContext", () => {
 
   it("passes an approved remote override endpoint instead of a stale project URL", async () => {
     const root = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-context-remote-endpoint-"),
+      path.join(os.tmpdir(), "staledocs-context-remote-endpoint-"),
     );
     try {
       fs.writeFileSync(
-        path.join(root, ".aidocrc.json"),
+        path.join(root, ".staledocsrc.json"),
         JSON.stringify({
           provider: "openai-compatible",
           model: "project-model",
@@ -295,12 +295,12 @@ describe("loadCommandContext", () => {
 
   it("passes a same-recorded legacy key only to provider construction", async () => {
     const root = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-context-legacy-same-provider-"),
+      path.join(os.tmpdir(), "staledocs-context-legacy-same-provider-"),
     );
     const legacyKey = "legacy-openai-secret";
     try {
       fs.writeFileSync(
-        path.join(root, ".aidocrc.json"),
+        path.join(root, ".staledocsrc.json"),
         JSON.stringify({ provider: "openai", apiKey: legacyKey }),
       );
       const selection: ResolvedProviderSelection = {
@@ -337,14 +337,14 @@ describe("loadCommandContext", () => {
 
   it("sanitizes and isolates the pre-create gate from accepted factory inputs", async () => {
     const root = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-context-gate-snapshot-"),
+      path.join(os.tmpdir(), "staledocs-context-gate-snapshot-"),
     );
     const legacyKey = "legacy-openai-secret";
     const staleProjectUrl = "https://old.example.com/v1";
     const acceptedUrl = "http://127.0.0.1:8080/v1";
     try {
       fs.writeFileSync(
-        path.join(root, ".aidocrc.json"),
+        path.join(root, ".staledocsrc.json"),
         JSON.stringify({
           provider: "openai",
           apiKey: legacyKey,
@@ -357,7 +357,7 @@ describe("loadCommandContext", () => {
         model: "command-model",
         source: "command",
         boundary: "remote",
-        credentialEnv: "AIDOC_COMPAT_API_KEY",
+        credentialEnv: "STALEDOCS_COMPAT_API_KEY",
         endpoint: {
           url: new URL(acceptedUrl),
           origin: "http://127.0.0.1:8080",
@@ -500,11 +500,11 @@ describe("loadCommandContext", () => {
 
   it("does not pass a legacy key across a command provider change", async () => {
     const root = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-context-legacy-"),
+      path.join(os.tmpdir(), "staledocs-context-legacy-"),
     );
     try {
       fs.writeFileSync(
-        path.join(root, ".aidocrc.json"),
+        path.join(root, ".staledocsrc.json"),
         JSON.stringify({ provider: "openai", apiKey: "legacy-openai-secret" }),
       );
       const selection: ResolvedProviderSelection = {
@@ -617,7 +617,7 @@ describe("prepareDocumentTarget", () => {
   const roots: string[] = [];
 
   function createRepository(): string {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-context-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-context-"));
     execFileSync("git", ["init", "-q", "--initial-branch", "main"], {
       cwd: root,
     });
@@ -657,7 +657,7 @@ describe("prepareDocumentTarget", () => {
 
   it("reads a dry-run preview without opening the repository writer", async () => {
     // Catches a dry-run regression that creates a writer scope, directories, or temp files.
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-context-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-context-"));
     roots.push(root);
     fs.writeFileSync(path.join(root, "preview.md"), "# Preview\n");
     const open = jest.spyOn(RepositoryWriteScope, "open");
@@ -675,7 +675,7 @@ describe("prepareDocumentTarget", () => {
   it("rejects a control-bearing dry-run target without opening a writer", async () => {
     // Catches a terminal-output injection regression that preserves raw target
     // text as a dry-run display label before lexical validation.
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-context-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-context-"));
     roots.push(root);
     const open = jest.spyOn(RepositoryWriteScope, "open");
 
@@ -694,8 +694,8 @@ describe("prepareDocumentTarget", () => {
   it("uses a basename label for a valid external dry-run preview", async () => {
     // Catches a display-path regression that leaks an absolute external target
     // into diffs, confirmation prompts, or status messages.
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-context-"));
-    const external = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-external-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-context-"));
+    const external = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-external-"));
     roots.push(root, external);
     const externalTarget = path.join(external, "private-preview.md");
     fs.writeFileSync(externalTarget, "# Preview\n");

@@ -43,19 +43,19 @@ const MCP_UNSAFE_CONFIGURATION_MESSAGE_SET = new Set<string>([
 ]);
 
 const ALLOWED_ENVIRONMENT_NAMES = Object.freeze([
-  "AIDOC_PROVIDER",
-  "AIDOC_MODEL",
-  "AIDOC_PROVIDER_BASE_URL",
-  "AIDOC_ALLOW_LOCAL_HTTP",
-  "AIDOC_QWEN_REGION",
-  "AIDOC_QWEN_WORKSPACE_ID",
-  "AIDOC_OLLAMA_HOST",
-  "AIDOC_TRUST_POLICY",
+  "STALEDOCS_PROVIDER",
+  "STALEDOCS_MODEL",
+  "STALEDOCS_PROVIDER_BASE_URL",
+  "STALEDOCS_ALLOW_LOCAL_HTTP",
+  "STALEDOCS_QWEN_REGION",
+  "STALEDOCS_QWEN_WORKSPACE_ID",
+  "STALEDOCS_OLLAMA_HOST",
+  "STALEDOCS_TRUST_POLICY",
   "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
   "DEEPSEEK_API_KEY",
   "DASHSCOPE_API_KEY",
-  "AIDOC_COMPAT_API_KEY",
+  "STALEDOCS_COMPAT_API_KEY",
 ] as const);
 
 const CREDENTIAL_NAMES = Object.freeze([
@@ -63,42 +63,42 @@ const CREDENTIAL_NAMES = Object.freeze([
   "ANTHROPIC_API_KEY",
   "DEEPSEEK_API_KEY",
   "DASHSCOPE_API_KEY",
-  "AIDOC_COMPAT_API_KEY",
+  "STALEDOCS_COMPAT_API_KEY",
 ] as const satisfies readonly ProviderCredentialName[]);
 
 const TOP_LEVEL_DECLARATIVE_CANDIDATES = Object.freeze([
-  [".aidocrc", "noExt"],
-  [".aidocrc.json", ".json"],
-  [".aidocrc.yaml", ".yaml"],
-  [".aidocrc.yml", ".yml"],
+  [".staledocsrc", "noExt"],
+  [".staledocsrc.json", ".json"],
+  [".staledocsrc.yaml", ".yaml"],
+  [".staledocsrc.yml", ".yml"],
 ] as const);
 
 const TOP_LEVEL_EXECUTABLE_CANDIDATES = Object.freeze([
-  ".aidocrc.js",
-  ".aidocrc.ts",
-  ".aidocrc.cjs",
-  ".aidocrc.mjs",
+  ".staledocsrc.js",
+  ".staledocsrc.ts",
+  ".staledocsrc.cjs",
+  ".staledocsrc.mjs",
 ] as const);
 
 const CONFIG_DIRECTORY_DECLARATIVE_CANDIDATES = Object.freeze([
-  ["aidocrc", "noExt"],
-  ["aidocrc.json", ".json"],
-  ["aidocrc.yaml", ".yaml"],
-  ["aidocrc.yml", ".yml"],
+  ["staledocsrc", "noExt"],
+  ["staledocsrc.json", ".json"],
+  ["staledocsrc.yaml", ".yaml"],
+  ["staledocsrc.yml", ".yml"],
 ] as const);
 
 const CONFIG_DIRECTORY_EXECUTABLE_CANDIDATES = Object.freeze([
-  "aidocrc.js",
-  "aidocrc.ts",
-  "aidocrc.cjs",
-  "aidocrc.mjs",
+  "staledocsrc.js",
+  "staledocsrc.ts",
+  "staledocsrc.cjs",
+  "staledocsrc.mjs",
 ] as const);
 
 const ROOT_EXECUTABLE_CANDIDATES = Object.freeze([
-  "aidoc.config.js",
-  "aidoc.config.ts",
-  "aidoc.config.cjs",
-  "aidoc.config.mjs",
+  "staledocs.config.js",
+  "staledocs.config.ts",
+  "staledocs.config.cjs",
+  "staledocs.config.mjs",
 ] as const);
 
 type CapturedLoader = (filepath: string, content: string) => unknown;
@@ -405,14 +405,14 @@ export type MCPAllowedEnvironment = Readonly<
   Partial<
     Record<
       | ProviderCredentialName
-      | "AIDOC_PROVIDER"
-      | "AIDOC_MODEL"
-      | "AIDOC_PROVIDER_BASE_URL"
-      | "AIDOC_ALLOW_LOCAL_HTTP"
-      | "AIDOC_QWEN_REGION"
-      | "AIDOC_QWEN_WORKSPACE_ID"
-      | "AIDOC_OLLAMA_HOST"
-      | "AIDOC_TRUST_POLICY",
+      | "STALEDOCS_PROVIDER"
+      | "STALEDOCS_MODEL"
+      | "STALEDOCS_PROVIDER_BASE_URL"
+      | "STALEDOCS_ALLOW_LOCAL_HTTP"
+      | "STALEDOCS_QWEN_REGION"
+      | "STALEDOCS_QWEN_WORKSPACE_ID"
+      | "STALEDOCS_OLLAMA_HOST"
+      | "STALEDOCS_TRUST_POLICY",
       string
     >
   >
@@ -497,12 +497,12 @@ export class MCPScopedConfigLoader {
     }
   }
 
-  /** Reads the optional root .aidocignore through the pinned repository scope. */
+  /** Reads the optional root .staledocsignore through the pinned repository scope. */
   async loadSuppressions(): Promise<SuppressionConfig> {
     try {
       const file = await this.#scope.readOptionalFile(
         this.#scope.rootDirectory(),
-        ".aidocignore",
+        ".staledocsignore",
         { maxBytes: CONFIG_MAX_BYTES },
       );
       return file.content === null
@@ -586,10 +586,10 @@ export class MCPScopedConfigLoader {
       if (packageFile.content !== null) {
         const packageValue = parseCaptured(packageFile, ".json");
         if (!isPlainRecord(packageValue)) throw unsafeConfiguration();
-        const aidoc = safeOwnDataValue(packageValue, "aidoc");
-        if (aidoc !== MISSING) {
-          assertNoLegacyApiKey(aidoc);
-          return aidoc;
+        const staledocs = safeOwnDataValue(packageValue, "staledocs");
+        if (staledocs !== MISSING) {
+          assertNoLegacyApiKey(staledocs);
+          return staledocs;
         }
       }
 

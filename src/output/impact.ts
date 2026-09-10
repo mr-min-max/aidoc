@@ -59,7 +59,7 @@ export function formatImpactPlan(
 
   lines.push(`Context: ${plan.context.usedBytes} / ${plan.context.maxBytes} bytes`);
   if (plan.ignored.suppressed > 0) {
-    lines.push(`${plan.ignored.suppressed} changes suppressed by .aidocignore`);
+    lines.push(`${plan.ignored.suppressed} changes suppressed by .staledocsignore`);
   }
   if (verbose) {
     for (const change of plan.changes) {
@@ -114,14 +114,14 @@ function appendNextAction(
     lines.push(
       "",
       `Target: ${resolved.targets[0]!.path}`,
-      "Next: aidoc update",
+      "Next: staledocs update",
     );
     return;
   }
   if (resolved.targets.length > 1) {
     lines.push("", "Targets:");
     for (const target of resolved.targets) lines.push(`  ${target.path}`);
-    lines.push("Next: aidoc update");
+    lines.push("Next: staledocs update");
     return;
   }
 

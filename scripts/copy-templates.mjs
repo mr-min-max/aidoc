@@ -13,7 +13,7 @@ const required = REQUIRED_TEMPLATE_NAMES.map((name) => `${name}.hbs`);
 const sourceFiles = new Set(readdirSync(source));
 const missing = required.filter((name) => !sourceFiles.has(name));
 if (missing.length > 0) {
-  throw new Error(`Cannot build aidoc: missing templates: ${missing.join(", ")}`);
+  throw new Error(`Cannot build staledocs: missing templates: ${missing.join(", ")}`);
 }
 
 if (existsSync(destination)) {

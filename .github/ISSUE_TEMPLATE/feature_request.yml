@@ -1,18 +1,18 @@
 name: ✨ Feature Request
-description: Suggest a new feature or improvement for aidoc
+description: Suggest a new feature or improvement for staledocs
 title: "[Feature]: "
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for your idea! Tell us what you'd like to see in aidoc.
+        Thanks for your idea! Tell us what you'd like to see in staledocs.
   - type: input
     id: version
     attributes:
-      label: aidoc version or commit
+      label: staledocs version or commit
       description: Provide the package version or exact Git commit used for this request.
-      placeholder: "0.2.0-beta.6 or commit SHA"
+      placeholder: "0.3.0-beta.1 or commit SHA"
     validations:
       required: true
   - type: input

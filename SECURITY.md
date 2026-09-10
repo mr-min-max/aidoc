@@ -9,7 +9,7 @@ Currently, only the latest major version is supported for security updates.
 Please do not report security vulnerabilities through public GitHub issues.
 
 Instead, use
-[GitHub private vulnerability reporting](https://github.com/mr-min-max/aidoc/security/advisories/new).
+[GitHub private vulnerability reporting](https://github.com/mr-min-max/staledocs/security/advisories/new).
 This keeps the report private while maintainers investigate it.
 
 Provider-backed generation sends selected context to the configured provider.
@@ -17,7 +17,7 @@ Ollama is the local-provider option. OpenAI, Anthropic, DeepSeek, Qwen, and an
 explicitly approved OpenAI-compatible endpoint are remote-provider options.
 Direct provider selection never silently falls back to a different provider.
 
-`aidoc plan` is provider-free. Provider impact context used by `aidoc update`
+`staledocs plan` is provider-free. Provider impact context used by `staledocs update`
 is deterministic and byte-bounded and excludes raw source, raw diffs, and
 credential values. These boundaries reduce exposure but do not turn generated
 output into trusted code or replace repository access controls.

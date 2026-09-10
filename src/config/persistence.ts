@@ -3,7 +3,7 @@ import type { AidocConfig } from "./schema";
 import type { ResolvedProviderSelection } from "../providers/selection";
 import { ProviderConfigurationError } from "../providers/errors";
 
-const CONFIG_FILE = ".aidocrc.json";
+const CONFIG_FILE = ".staledocsrc.json";
 const CONFIG_NOT_WRITABLE = "PROVIDER_CONFIG_NOT_WRITABLE";
 const PERSISTED_SELECTION_KEYS = [
   "provider",

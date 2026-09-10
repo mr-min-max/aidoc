@@ -1,6 +1,6 @@
-name: "AiDoc: AST-first documentation workflow"
-description: "Generate project documentation and run deterministic change-aware checks in CI."
-author: "aidoc contributors"
+name: "StaleDocs: documentation drift check"
+description: "Finds documentation that no longer matches your code. Deterministic AST check for pull requests; no API key. TypeScript, JavaScript, Python."
+author: "StaleDocs contributors"
 
 branding:
   icon: "file-text"
@@ -62,35 +62,35 @@ inputs:
     required: false
     default: ${{ github.token }}
   source:
-    description: "AiDoc source: npm installs the package version, local builds and links this checkout"
+    description: "StaleDocs source: npm installs the package version, local builds and links this checkout"
     required: false
     default: "npm"
 
 outputs:
   changed:
     description: "Whether documentation was updated (true/false)"
-    value: ${{ steps.aidoc.outputs.changed }}
+    value: ${{ steps.staledocs.outputs.changed }}
   files:
-    description: "Newline-delimited documentation paths changed by aidoc"
-    value: ${{ steps.aidoc.outputs.files }}
+    description: "Newline-delimited documentation paths changed by staledocs"
+    value: ${{ steps.staledocs.outputs.files }}
   summary:
     description: "Human-readable summary"
-    value: ${{ steps.aidoc.outputs.summary }}
+    value: ${{ steps.staledocs.outputs.summary }}
   verdict:
     description: "Review verdict: clean, stale, or breaking"
-    value: ${{ steps.aidoc.outputs.verdict }}
+    value: ${{ steps.staledocs.outputs.verdict }}
   public-api-changes:
     description: "Number of public API changes in the review"
-    value: ${{ steps.aidoc.outputs.public-api-changes }}
+    value: ${{ steps.staledocs.outputs.public-api-changes }}
   stale-documents:
     description: "Number of stale documentation files in the review"
-    value: ${{ steps.aidoc.outputs.stale-documents }}
+    value: ${{ steps.staledocs.outputs.stale-documents }}
   breaking:
     description: "Number of potentially breaking changes in the review"
-    value: ${{ steps.aidoc.outputs.breaking }}
+    value: ${{ steps.staledocs.outputs.breaking }}
   report:
     description: "Path to the JSON review report"
-    value: ${{ steps.aidoc.outputs.report }}
+    value: ${{ steps.staledocs.outputs.report }}
 
 runs:
   using: "composite"
@@ -100,17 +100,17 @@ runs:
       with:
         node-version: "22.12.0"
 
-    - name: Install aidoc
+    - name: Install staledocs
       shell: bash
       env:
-        AIDOC_INPUT_SOURCE: ${{ inputs.source }}
+        STALEDOCS_INPUT_SOURCE: ${{ inputs.source }}
       run: |
         set -euo pipefail
         cd "$GITHUB_ACTION_PATH"
-        case "$AIDOC_INPUT_SOURCE" in
+        case "$STALEDOCS_INPUT_SOURCE" in
           npm)
             version="$(node -p "require('./package.json').version")"
-            npm install -g "@mr-min-max/aidoc-gen@$version"
+            npm install -g "staledocs@$version"
             ;;
           local)
             npm ci
@@ -118,41 +118,41 @@ runs:
             npm link
             ;;
           *)
-            echo "Unsupported aidoc source input" >&2
+            echo "Unsupported staledocs source input" >&2
             exit 2
             ;;
         esac
 
-    - name: Run aidoc commands
-      id: aidoc
+    - name: Run staledocs commands
+      id: staledocs
       shell: bash
       env:
-        AIDOC_INPUT_PROVIDER: ${{ inputs.provider }}
-        AIDOC_INPUT_API_KEY: ${{ inputs.api-key }}
-        AIDOC_INPUT_TRUST_POLICY: ${{ inputs.trust-policy }}
-        AIDOC_INPUT_MODEL: ${{ inputs.model }}
-        AIDOC_INPUT_COMMANDS: ${{ inputs.commands }}
-        AIDOC_INPUT_MODE: ${{ inputs.mode }}
-        AIDOC_INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
-        AIDOC_INPUT_DRY_RUN: ${{ inputs.dry-run }}
-        AIDOC_INPUT_SINCE: ${{ inputs.since }}
-        AIDOC_INPUT_FAIL_ON: ${{ inputs.fail-on }}
-        AIDOC_INPUT_COMMENT: ${{ inputs.comment }}
-        AIDOC_INPUT_LABELS: ${{ inputs.labels }}
-        AIDOC_INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
-        AIDOC_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        AIDOC_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        AIDOC_REPOSITORY: ${{ github.repository }}
-        AIDOC_PR_NUMBER: ${{ github.event.pull_request.number }}
-        AIDOC_CHANGED_FILES_FILE: ${{ runner.temp }}/aidoc-changed-files
+        STALEDOCS_INPUT_PROVIDER: ${{ inputs.provider }}
+        STALEDOCS_INPUT_API_KEY: ${{ inputs.api-key }}
+        STALEDOCS_INPUT_TRUST_POLICY: ${{ inputs.trust-policy }}
+        STALEDOCS_INPUT_MODEL: ${{ inputs.model }}
+        STALEDOCS_INPUT_COMMANDS: ${{ inputs.commands }}
+        STALEDOCS_INPUT_MODE: ${{ inputs.mode }}
+        STALEDOCS_INPUT_OUTPUT_DIR: ${{ inputs.output-dir }}
+        STALEDOCS_INPUT_DRY_RUN: ${{ inputs.dry-run }}
+        STALEDOCS_INPUT_SINCE: ${{ inputs.since }}
+        STALEDOCS_INPUT_FAIL_ON: ${{ inputs.fail-on }}
+        STALEDOCS_INPUT_COMMENT: ${{ inputs.comment }}
+        STALEDOCS_INPUT_LABELS: ${{ inputs.labels }}
+        STALEDOCS_INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
+        STALEDOCS_PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        STALEDOCS_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        STALEDOCS_REPOSITORY: ${{ github.repository }}
+        STALEDOCS_PR_NUMBER: ${{ github.event.pull_request.number }}
+        STALEDOCS_CHANGED_FILES_FILE: ${{ runner.temp }}/staledocs-changed-files
       run: bash "$GITHUB_ACTION_PATH/action/run.sh"
 
     - name: Auto-commit changes
-      if: inputs.auto-commit == 'true' && inputs.mode == 'generate' && inputs.dry-run != 'true' && steps.aidoc.outputs.changed == 'true'
+      if: inputs.auto-commit == 'true' && inputs.mode == 'generate' && inputs.dry-run != 'true' && steps.staledocs.outputs.changed == 'true'
       shell: bash
       run: |
-        git config user.name "aidoc[bot]"
-        git config user.email "aidoc[bot]@users.noreply.github.com"
+        git config user.name "staledocs[bot]"
+        git config user.email "staledocs[bot]@users.noreply.github.com"
         if ! git diff --cached --quiet; then
           echo "Refusing to commit: the checkout already has staged changes" >&2
           exit 2
@@ -161,7 +161,7 @@ runs:
           if [ -n "$file" ]; then
             git add -- "$file"
           fi
-        done < "$RUNNER_TEMP/aidoc-changed-files"
+        done < "$RUNNER_TEMP/staledocs-changed-files"
         git diff --staged --quiet || \
-          git commit -m "docs: update documentation via aidoc [skip ci]"
+          git commit -m "docs: update documentation via staledocs [skip ci]"
         git push

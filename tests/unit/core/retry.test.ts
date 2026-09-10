@@ -46,7 +46,7 @@ describe("withRetry", () => {
     }
 
     const diagnostic = warnings.join("\n");
-    expect(diagnostic).toContain("<AIDOC_REDACTED:OPENAI_API_KEY:1>");
+    expect(diagnostic).toContain("<STALEDOCS_REDACTED:OPENAI_API_KEY:1>");
     expect(diagnostic).not.toContain(fakeKey);
   });
 

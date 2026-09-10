@@ -99,7 +99,7 @@ function updateImpactContext(): ImpactProviderContext {
 }
 
 function impactRepository(): string {
-  const root = mkdtempSync(join(tmpdir(), "aidoc-update-generator-"));
+  const root = mkdtempSync(join(tmpdir(), "staledocs-update-generator-"));
   const hooks = join(root, "hooks");
   mkdirSync(join(root, "src"));
   mkdirSync(hooks);

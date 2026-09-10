@@ -9,7 +9,7 @@ import { RepositoryWriteScope } from "../../../src/security/repository-writer";
 
 function createRepository(): string {
   const root = fs.mkdtempSync(
-    path.join(os.tmpdir(), "aidoc-provider-persistence-"),
+    path.join(os.tmpdir(), "staledocs-provider-persistence-"),
   );
   execFileSync("git", ["init", "-q", "--initial-branch", "main"], {
     cwd: root,
@@ -45,7 +45,7 @@ describe("rememberProviderSelection", () => {
 
     await rememberProviderSelection(root, selection());
 
-    const text = fs.readFileSync(path.join(root, ".aidocrc.json"), "utf8");
+    const text = fs.readFileSync(path.join(root, ".staledocsrc.json"), "utf8");
     expect(text.endsWith("\n")).toBe(true);
     expect(JSON.parse(text)).toEqual({
       provider: "openai",
@@ -59,7 +59,7 @@ describe("rememberProviderSelection", () => {
     const root = createRepository();
     roots.push(root);
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({ language: "uk", include: ["src/**/*.ts"] }, null, 2),
     );
 
@@ -70,7 +70,7 @@ describe("rememberProviderSelection", () => {
     );
 
     expect(
-      JSON.parse(fs.readFileSync(path.join(root, ".aidocrc.json"), "utf8")),
+      JSON.parse(fs.readFileSync(path.join(root, ".staledocsrc.json"), "utf8")),
     ).toEqual({
       language: "uk",
       include: ["src/**/*.ts"],
@@ -91,7 +91,7 @@ describe("rememberProviderSelection", () => {
   ])("refuses to rewrite %s", async (_label, contents) => {
     const root = createRepository();
     roots.push(root);
-    const configPath = path.join(root, ".aidocrc.json");
+    const configPath = path.join(root, ".staledocsrc.json");
     fs.writeFileSync(configPath, contents);
 
     await expect(
@@ -108,7 +108,7 @@ describe("rememberProviderSelection", () => {
       selection({
         provider: "openai-compatible",
         model: "custom-model",
-        credentialEnv: "AIDOC_COMPAT_API_KEY",
+        credentialEnv: "STALEDOCS_COMPAT_API_KEY",
         endpoint: {
           url: new URL("https://gateway.example.com/v1"),
           origin: "https://gateway.example.com",
@@ -118,10 +118,10 @@ describe("rememberProviderSelection", () => {
       }),
     );
 
-    const text = fs.readFileSync(path.join(root, ".aidocrc.json"), "utf8");
+    const text = fs.readFileSync(path.join(root, ".staledocsrc.json"), "utf8");
     expect(text).toContain("providerBaseUrl");
     expect(text).toContain("https://gateway.example.com/v1");
-    expect(text).not.toContain("AIDOC_COMPAT_API_KEY");
+    expect(text).not.toContain("STALEDOCS_COMPAT_API_KEY");
     expect(text).not.toContain("93.184.216.34");
   });
 
@@ -140,7 +140,7 @@ describe("rememberProviderSelection", () => {
         },
       }),
     ).rejects.toMatchObject({ code: "PROVIDER_INVALID_ENDPOINT" });
-    expect(fs.existsSync(path.join(root, ".aidocrc.json"))).toBe(false);
+    expect(fs.existsSync(path.join(root, ".staledocsrc.json"))).toBe(false);
   });
 
   it("does not persist Qwen fields for a non-Qwen selection", async () => {
@@ -153,7 +153,7 @@ describe("rememberProviderSelection", () => {
     });
 
     expect(
-      JSON.parse(fs.readFileSync(path.join(root, ".aidocrc.json"), "utf8")),
+      JSON.parse(fs.readFileSync(path.join(root, ".staledocsrc.json"), "utf8")),
     ).toEqual({
       provider: "openai",
       model: "gpt-5.6-luna",
@@ -174,7 +174,7 @@ describe("rememberProviderSelection", () => {
     );
 
     expect(
-      JSON.parse(fs.readFileSync(path.join(root, ".aidocrc.json"), "utf8")),
+      JSON.parse(fs.readFileSync(path.join(root, ".staledocsrc.json"), "utf8")),
     ).toEqual({
       provider: "qwen",
       model: "qwen3.6-flash",
@@ -187,7 +187,7 @@ describe("rememberProviderSelection", () => {
     const root = createRepository();
     roots.push(root);
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({
         provider: "qwen",
         model: "old-model",
@@ -202,7 +202,7 @@ describe("rememberProviderSelection", () => {
     await rememberProviderSelection(root, selection({ provider: "openai" }));
 
     expect(
-      JSON.parse(fs.readFileSync(path.join(root, ".aidocrc.json"), "utf8")),
+      JSON.parse(fs.readFileSync(path.join(root, ".staledocsrc.json"), "utf8")),
     ).toEqual({
       provider: "openai",
       model: "gpt-5.6-luna",

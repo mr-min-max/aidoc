@@ -1,6 +1,6 @@
-- id: aidoc-check
-  name: aidoc check
-  entry: aidoc check --since HEAD
+- id: staledocs-check
+  name: staledocs check
+  entry: staledocs check --since HEAD
   language: node
   pass_filenames: false
   stages: [pre-push]

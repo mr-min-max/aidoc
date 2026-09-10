@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:aidoc="urn:aidoc:assets" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc" data-safe-margin="64" data-protected-margin="80" data-step="5" data-visual-system="dimensional-code-to-docs-v1">
-  <title id="title">AiDoc demo step 5: You review</title>
+  <title id="title">StaleDocs demo step 5: You review</title>
   <desc id="desc">The green validated node hands a focused documentation draft to the maintainer, who decides what is applied.</desc>
   <metadata>
-    <aidoc:copy><aidoc:line>AiDoc</aidoc:line><aidoc:line>You review</aidoc:line><aidoc:line>You decide what is applied</aidoc:line><aidoc:line>5 / 5</aidoc:line><aidoc:line>No provider calls</aidoc:line><aidoc:line>No repository writes</aidoc:line><aidoc:line>You decide what is applied</aidoc:line></aidoc:copy>
+    <aidoc:copy><aidoc:line>StaleDocs</aidoc:line><aidoc:line>You review</aidoc:line><aidoc:line>You decide what is applied</aidoc:line><aidoc:line>5 / 5</aidoc:line><aidoc:line>No provider calls</aidoc:line><aidoc:line>No repository writes</aidoc:line><aidoc:line>You decide what is applied</aidoc:line></aidoc:copy>
     <aidoc:evidence><aidoc:fact>You decide what is applied</aidoc:fact><aidoc:fact>Review the diff</aidoc:fact><aidoc:fact>Public beta</aidoc:fact></aidoc:evidence>
   </metadata>
   <rect width="1280" height="720" fill="#F4F1EA"/>

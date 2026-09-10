@@ -43,7 +43,7 @@ describe("built-in provider profiles", () => {
     expect(getProviderProfile("ollama")?.defaultModel).toBeUndefined();
     expect(getProviderProfile("openai-compatible")).toMatchObject({
       transport: "openai-compatible-chat",
-      credentialEnv: "AIDOC_COMPAT_API_KEY",
+      credentialEnv: "STALEDOCS_COMPAT_API_KEY",
       boundary: "remote",
     });
     expect(getProviderProfile("not-a-provider")).toBeUndefined();

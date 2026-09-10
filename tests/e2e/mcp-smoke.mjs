@@ -26,9 +26,9 @@ const INSTALL_TIMEOUT_MS = 120_000;
 const MCP_OPERATION_TIMEOUT_MS = 5_000;
 const fakeProviderKey = ["sk", "proj", "M".repeat(32)].join("-");
 const fakeConfigKey = ["sk", "proj", "C".repeat(32)].join("-");
-const rawSentinel = "AIDOC_MCP_RAW_SOURCE_MUST_NOT_LEAK";
-const externalSentinel = "AIDOC_EXTERNAL_REPOSITORY_SENTINEL_MUST_NOT_LEAK";
-const root = mkdtempSync(join(tmpdir(), "aidoc-mcp-smoke-"));
+const rawSentinel = "STALEDOCS_MCP_RAW_SOURCE_MUST_NOT_LEAK";
+const externalSentinel = "STALEDOCS_EXTERNAL_REPOSITORY_SENTINEL_MUST_NOT_LEAK";
+const root = mkdtempSync(join(tmpdir(), "staledocs-mcp-smoke-"));
 let originalGitConfig;
 
 function credentialFreeEnv() {
@@ -38,15 +38,15 @@ function credentialFreeEnv() {
     "ANTHROPIC_API_KEY",
     "DEEPSEEK_API_KEY",
     "DASHSCOPE_API_KEY",
-    "AIDOC_COMPAT_API_KEY",
-    "AIDOC_PROVIDER",
-    "AIDOC_MODEL",
-    "AIDOC_PROVIDER_BASE_URL",
-    "AIDOC_ALLOW_LOCAL_HTTP",
-    "AIDOC_QWEN_REGION",
-    "AIDOC_QWEN_WORKSPACE_ID",
-    "AIDOC_OLLAMA_HOST",
-    "AIDOC_TRUST_POLICY",
+    "STALEDOCS_COMPAT_API_KEY",
+    "STALEDOCS_PROVIDER",
+    "STALEDOCS_MODEL",
+    "STALEDOCS_PROVIDER_BASE_URL",
+    "STALEDOCS_ALLOW_LOCAL_HTTP",
+    "STALEDOCS_QWEN_REGION",
+    "STALEDOCS_QWEN_WORKSPACE_ID",
+    "STALEDOCS_OLLAMA_HOST",
+    "STALEDOCS_TRUST_POLICY",
   ]) {
     delete env[key];
   }
@@ -107,7 +107,7 @@ async function runProviderFreeRoundTrip(
   label,
   expectedVersion,
 ) {
-  const localClient = new Client({ name: `aidoc-${label}`, version: "1.0.0" });
+  const localClient = new Client({ name: `staledocs-${label}`, version: "1.0.0" });
   const localTransport = new StdioClientTransport({
     command: process.execPath,
     args: [cliPath, "--mcp"],
@@ -226,7 +226,7 @@ async function runRepositoryIsolationRoundTrip(
   label,
   expectedVersion,
 ) {
-  const localClient = new Client({ name: `aidoc-${label}`, version: "1.0.0" });
+  const localClient = new Client({ name: `staledocs-${label}`, version: "1.0.0" });
   const localTransport = new StdioClientTransport({
     command: process.execPath,
     args: [cliPath, "--mcp"],
@@ -406,7 +406,7 @@ async function runRepositoryIsolationRoundTrip(
       `${label} sanitized error`,
     );
     assert.equal(unknown.result.isError, true);
-    assert.match(unknown.text, /<AIDOC_REDACTED:OPENAI_API_KEY:1>/u);
+    assert.match(unknown.text, /<STALEDOCS_REDACTED:OPENAI_API_KEY:1>/u);
     assertResponseValueFree(
       unknown.text,
       forbiddenValues,
@@ -420,13 +420,13 @@ async function runRepositoryIsolationRoundTrip(
       beforeB,
     );
 
-    executableConfigPath = join(repositoryA, ".aidocrc.cjs");
+    executableConfigPath = join(repositoryA, ".staledocsrc.cjs");
     executableMarkerPath = join(
       repositoryA,
       `.mcp-executable-config-marker-${label}`,
     );
     const executableSourceMarker =
-      "AIDOC_EXECUTABLE_CONFIG_SOURCE_MUST_NOT_LEAK";
+      "STALEDOCS_EXECUTABLE_CONFIG_SOURCE_MUST_NOT_LEAK";
     writeFileSync(
       executableConfigPath,
       [
@@ -587,7 +587,7 @@ try {
   mkdirSync(consumer);
   writeFileSync(
     join(consumer, "package.json"),
-    JSON.stringify({ name: "aidoc-mcp-consumer", private: true }),
+    JSON.stringify({ name: "staledocs-mcp-consumer", private: true }),
   );
   await runCommand("npm", ["install", "--ignore-scripts", tarball], {
     cwd: consumer,
@@ -616,13 +616,13 @@ try {
   runFixtureGit(repositoryA, hooks, "init", "--quiet", "--initial-branch=main");
   runFixtureGit(repositoryB, hooks, "init", "--quiet", "--initial-branch=main");
   for (const repository of [repositoryA, repositoryB]) {
-    runFixtureGit(repository, hooks, "config", "user.name", "aidoc test");
+    runFixtureGit(repository, hooks, "config", "user.name", "staledocs test");
     runFixtureGit(
       repository,
       hooks,
       "config",
       "user.email",
-      "aidoc-test@example.invalid",
+      "staledocs-test@example.invalid",
     );
   }
 
@@ -673,25 +673,18 @@ try {
   const packedCli = join(
     consumer,
     "node_modules",
-    "@mr-min-max",
-    "aidoc-gen",
+    "staledocs",
     "dist",
     "cli",
     "index.js",
   );
   const packedPackage = JSON.parse(
     readFileSync(
-      join(
-        consumer,
-        "node_modules",
-        "@mr-min-max",
-        "aidoc-gen",
-        "package.json",
-      ),
+      join(consumer, "node_modules", "staledocs", "package.json"),
       "utf8",
     ),
   );
-  assert.equal(packedPackage.name, "@mr-min-max/aidoc-gen");
+  assert.equal(packedPackage.name, "staledocs");
   await runRepositoryIsolationRoundTrip(
     resolve("dist/cli/index.js"),
     repositoryA,

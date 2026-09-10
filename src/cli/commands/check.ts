@@ -47,7 +47,7 @@ export async function runCheckCommand(
   return 2;
 }
 
-/** Creates the Commander definition for the `aidoc check` command. */
+/** Creates the Commander definition for the `staledocs check` command. */
 export function createCheckCommand(): Command {
   return new Command("check")
     .description("Check whether documentation sections mention changed symbols")

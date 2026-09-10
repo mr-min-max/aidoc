@@ -25,7 +25,7 @@ describe("repository write target preparation", () => {
   const FILESYSTEM_SECRET = "filesystem-detail-secret";
 
   function createRepository(): string {
-    const root = mkdtempSync(join(tmpdir(), "aidoc-writer-"));
+    const root = mkdtempSync(join(tmpdir(), "staledocs-writer-"));
     const hooks = join(root, "hooks");
     mkdirSync(hooks);
     execFileSync("git", ["init", "-q", "--initial-branch", "main"], {
@@ -37,7 +37,7 @@ describe("repository write target preparation", () => {
   }
 
   function createDirectory(): string {
-    const root = mkdtempSync(join(tmpdir(), "aidoc-writer-"));
+    const root = mkdtempSync(join(tmpdir(), "staledocs-writer-"));
     roots.push(root);
     return root;
   }
@@ -48,7 +48,7 @@ describe("repository write target preparation", () => {
       "git",
       [
         "-c",
-        "user.name=AiDoc Tests",
+        "user.name=StaleDocs Tests",
         "-c",
         "user.email=tests@example.invalid",
         "commit",
@@ -67,7 +67,7 @@ describe("repository write target preparation", () => {
   }
 
   function tempFiles(root: string): string[] {
-    return readdirSync(root).filter((name) => name.startsWith(".aidoc-write-"));
+    return readdirSync(root).filter((name) => name.startsWith(".staledocs-write-"));
   }
 
   async function captureRejection(operation: Promise<void>): Promise<unknown> {
@@ -237,7 +237,7 @@ describe("repository write target preparation", () => {
 
       try {
         process.env.PATH = `${fakeBin}${delimiter}${originalPath ?? ""}`;
-        process.env.LC_ALL = "aidoc_TEST.UTF-8";
+        process.env.LC_ALL = "staledocs_TEST.UTF-8";
 
         await expect(
           RepositoryWriteScope.open(createDirectory()),
@@ -431,7 +431,7 @@ describe("repository write target preparation", () => {
       expect(statSync(output).mode & 0o777).toBe(0o640);
     }
     expect(
-      readdirSync(root).filter((name) => name.startsWith(".aidoc-write-")),
+      readdirSync(root).filter((name) => name.startsWith(".staledocs-write-")),
     ).toEqual([]);
     expect(renameSpy).toHaveBeenCalledTimes(1);
     const [temporary, destination] = renameSpy.mock.calls[0];
@@ -472,7 +472,7 @@ describe("repository write target preparation", () => {
     await target.replaceText("private draft\n");
 
     const temporaryName = basename(renameSpy.mock.calls[0][0]);
-    expect(temporaryName).toMatch(/^\.aidoc-write-[0-9a-f]{32}$/);
+    expect(temporaryName).toMatch(/^\.staledocs-write-[0-9a-f]{32}$/);
     expect(temporaryName).not.toContain("confidential");
     expect(temporaryName).not.toContain("roadmap");
     expect(temporaryName).not.toContain("md");

@@ -113,7 +113,7 @@ if (!options) {
     if (
       packageJson === null ||
       typeof packageJson !== "object" ||
-      packageJson.name !== "@mr-min-max/aidoc-gen" ||
+      packageJson.name !== "staledocs" ||
       typeof packageJson.version !== "string" ||
       packageJson.version.length === 0 ||
       packageJson.version.length > 128 ||

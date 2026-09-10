@@ -25,11 +25,11 @@ function commit(root: string, message: string): string {
 }
 
 function fixture(readme = "# Docs\n"): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-mcp-freshness-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-mcp-freshness-"));
   fs.mkdirSync(path.join(root, "src"), { recursive: true });
   git(root, "init", "--quiet");
-  git(root, "config", "user.name", "aidoc test");
-  git(root, "config", "user.email", "aidoc-test@example.invalid");
+  git(root, "config", "user.name", "staledocs test");
+  git(root, "config", "user.email", "staledocs-test@example.invalid");
   fs.writeFileSync(path.join(root, "README.md"), readme);
   fs.writeFileSync(
     path.join(root, "src", "index.ts"),

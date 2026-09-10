@@ -47,8 +47,8 @@ function commit(root: string, message: string): string {
 }
 
 function fixture(): { root: string; outside: string } {
-  const root = mkdtempSync(join(tmpdir(), "aidoc-mcp-scope-"));
-  const outside = mkdtempSync(join(tmpdir(), "aidoc-mcp-scope-outside-"));
+  const root = mkdtempSync(join(tmpdir(), "staledocs-mcp-scope-"));
+  const outside = mkdtempSync(join(tmpdir(), "staledocs-mcp-scope-outside-"));
   mkdirSync(join(root, "packages", "api"), { recursive: true });
   mkdirSync(join(root, "src"));
   writeFileSync(join(root, "README.md"), "# repository\n");

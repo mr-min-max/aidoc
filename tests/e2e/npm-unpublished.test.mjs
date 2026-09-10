@@ -7,8 +7,8 @@ import {
 } from "../../scripts/verify-npm-unpublished.mjs";
 
 const candidate = Object.freeze({
-  name: "@mr-min-max/aidoc-gen",
-  version: "0.2.0-beta.6",
+  name: "staledocs",
+  version: "0.3.0-beta.1",
 });
 
 test("accepts only exact 404 responses for both release identities", async () => {
@@ -26,7 +26,7 @@ test("accepts only exact 404 responses for both release identities", async () =>
     requests.map(({ url }) => url),
     [
       "https://registry.npmjs.org/aidoc-gen/0.2.0-beta.3",
-      "https://registry.npmjs.org/%40mr-min-max%2Faidoc-gen/0.2.0-beta.6",
+      "https://registry.npmjs.org/staledocs/0.3.0-beta.1",
     ],
   );
   for (const { options } of requests) {

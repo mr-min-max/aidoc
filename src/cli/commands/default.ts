@@ -18,7 +18,7 @@ export interface DefaultCommandRuntime {
 }
 
 const DEFAULT_HELP = [
-  "Usage: aidoc <command>",
+  "Usage: staledocs <command>",
   "",
   "Commands:",
   "  plan      Plan documentation impact without a provider",

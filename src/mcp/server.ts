@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * aidoc MCP (Model Context Protocol) Server
+ * staledocs MCP (Model Context Protocol) Server
  *
- * Exposes aidoc's functionality as tools for AI assistants (ChatGPT, Claude, Cursor, etc.)
+ * Exposes staledocs's functionality as tools for AI assistants (ChatGPT, Claude, Cursor, etc.)
  * via the Model Context Protocol standard.
  *
  * Tools:
@@ -13,7 +13,7 @@
  * - check_docs_freshness: Run an AST-backed source/document co-change guard
  *
  * Usage:
- *   aidoc --mcp
+ *   staledocs --mcp
  *   # or add to Claude/Cursor MCP config
  */
 
@@ -681,7 +681,7 @@ function trustPolicyFromEnvironment(
   try {
     const descriptor = Object.getOwnPropertyDescriptor(
       source,
-      "AIDOC_TRUST_POLICY",
+      "STALEDOCS_TRUST_POLICY",
     );
     const value =
       descriptor !== undefined && Object.hasOwn(descriptor, "value")
@@ -1058,7 +1058,7 @@ export async function handleToolCall(
         ...report,
         recommendation:
           report.status === "stale"
-            ? "Run aidoc update to refresh documentation."
+            ? "Run staledocs update to refresh documentation."
             : null,
       };
     }
@@ -1111,7 +1111,7 @@ export async function createMCPServer(
 ): Promise<Server> {
   const context = await createMCPServerContext(serverCwd, hostEnvironment);
   const server = new Server(
-    { name: "aidoc", version: readPackageVersion() },
+    { name: "staledocs", version: readPackageVersion() },
     { capabilities: { tools: {} } },
   );
 

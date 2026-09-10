@@ -25,7 +25,7 @@ function validCandidate(candidate) {
   return (
     candidate !== null &&
     typeof candidate === "object" &&
-    candidate.name === "@mr-min-max/aidoc-gen" &&
+    candidate.name === "staledocs" &&
     typeof candidate.version === "string" &&
     candidate.version.length > 0 &&
     candidate.version.length <= 128 &&

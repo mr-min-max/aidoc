@@ -1,8 +1,8 @@
-# AiDoc with Claude Desktop or Claude Code
+# StaleDocs with Claude Desktop or Claude Code
 
 This guide covers local MCP hosting for the published beta.5 CLI. It does not
-provide Claude.ai OAuth access to AiDoc and does not turn a consumer
-subscription into an AiDoc provider credential.
+provide Claude.ai OAuth access to StaleDocs and does not turn a consumer
+subscription into an StaleDocs provider credential.
 
 For the complete command catalogue and beta boundaries, see [CLI.md](../CLI.md)
 and [Public Beta](../PUBLIC_BETA.md). The [GitHub Action reference](../GITHUB_ACTION.md)
@@ -12,8 +12,8 @@ covers the separate CI generate and check path.
 
 Claude Desktop and Claude Code authenticate their own host session. Claude Pro
 or Max is a consumer/host subscription; Anthropic API billing is separate.
-AiDoc receives no Claude subscription token and no Claude OAuth credential.
-For direct AiDoc Anthropic generation, use the separate `anthropic` profile and
+StaleDocs receives no Claude subscription token and no Claude OAuth credential.
+For direct StaleDocs Anthropic generation, use the separate `anthropic` profile and
 `ANTHROPIC_API_KEY`.
 
 Official references: [Claude Code MCP](https://docs.anthropic.com/en/docs/claude-code/mcp),
@@ -25,8 +25,8 @@ and [consumer/API billing separation](https://support.anthropic.com/en/articles/
 Install the published prerelease:
 
 ```bash
-npm install -g @mr-min-max/aidoc-gen@beta
-aidoc --version
+npm install -g staledocs@beta
+staledocs --version
 ```
 
 For development, build and link the local CLI from a checkout:
@@ -35,7 +35,7 @@ For development, build and link the local CLI from a checkout:
 npm install
 npm run build
 npm link
-aidoc --version
+staledocs --version
 ```
 
 Configure the Claude Desktop or Claude Code local MCP entry using the linked
@@ -44,8 +44,8 @@ command:
 ```json
 {
   "mcpServers": {
-    "aidoc": {
-      "command": "aidoc",
+    "staledocs": {
+      "command": "staledocs",
       "args": ["--mcp"]
     }
   }
@@ -58,12 +58,12 @@ local-STDIO path. The beta.5 npm package and GitHub prerelease are public.
 Reverse the global development link with:
 
 ```bash
-npm unlink -g @mr-min-max/aidoc-gen
+npm unlink -g staledocs
 ```
 
 ## Pinned MCP repository scope
 
-Each `aidoc --mcp` server is pinned to the canonical Git worktree containing
+Each `staledocs --mcp` server is pinned to the canonical Git worktree containing
 its startup cwd. One server serves one repository; start another server from
 another repository when you change repositories. The root and real
 subdirectories are allowed, and both absolute in-worktree paths and
@@ -74,7 +74,7 @@ non-directory paths, and every symlink or junction fail closed before project
 reads. Successful MCP paths are repository-relative POSIX paths.
 
 MCP reads only bounded declarative JSON/YAML/no-extension configuration,
-`package.json#aidoc`, and the pinned-root `.env` allowlist. It rejects
+`package.json#staledocs`, and the pinned-root `.env` allowlist. It rejects
 malformed or symlinked selected configuration, executable JavaScript,
 TypeScript, CJS, or MJS configuration, and the legacy `apiKey` project field.
 Direct CLI cosmiconfig and dotenv behavior is unchanged. This is a repository
@@ -98,11 +98,11 @@ Use the provider-free MCP boundary in this order:
    only `approved_markdown` to the exact target, and call
    `check_docs_freshness`.
 
-AiDoc Trust Gate inspects AiDoc input/output for secret findings. Configured
+StaleDocs Trust Gate inspects StaleDocs input/output for secret findings. Configured
 `strict` blocks findings; configured `warn` or `redact` redacts detected
 sensitive values before host generation or return. An `allowed` result means
 no findings were detected. Trust Gate does not control Claude's context
-window, model, sandbox, isolation, or permission system. AiDoc does not read
+window, model, sandbox, isolation, or permission system. StaleDocs does not read
 Claude authentication files or receive a Claude subscription token.
 
 Direct provider mode supports `openai`, `anthropic`, `deepseek`, `qwen`,

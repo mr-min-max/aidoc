@@ -24,7 +24,7 @@ const INVALID_REF_CODE_POINTS = [
 const INVALID_REF_SOURCES = ["head", "base", "environment"] as const;
 
 function repo() {
-  const root = mkdtempSync(join(tmpdir(), "aidoc-git-"));
+  const root = mkdtempSync(join(tmpdir(), "staledocs-git-"));
   const hooks = join(root, "hooks");
   mkdirSync(hooks);
   execFileSync("git", ["init", "-q", "--initial-branch", "main"], {
@@ -128,7 +128,7 @@ describe("GitSnapshotReader", () => {
   )(
     "rejects $source control code point $codePoint before repository discovery",
     async ({ source, codePoint }) => {
-      const fixture = mkdtempSync(join(tmpdir(), "aidoc-invalid-ref-"));
+      const fixture = mkdtempSync(join(tmpdir(), "staledocs-invalid-ref-"));
       const missingRepository = join(fixture, "missing");
       const hostileRef = `valid${String.fromCodePoint(codePoint)}tail`;
       const options = {
@@ -138,8 +138,8 @@ describe("GitSnapshotReader", () => {
         ...(source === "base" ? { base: hostileRef } : {}),
       };
       const environment = { ...process.env };
-      delete environment.AIDOC_BASE_REF;
-      if (source === "environment") environment.AIDOC_BASE_REF = hostileRef;
+      delete environment.STALEDOCS_BASE_REF;
+      if (source === "environment") environment.STALEDOCS_BASE_REF = hostileRef;
 
       const error = await new GitSnapshotReader(missingRepository, environment)
         .read(options)
@@ -503,7 +503,7 @@ describe("GitSnapshotReader", () => {
     commit(source, "first");
     writeFileSync(join(source, "second.ts"), "export const second = 1;\n");
     commit(source, "second");
-    const clone = mkdtempSync(join(tmpdir(), "aidoc-shallow-"));
+    const clone = mkdtempSync(join(tmpdir(), "staledocs-shallow-"));
     execFileSync(
       "git",
       ["clone", "-q", "--depth", "1", `file://${source}`, clone],
@@ -534,7 +534,7 @@ describe("GitSnapshotReader", () => {
     commit(root, "second");
     const result = await new GitSnapshotReader(root, {
       ...process.env,
-      AIDOC_BASE_REF: "HEAD~1",
+      STALEDOCS_BASE_REF: "HEAD~1",
     }).read({ include: ["**/*.ts"], exclude: [] });
 
     expect(result.base).toEqual({
@@ -603,7 +603,7 @@ describe("GitSnapshotReader", () => {
     const root = repo();
     writeFileSync(join(root, "initial.ts"), "export const initial = 1;\n");
     commit(root, "initial");
-    const wrapperDir = mkdtempSync(join(tmpdir(), "aidoc-git-wrapper-"));
+    const wrapperDir = mkdtempSync(join(tmpdir(), "staledocs-git-wrapper-"));
     const wrapperPath = join(wrapperDir, "git");
     const fetchLog = join(wrapperDir, "fetch.log");
     const realGit = execFileSync("which", ["git"], { encoding: "utf8" }).trim();
@@ -611,7 +611,7 @@ describe("GitSnapshotReader", () => {
       wrapperPath,
       `#!/bin/sh
 if [ "$1" = fetch ]; then
-  printf 'fetch' >> "$AIDOC_FETCH_LOG"
+  printf 'fetch' >> "$STALEDOCS_FETCH_LOG"
 fi
 exec "${realGit}" "$@"
 `,
@@ -621,7 +621,7 @@ exec "${realGit}" "$@"
     await new GitSnapshotReader(root, {
       ...process.env,
       PATH: `${wrapperDir}:${process.env.PATH ?? ""}`,
-      AIDOC_FETCH_LOG: fetchLog,
+      STALEDOCS_FETCH_LOG: fetchLog,
     }).read({ include: ["**/*.ts"], exclude: [] });
 
     await expect(fs.readFile(fetchLog, "utf8")).rejects.toThrow();
@@ -813,14 +813,14 @@ exec "${realGit}" "$@"
 
   test("rejects direct containment escapes with a fixed unsafe-path error", async () => {
     const root = repo();
-    const outside = join(root, "..", "aidoc-outside-sentinel.ts");
+    const outside = join(root, "..", "staledocs-outside-sentinel.ts");
     writeFileSync(outside, "outside-sentinel\n");
     try {
       const reader = new GitSnapshotReader(root) as unknown as {
         worktreeFile(root: string, path: string): Promise<string>;
       };
       await expect(
-        reader.worktreeFile(root, "../aidoc-outside-sentinel.ts"),
+        reader.worktreeFile(root, "../staledocs-outside-sentinel.ts"),
       ).rejects.toMatchObject({
         code: "PLAN_UNSAFE_WORKTREE_PATH",
         message: "The working-tree path is unsafe.",

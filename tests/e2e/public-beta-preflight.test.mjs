@@ -19,9 +19,9 @@ const DEPENDABOT_AUTOMATION_EMAIL =
   "49699333+dependabot[bot]@users.noreply.github.com";
 const SOURCE_ARTIFACTS = {
   plugin: [
-    "integrations/codex/aidoc/.codex-plugin/plugin.json",
-    "integrations/codex/aidoc/.mcp.json",
-    "integrations/codex/aidoc/skills/maintain-documentation/SKILL.md",
+    "integrations/codex/staledocs/.codex-plugin/plugin.json",
+    "integrations/codex/staledocs/.mcp.json",
+    "integrations/codex/staledocs/skills/maintain-documentation/SKILL.md",
     "tests/e2e/codex-plugin-smoke.mjs",
   ],
   docs: [
@@ -31,13 +31,12 @@ const SOURCE_ARTIFACTS = {
     "docs/integrations/claude.md",
     "docs/releases/v0.2.0-beta.4.md",
     "docs/releases/v0.2.0-beta.5.md",
-    "docs/releases/v0.2.0-beta.6.md",
+    "docs/releases/v0.3.0-beta.1.md",
   ],
   storefrontDocumentation: [
     "docs/CLI.md",
     "docs/GITHUB_ACTION.md",
     "tests/e2e/storefront-demo.test.mjs",
-    "tests/e2e/storefront-readme.test.mjs",
   ],
   demo: [
     "scripts/demo-hybrid-beta.mjs",
@@ -55,24 +54,24 @@ const SOURCE_ARTIFACTS = {
     "dist/templates/update.hbs",
   ],
   storefrontStatic: [
-    "docs/assets/brand/aidoc-mark.svg",
-    "docs/assets/brand/aidoc-wordmark.svg",
-    "docs/assets/brand/aidoc-mark-on-dark.svg",
-    "docs/assets/brand/aidoc-mark-on-light.svg",
-    "docs/assets/brand/aidoc-mark-dark.png",
-    "docs/assets/brand/aidoc-mark-light.png",
-    "docs/assets/brand/aidoc-avatar-source.png",
-    "docs/assets/brand/aidoc-avatar.png",
+    "docs/assets/brand/staledocs-mark.svg",
+    "docs/assets/brand/staledocs-wordmark.svg",
+    "docs/assets/brand/staledocs-mark-on-dark.svg",
+    "docs/assets/brand/staledocs-mark-on-light.svg",
+    "docs/assets/brand/staledocs-mark-dark.png",
+    "docs/assets/brand/staledocs-mark-light.png",
+    "docs/assets/brand/staledocs-avatar-source.png",
+    "docs/assets/brand/staledocs-avatar.png",
     "docs/assets/brand/README.md",
-    "docs/assets/social/aidoc-social-preview-source.png",
-    "docs/assets/social/aidoc-social-preview.svg",
-    "docs/assets/social/aidoc-social-preview.png",
-    "docs/assets/demo/aidoc-flow-poster-source.png",
-    "docs/assets/demo/aidoc-flow-poster.svg",
-    "docs/assets/demo/aidoc-flow-poster.png",
+    "docs/assets/social/staledocs-social-preview-source.png",
+    "docs/assets/social/staledocs-social-preview.svg",
+    "docs/assets/social/staledocs-social-preview.png",
+    "docs/assets/demo/staledocs-flow-poster-source.png",
+    "docs/assets/demo/staledocs-flow-poster.svg",
+    "docs/assets/demo/staledocs-flow-poster.png",
   ],
   storefrontMedia: [
-    "docs/assets/demo/aidoc-flow-scene.png",
+    "docs/assets/demo/staledocs-flow-scene.png",
     "docs/assets/demo/frame-01-change.svg",
     "docs/assets/demo/frame-02-plan.svg",
     "docs/assets/demo/frame-03-targets.svg",
@@ -83,9 +82,9 @@ const SOURCE_ARTIFACTS = {
     "docs/assets/demo/frame-03-targets.png",
     "docs/assets/demo/frame-04-diff.png",
     "docs/assets/demo/frame-05-validated.png",
-    "docs/assets/demo/aidoc-flow.gif",
-    "docs/demo/aidoc-walkthrough-script.md",
-    "docs/demo/aidoc-walkthrough.vtt",
+    "docs/assets/demo/staledocs-flow.gif",
+    "docs/demo/staledocs-walkthrough-script.md",
+    "docs/demo/staledocs-walkthrough.vtt",
     "docs/demo/recording-checklist.md",
   ],
 };
@@ -116,7 +115,7 @@ async function commitFile(repositoryRoot, relativePath, content, message) {
 
 async function createFixture(t) {
   const repositoryRoot = await mkdtemp(
-    path.join(tmpdir(), "aidoc-public-beta-preflight-"),
+    path.join(tmpdir(), "staledocs-public-beta-preflight-"),
   );
   t.after(() => rm(repositoryRoot, { recursive: true, force: true }));
 
@@ -127,7 +126,7 @@ async function createFixture(t) {
     "remote",
     "add",
     "origin",
-    "https://github.com/example/aidoc.git",
+    "https://github.com/example/staledocs.git",
   ]);
 
   await writeFile(
@@ -153,8 +152,8 @@ async function createFixture(t) {
     policyPath,
     `${JSON.stringify(
       {
-        schemaVersion: "aidoc.public-beta-policy.v1",
-        canonicalRepository: "example/aidoc",
+        schemaVersion: "staledocs.public-beta-policy.v1",
+        canonicalRepository: "example/staledocs",
         defaultBranch: "main",
         candidateBranch: "codex/release-integrity",
         protectedIdentities: [
@@ -409,7 +408,7 @@ test("emits deterministic schema-valid JSON with fixed diagnostic text", async (
   const second = await runPreflight(fixture);
 
   assert.deepEqual(first, second);
-  assert.equal(first.schemaVersion, "aidoc.public-beta-preflight.v1");
+  assert.equal(first.schemaVersion, "staledocs.public-beta-preflight.v1");
   assert.equal(first.status, "pass");
   assert.deepEqual(
     first.checks.map((check) => check.id),
@@ -455,7 +454,7 @@ test("loads an ignored private needles file from the CLI flag or environment", a
       encoding: "utf8",
       env: {
         ...process.env,
-        AIDOC_PRIVATE_NEEDLES_FILE: privateNeedlesPath,
+        STALEDOCS_PRIVATE_NEEDLES_FILE: privateNeedlesPath,
       },
     },
   );
@@ -574,7 +573,7 @@ test("fails a shallow repository before claiming complete history", async (t) =>
   ]);
 
   const cloneParent = await mkdtemp(
-    path.join(tmpdir(), "aidoc-public-beta-shallow-"),
+    path.join(tmpdir(), "staledocs-public-beta-shallow-"),
   );
   t.after(() => rm(cloneParent, { recursive: true, force: true }));
   const repositoryRoot = path.join(cloneParent, "clone");
@@ -595,7 +594,7 @@ test("fails a shallow repository before claiming complete history", async (t) =>
     "remote",
     "set-url",
     "origin",
-    "https://github.com/example/aidoc.git",
+    "https://github.com/example/staledocs.git",
   ]);
   await setIdentity(repositoryRoot);
   await git(repositoryRoot, ["branch", "codex/release-integrity"]);
@@ -858,7 +857,7 @@ test("detects missing and present beta source artifacts when requested", async (
     "add beta source artifacts",
   ]);
   const modifiedStaticSource =
-    "docs/assets/social/aidoc-social-preview-source.png";
+    "docs/assets/social/staledocs-social-preview-source.png";
   await writeFile(
     path.join(fixture.repositoryRoot, modifiedStaticSource),
     "worktree-only replacement\n",
@@ -900,6 +899,6 @@ test("detects missing and present beta source artifacts when requested", async (
     findCheck(presentReport, "storefront-documentation").summary,
     "Storefront documentation artifacts are present.",
   );
-  assert.equal(presentReport.counts.sourceArtifacts, 56);
+  assert.equal(presentReport.counts.sourceArtifacts, 55);
   assertValueSafe(presentReport, fixture);
 });

@@ -30,7 +30,7 @@ describe("Trust Gate configuration", () => {
   let originalAnthropicKey: string | undefined;
 
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-security-config-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-security-config-"));
     originalOpenAiKey = process.env.OPENAI_API_KEY;
     originalAnthropicKey = process.env.ANTHROPIC_API_KEY;
     delete process.env.OPENAI_API_KEY;
@@ -59,9 +59,9 @@ describe("Trust Gate configuration", () => {
     );
   });
 
-  it("accepts strict from AIDOC_TRUST_POLICY", () => {
+  it("accepts strict from STALEDOCS_TRUST_POLICY", () => {
     expect(
-      loadConfig(root, { AIDOC_TRUST_POLICY: "strict" } as NodeJS.ProcessEnv)
+      loadConfig(root, { STALEDOCS_TRUST_POLICY: "strict" } as NodeJS.ProcessEnv)
         .trustPolicy,
     ).toBe("strict");
   });
@@ -69,7 +69,7 @@ describe("Trust Gate configuration", () => {
   it("rejects an unknown environment policy", () => {
     expect(() =>
       loadConfig(root, {
-        AIDOC_TRUST_POLICY: "unsafe",
+        STALEDOCS_TRUST_POLICY: "unsafe",
       } as NodeJS.ProcessEnv),
     ).toThrow();
   });
@@ -78,7 +78,7 @@ describe("Trust Gate configuration", () => {
     const fileKey = fakeCredential("config");
     const environmentKey = fakeCredential("environment");
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({ provider: "openai", apiKey: fileKey }),
     );
     process.env.OPENAI_API_KEY = environmentKey;
@@ -93,7 +93,7 @@ describe("Trust Gate configuration", () => {
     expect(provider.name).toBe("openai");
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith(
-      'Deprecated Aidoc config field "apiKey" detected; use the provider-specific environment variable instead.',
+      'Deprecated StaleDocs config field "apiKey" detected; use the provider-specific environment variable instead.',
     );
     expect(warningOutput).not.toContain(fileKey);
     expect(warningOutput).not.toContain(environmentKey);
@@ -106,12 +106,12 @@ describe("Trust Gate configuration", () => {
   it("drops a legacy OpenAI key when an environment override selects Anthropic", () => {
     const fileKey = fakeCredential("file-openai");
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({ provider: "openai", apiKey: fileKey }),
     );
 
     const config = loadConfig(root, {
-      AIDOC_PROVIDER: "anthropic",
+      STALEDOCS_PROVIDER: "anthropic",
     } as NodeJS.ProcessEnv);
 
     expect(config.provider).toBe("anthropic");
@@ -125,12 +125,12 @@ describe("Trust Gate configuration", () => {
   it("drops a legacy Anthropic key when an environment override selects OpenAI", () => {
     const fileKey = fakeCredential("file-anthropic");
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({ provider: "anthropic", apiKey: fileKey }),
     );
 
     const config = loadConfig(root, {
-      AIDOC_PROVIDER: "openai",
+      STALEDOCS_PROVIDER: "openai",
     } as NodeJS.ProcessEnv);
 
     expect(config.provider).toBe("openai");
@@ -142,12 +142,12 @@ describe("Trust Gate configuration", () => {
   it("preserves a legacy key when the environment keeps the file provider", () => {
     const fileKey = fakeCredential("same-provider");
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({ provider: "openai", apiKey: fileKey }),
     );
 
     const config = loadConfig(root, {
-      AIDOC_PROVIDER: "openai",
+      STALEDOCS_PROVIDER: "openai",
     } as NodeJS.ProcessEnv);
 
     createProvider(config);
@@ -160,13 +160,13 @@ describe("Trust Gate configuration", () => {
     const fileKey = fakeCredential("same-provider-file");
     const environmentKey = fakeCredential("same-provider-environment");
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({ provider: "anthropic", apiKey: fileKey }),
     );
     process.env.ANTHROPIC_API_KEY = environmentKey;
 
     const config = loadConfig(root, {
-      AIDOC_PROVIDER: "anthropic",
+      STALEDOCS_PROVIDER: "anthropic",
     } as NodeJS.ProcessEnv);
 
     createProvider(config);

@@ -15,7 +15,7 @@ describe("TypeScriptParser", () => {
 
   it("parses captured TypeScript source without reopening its backing path", async () => {
     const root = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-typescript-captured-"),
+      path.join(os.tmpdir(), "staledocs-typescript-captured-"),
     );
     const backingPath = path.join(root, "captured.ts");
     const source = `
@@ -119,7 +119,7 @@ describe("TypeScriptParser", () => {
 
   it("rejects a recovery AST when the source has syntax diagnostics", async () => {
     const root = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-typescript-invalid-"),
+      path.join(os.tmpdir(), "staledocs-typescript-invalid-"),
     );
     const invalidFile = path.join(root, "invalid.ts");
     fs.writeFileSync(
@@ -156,7 +156,7 @@ describe("TypeScriptParser", () => {
 
   it("refreshes a cached source before checking syntax diagnostics", async () => {
     const root = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-typescript-refresh-"),
+      path.join(os.tmpdir(), "staledocs-typescript-refresh-"),
     );
     const sourceFile = path.join(root, "changing.ts");
     fs.writeFileSync(
@@ -183,7 +183,7 @@ describe("TypeScriptParser", () => {
 
   it("accepts a genuinely parsed empty TypeScript source file", async () => {
     const root = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-typescript-empty-"),
+      path.join(os.tmpdir(), "staledocs-typescript-empty-"),
     );
     const emptyFile = path.join(root, "empty.ts");
     fs.writeFileSync(emptyFile, "");
@@ -390,7 +390,7 @@ describe("TypeScriptParser", () => {
   });
 
   it("does not enumerate declarations resolved from another module", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-reexports-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-reexports-"));
     const dependency = path.join(root, "dependency.ts");
     const entry = path.join(root, "entry.ts");
     fs.writeFileSync(

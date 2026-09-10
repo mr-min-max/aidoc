@@ -19,7 +19,7 @@ const pluginSmokePath = path.join(
   "e2e",
   "codex-plugin-smoke.mjs",
 );
-const DEMO_SCHEMA = "aidoc.hybrid-beta-demo.v1";
+const DEMO_SCHEMA = "staledocs.hybrid-beta-demo.v1";
 // This demo is offline, credential-free, and makes no network request.
 const FAKE_SECRET = ["sk", "proj", "M".repeat(32)].join("-");
 const CHECK_NAMES = [
@@ -42,15 +42,15 @@ function credentialFreeEnv() {
     "ANTHROPIC_API_KEY",
     "DEEPSEEK_API_KEY",
     "DASHSCOPE_API_KEY",
-    "AIDOC_COMPAT_API_KEY",
-    "AIDOC_PROVIDER",
-    "AIDOC_MODEL",
-    "AIDOC_PROVIDER_BASE_URL",
-    "AIDOC_ALLOW_LOCAL_HTTP",
-    "AIDOC_QWEN_REGION",
-    "AIDOC_QWEN_WORKSPACE_ID",
-    "AIDOC_OLLAMA_HOST",
-    "AIDOC_TRUST_POLICY",
+    "STALEDOCS_COMPAT_API_KEY",
+    "STALEDOCS_PROVIDER",
+    "STALEDOCS_MODEL",
+    "STALEDOCS_PROVIDER_BASE_URL",
+    "STALEDOCS_ALLOW_LOCAL_HTTP",
+    "STALEDOCS_QWEN_REGION",
+    "STALEDOCS_QWEN_WORKSPACE_ID",
+    "STALEDOCS_OLLAMA_HOST",
+    "STALEDOCS_TRUST_POLICY",
   ]) {
     delete env[key];
   }
@@ -76,11 +76,11 @@ async function commit(cwd, message) {
 }
 
 async function createFixture({ documents, noImpact = false }) {
-  const cwd = await mkdtemp(path.join(tmpdir(), "aidoc-hybrid-beta-"));
+  const cwd = await mkdtemp(path.join(tmpdir(), "staledocs-hybrid-beta-"));
   await mkdir(path.join(cwd, "src"), { recursive: true });
   await git(cwd, ["init", "--quiet", "--initial-branch=main"]);
-  await git(cwd, ["config", "user.name", "aidoc hybrid demo"]);
-  await git(cwd, ["config", "user.email", "aidoc-demo@example.invalid"]);
+  await git(cwd, ["config", "user.name", "staledocs hybrid demo"]);
+  await git(cwd, ["config", "user.email", "staledocs-demo@example.invalid"]);
   await writeFile(
     path.join(cwd, "src", "index.ts"),
     [
@@ -158,7 +158,7 @@ function parseToolText(result) {
 
 async function runMcpEvidence(fixture) {
   const client = new Client({
-    name: "aidoc-hybrid-beta-demo",
+    name: "staledocs-hybrid-beta-demo",
     version: "1.0.0",
   });
   const transport = new StdioClientTransport({
@@ -335,9 +335,9 @@ function parseArguments(args = process.argv.slice(2)) {
 }
 
 function formatPresentation(report) {
-  if (report.status !== "pass") return "AiDoc storefront demo\nResult: FAIL\n";
+  if (report.status !== "pass") return "StaleDocs storefront demo\nResult: FAIL\n";
   return [
-    "AiDoc storefront demo",
+    "StaleDocs storefront demo",
     "Change: createUser(email) -> createUser(email, role)",
     "Impact: README.md, docs/API.md",
     "Host contract: prepare -> host draft -> validate",
@@ -370,7 +370,7 @@ async function runDemo() {
       noImpactFixture.head,
     ]);
     const noImpactCheck =
-      noImpact.code === 0 && !noImpact.stdout.includes("Next: aidoc update");
+      noImpact.code === 0 && !noImpact.stdout.includes("Next: staledocs update");
 
     const singleBefore = await snapshotRepositoryTree(singleTargetFixture.cwd);
     const singleTarget = await runCli(singleTargetFixture.cwd, [

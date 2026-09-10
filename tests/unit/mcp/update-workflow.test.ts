@@ -35,7 +35,7 @@ function fixtureRepository(multipleTargets = false): {
   base: string;
   head: string;
 } {
-  const root = mkdtempSync(join(tmpdir(), "aidoc-mcp-update-"));
+  const root = mkdtempSync(join(tmpdir(), "staledocs-mcp-update-"));
   mkdirSync(join(root, "src"));
   if (multipleTargets) mkdirSync(join(root, "docs"));
   git(root, "init", "-q", "--initial-branch", "main");
@@ -183,7 +183,7 @@ describe("provider-free MCP update workflow", () => {
     const fixture = fixtureRepository();
     roots.push(fixture.root);
     writeFileSync(
-      join(fixture.root, ".aidocrc.json"),
+      join(fixture.root, ".staledocsrc.json"),
       JSON.stringify({ include: ["**/*.ts"] }),
     );
     const context = await createMCPServerContext(
@@ -199,7 +199,7 @@ describe("provider-free MCP update workflow", () => {
     )) as { preparation_digest: string; target: string };
 
     writeFileSync(
-      join(fixture.root, ".aidocrc.json"),
+      join(fixture.root, ".staledocsrc.json"),
       JSON.stringify({ include: ["**/*.tsx"] }),
     );
 
@@ -221,7 +221,7 @@ describe("provider-free MCP update workflow", () => {
     const fixture = fixtureRepository();
     roots.push(fixture.root);
     writeFileSync(
-      join(fixture.root, ".aidocrc.js"),
+      join(fixture.root, ".staledocsrc.js"),
       `throw new Error(${JSON.stringify(`${fixture.root}/unsafe-config`)})`,
     );
     const context = await createMCPServerContext(
@@ -245,7 +245,7 @@ describe("provider-free MCP update workflow", () => {
 
   it("rejects a symlinked configuration before Git or AST planning", async () => {
     const fixture = fixtureRepository();
-    const outside = mkdtempSync(join(tmpdir(), "aidoc-mcp-unsafe-config-"));
+    const outside = mkdtempSync(join(tmpdir(), "staledocs-mcp-unsafe-config-"));
     roots.push(fixture.root, outside);
     writeFileSync(
       join(outside, "config.json"),
@@ -253,7 +253,7 @@ describe("provider-free MCP update workflow", () => {
     );
     symlinkSync(
       join(outside, "config.json"),
-      join(fixture.root, ".aidocrc.json"),
+      join(fixture.root, ".staledocsrc.json"),
     );
     const context = await createMCPServerContext(
       fixture.root,
@@ -400,7 +400,7 @@ describe("provider-free MCP update workflow", () => {
         ANTHROPIC_API_KEY: "arbitrary-anthropic-value",
         DEEPSEEK_API_KEY: "arbitrary-deepseek-value",
         DASHSCOPE_API_KEY: "arbitrary-dashscope-value",
-        AIDOC_COMPAT_API_KEY: "arbitrary-compatible-value",
+        STALEDOCS_COMPAT_API_KEY: "arbitrary-compatible-value",
       };
       const input = Object.entries(values)
         .map(([key, value]) => `${key}=${value}`)
@@ -510,7 +510,7 @@ describe("provider-free MCP update workflow", () => {
         "ANTHROPIC_API_KEY=arbitrary-anthropic-value",
         "DEEPSEEK_API_KEY=arbitrary-deepseek-value",
         "DASHSCOPE_API_KEY=arbitrary-dashscope-value",
-        "AIDOC_COMPAT_API_KEY=arbitrary-compatible-value",
+        "STALEDOCS_COMPAT_API_KEY=arbitrary-compatible-value",
         "",
       ].join("\n"),
     );

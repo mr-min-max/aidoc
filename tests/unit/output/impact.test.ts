@@ -86,12 +86,12 @@ describe("impact-plan output", () => {
     expect(output).not.toContain("Base:");
     expect(output).not.toContain("Head:");
     expect(output).toContain("Targets:\n  CHANGELOG.md\n  docs/API.md");
-    expect(output).toMatch(/Next: aidoc update$/);
+    expect(output).toMatch(/Next: staledocs update$/);
   });
 
   it("prints suppression detail only when changes were suppressed", () => {
     expect(formatImpactPlan(plan())).not.toContain(
-      "changes suppressed by .aidocignore",
+      "changes suppressed by .staledocsignore",
     );
     expect(
       formatImpactPlan(
@@ -99,7 +99,7 @@ describe("impact-plan output", () => {
           ignored: { unsupported: 0, excluded: 0, suppressed: 2 },
         }),
       ),
-    ).toContain("2 changes suppressed by .aidocignore");
+    ).toContain("2 changes suppressed by .staledocsignore");
   });
 
   // Break caught: a working-tree descriptor displays its anchor label as though
@@ -300,7 +300,7 @@ describe("impact-plan output", () => {
       "1 changed symbol is not mapped to documentation.",
     );
     expect(output).toContain("Context: 812 / 12000 bytes");
-    expect(output).toMatch(/Next: aidoc update$/u);
+    expect(output).toMatch(/Next: staledocs update$/u);
   });
 
   it("renders one target and explicit-target guidance", () => {
@@ -339,7 +339,7 @@ describe("impact-plan output", () => {
       { targets: [], requiresExplicitTarget: true },
     );
     expect(noSafeTarget).toContain("Use --target <file>");
-    expect(noSafeTarget).not.toContain("Next: aidoc update");
+    expect(noSafeTarget).not.toContain("Next: staledocs update");
   });
 
   // Break caught: JSON output gains whitespace/log framing or relies on object

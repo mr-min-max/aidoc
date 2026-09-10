@@ -140,7 +140,7 @@ describe("update impact flow", () => {
   let _consoleError: jest.SpyInstance;
 
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), "aidoc-update-cli-"));
+    root = mkdtempSync(join(tmpdir(), "staledocs-update-cli-"));
     writeFileSync(join(root, "README.md"), "# Existing\n");
     consoleLog = jest.spyOn(console, "log").mockImplementation(() => undefined);
     _consoleError = jest
@@ -647,7 +647,7 @@ describe("multi-target update ordering", () => {
   let consoleError: jest.SpyInstance;
 
   beforeEach(() => {
-    root = mkdtempSync(join(tmpdir(), "aidoc-update-targets-"));
+    root = mkdtempSync(join(tmpdir(), "staledocs-update-targets-"));
     consoleLog = jest.spyOn(console, "log").mockImplementation(() => undefined);
     consoleError = jest
       .spyOn(console, "error")

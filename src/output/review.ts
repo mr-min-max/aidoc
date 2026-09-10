@@ -55,7 +55,7 @@ export function renderReviewMarkdown(
   report: ReviewReport,
   maxSymbols = 30,
 ): string {
-  const lines = ["<!-- aidoc-review -->", "### AiDoc: documentation impact"];
+  const lines = ["<!-- staledocs-review -->", "### StaleDocs: documentation impact"];
   if (report.summary.publicApiChanges === 0) {
     lines.push("No public API changes in this pull request.");
     return lines.join("\n");
@@ -126,7 +126,7 @@ export function renderReviewMarkdown(
   }
   lines.push(
     "",
-    `<sub>Deterministic AST analysis; no model was used. Suppress a symbol with \`.aidocignore\`. <a href="https://github.com/mr-min-max/aidoc">AiDoc</a></sub>`,
+    `<sub>Deterministic AST analysis; no model was used. Suppress a symbol with \`.staledocsignore\`. <a href="https://github.com/mr-min-max/staledocs">StaleDocs</a></sub>`,
   );
   return lines.join("\n");
 }
@@ -141,7 +141,7 @@ export function renderReviewText(
     lines.push("No public API changes in this pull request.");
   } else {
     lines.push(
-      `AiDoc: documentation impact (${report.verdict})`,
+      `StaleDocs: documentation impact (${report.verdict})`,
       `${report.summary.publicApiChanges} public API ${plural(report.summary.publicApiChanges, "change", "changes")}; ${report.summary.breaking} potentially breaking.`,
     );
     const changes = [...report.changes].sort(compareReviewChanges);
@@ -169,7 +169,7 @@ export function renderReviewText(
   }
   if (report.summary.suppressed > 0) {
     lines.push(
-      `${report.summary.suppressed} suppressed ${plural(report.summary.suppressed, "change", "changes")} from .aidocignore.`,
+      `${report.summary.suppressed} suppressed ${plural(report.summary.suppressed, "change", "changes")} from .staledocsignore.`,
     );
   }
   return lines.join("\n");

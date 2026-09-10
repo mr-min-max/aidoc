@@ -77,21 +77,21 @@ describe("MCP Trust Gate wiring", () => {
 
   it("constructs README generation with strict MCP security options", async () => {
     const fixture = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-mcp-security-"),
+      path.join(os.tmpdir(), "staledocs-mcp-security-"),
     );
     execFileSync("git", ["init", "--quiet"], { cwd: fixture });
-    execFileSync("git", ["config", "user.name", "aidoc test"], {
+    execFileSync("git", ["config", "user.name", "staledocs test"], {
       cwd: fixture,
     });
     execFileSync(
       "git",
-      ["config", "user.email", "aidoc-test@example.invalid"],
+      ["config", "user.email", "staledocs-test@example.invalid"],
       {
         cwd: fixture,
       },
     );
     fs.writeFileSync(
-      path.join(fixture, ".aidocrc.json"),
+      path.join(fixture, ".staledocsrc.json"),
       JSON.stringify({
         provider: "security-test-provider",
         trustPolicy: "strict",
@@ -217,7 +217,7 @@ describe("MCP Trust Gate wiring", () => {
       code: "PROVIDER_SELECTION_REQUIRED",
     });
     expect(formatMCPError(fake)).toBe(
-      "PROVIDER_SELECTION_REQUIRED: Provider selection is required. Set AIDOC_PROVIDER and AIDOC_MODEL explicitly before running non-interactively.",
+      "PROVIDER_SELECTION_REQUIRED: Provider selection is required. Set STALEDOCS_PROVIDER and STALEDOCS_MODEL explicitly before running non-interactively.",
     );
   });
 

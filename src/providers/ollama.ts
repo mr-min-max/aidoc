@@ -460,7 +460,7 @@ export class OllamaProvider implements LLMProvider {
   ) {
     if (typeof model !== "string" || model.trim().length === 0) {
       throw new Error(
-        "Ollama model is required. Set AIDOC_MODEL to an installed model.",
+        "Ollama model is required. Set STALEDOCS_MODEL to an installed model.",
       );
     }
     this.host = host;

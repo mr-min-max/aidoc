@@ -20,7 +20,7 @@ export type ProviderSelectionGuidance =
         | "ANTHROPIC_API_KEY"
         | "DEEPSEEK_API_KEY"
         | "DASHSCOPE_API_KEY"
-        | "AIDOC_COMPAT_API_KEY";
+        | "STALEDOCS_COMPAT_API_KEY";
     }
   | { readonly reason: "ollama-model" }
   | { readonly reason: "multiple-remote" };
@@ -38,7 +38,7 @@ const PROVIDER_CONFIGURATION_MESSAGES: Record<
   PROVIDER_LOCAL_HTTP_NOT_CONFIRMED:
     "Loopback HTTP endpoints require explicit local-HTTP permission.",
   PROVIDER_SELECTION_REQUIRED:
-    "Provider selection is required. Set AIDOC_PROVIDER and AIDOC_MODEL explicitly before running non-interactively.",
+    "Provider selection is required. Set STALEDOCS_PROVIDER and STALEDOCS_MODEL explicitly before running non-interactively.",
   PROVIDER_SELECTION_CANCELLED:
     "Provider selection was cancelled before any model request.",
   QWEN_PLAN_NOT_PERMITTED_FOR_CUSTOM_APP:
@@ -52,10 +52,10 @@ function selectionRequiredMessage(
     return `Provider "${guidance.provider}" is configured but ${guidance.credentialEnv} is missing. Set ${guidance.credentialEnv} in the environment before running.`;
   }
   if (guidance?.reason === "ollama-model") {
-    return "Ollama needs an installed model. Set AIDOC_PROVIDER=ollama AIDOC_MODEL=<installed-model> before running non-interactively.";
+    return "Ollama needs an installed model. Set STALEDOCS_PROVIDER=ollama STALEDOCS_MODEL=<installed-model> before running non-interactively.";
   }
   if (guidance?.reason === "multiple-remote") {
-    return "Multiple remote providers are ready. Set AIDOC_PROVIDER explicitly before running non-interactively.";
+    return "Multiple remote providers are ready. Set STALEDOCS_PROVIDER explicitly before running non-interactively.";
   }
   return PROVIDER_CONFIGURATION_MESSAGES.PROVIDER_SELECTION_REQUIRED;
 }

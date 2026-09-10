@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:aidoc="urn:aidoc:assets" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc" data-safe-margin="64" data-protected-margin="80" data-step="4" data-visual-system="dimensional-code-to-docs-v1">
-  <title id="title">AiDoc demo step 4: Draft validated</title>
-  <desc id="desc">AiDoc validates the bounded host draft without writing to the repository.</desc>
+  <title id="title">StaleDocs demo step 4: Draft validated</title>
+  <desc id="desc">StaleDocs validates the bounded host draft without writing to the repository.</desc>
   <metadata>
-    <aidoc:copy><aidoc:line>AiDoc</aidoc:line><aidoc:line>Draft validated</aidoc:line><aidoc:line>validate_documentation_draft</aidoc:line><aidoc:line>4 / 5</aidoc:line><aidoc:line>No provider calls</aidoc:line><aidoc:line>No repository writes</aidoc:line><aidoc:line>You decide what is applied</aidoc:line></aidoc:copy>
+    <aidoc:copy><aidoc:line>StaleDocs</aidoc:line><aidoc:line>Draft validated</aidoc:line><aidoc:line>validate_documentation_draft</aidoc:line><aidoc:line>4 / 5</aidoc:line><aidoc:line>No provider calls</aidoc:line><aidoc:line>No repository writes</aidoc:line><aidoc:line>You decide what is applied</aidoc:line></aidoc:copy>
     <aidoc:evidence><aidoc:fact>validate_documentation_draft</aidoc:fact><aidoc:fact>No repository writes</aidoc:fact></aidoc:evidence>
   </metadata>
   <rect width="1280" height="720" fill="#F4F1EA"/>

@@ -327,7 +327,7 @@ describe("TrustGateway", () => {
     expect(thrown).toBeInstanceOf(Error);
     expect((thrown as Error).message).not.toContain(fakeSecret);
     expect((thrown as Error).message).toContain(
-      "<AIDOC_REDACTED:OPENAI_API_KEY:1>",
+      "<STALEDOCS_REDACTED:OPENAI_API_KEY:1>",
     );
     expect(events).toContainEqual({
       stage: "error",
@@ -367,7 +367,7 @@ describe("TrustGateway", () => {
 
     expect(thrown).toBeInstanceOf(Error);
     expect((thrown as Error).message).toContain(
-      "<AIDOC_REDACTED:OPENAI_API_KEY:1>",
+      "<STALEDOCS_REDACTED:OPENAI_API_KEY:1>",
     );
     expect((thrown as Error).message).not.toContain(fakeSecret);
     expect(provider.calls).toHaveLength(1);

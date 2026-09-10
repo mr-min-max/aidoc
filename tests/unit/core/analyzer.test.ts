@@ -12,7 +12,7 @@ import { registerParser } from "../../../src/parsers/registry";
 
 describe("analyzeCodebase parser diagnostics", () => {
   it("does not log malformed Python source text", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-analyzer-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-analyzer-"));
     const fakeSourceSecret = ["sk", "proj", "L".repeat(32)].join("-");
     const warn = jest.spyOn(logger, "warn").mockImplementation(() => undefined);
     fs.writeFileSync(
@@ -27,7 +27,7 @@ describe("analyzeCodebase parser diagnostics", () => {
       expect(modules).toEqual([]);
       expect(messages).not.toContain(fakeSourceSecret);
       expect(messages).toMatch(
-        /Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\))?\./u,
+        /Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set STALEDOCS_PYTHON to choose one\))?\./u,
       );
     } finally {
       warn.mockRestore();
@@ -94,7 +94,7 @@ describe("analyzeCodebase parser diagnostics", () => {
       expect(cacheSet).not.toHaveBeenCalled();
       const messages = warn.mock.calls.map(([message]) => message).join("\n");
       expect(messages).toMatch(
-        /Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\))?\./u,
+        /Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set STALEDOCS_PYTHON to choose one\))?\./u,
       );
       expect(messages).not.toContain(sourceSentinel);
     } finally {

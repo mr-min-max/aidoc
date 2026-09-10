@@ -26,13 +26,13 @@ function commit(root: string, message: string): string {
 }
 
 function createFixture(): string {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-mcp-wiring-"));
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-mcp-wiring-"));
   fs.mkdirSync(path.join(root, "src"), { recursive: true });
   git(root, "init", "--quiet");
-  git(root, "config", "user.name", "aidoc test");
-  git(root, "config", "user.email", "aidoc-test@example.invalid");
+  git(root, "config", "user.name", "staledocs test");
+  git(root, "config", "user.email", "staledocs-test@example.invalid");
   fs.writeFileSync(
-    path.join(root, ".aidocrc.json"),
+    path.join(root, ".staledocsrc.json"),
     JSON.stringify({ include: ["**/*.ts"], exclude: [] }),
   );
   fs.writeFileSync(
@@ -136,9 +136,9 @@ describe("scoped legacy MCP routes", () => {
   it("rejects executable project configuration before source enumeration", async () => {
     const root = createFixture();
     try {
-      fs.rmSync(path.join(root, ".aidocrc.json"));
+      fs.rmSync(path.join(root, ".staledocsrc.json"));
       fs.writeFileSync(
-        path.join(root, ".aidocrc.js"),
+        path.join(root, ".staledocsrc.js"),
         "throw new Error('this executable must never run');\n",
       );
       const context = await createMCPServerContext(root, Object.create(null));
@@ -170,7 +170,7 @@ describe("scoped legacy MCP routes", () => {
       },
     });
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({ provider: providerName, include: ["**/*.ts"] }),
     );
     commit(root, "fixture: provider configuration");
@@ -219,7 +219,7 @@ describe("scoped legacy MCP routes", () => {
       JSON.stringify({ name: "path-redaction-fixture", description: root }),
     );
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({
         provider: providerName,
         include: ["**/*.ts"],
@@ -240,7 +240,7 @@ describe("scoped legacy MCP routes", () => {
     try {
       for (const trustPolicy of ["warn", "redact"] as const) {
         fs.writeFileSync(
-          path.join(root, ".aidocrc.json"),
+          path.join(root, ".staledocsrc.json"),
           JSON.stringify({
             provider: providerName,
             include: ["**/*.ts"],
@@ -289,7 +289,7 @@ describe("scoped legacy MCP routes", () => {
       JSON.stringify({ name: "strict-path-fixture", description: root }),
     );
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({
         provider: providerName,
         include: ["**/*.ts"],
@@ -339,7 +339,7 @@ describe("scoped legacy MCP routes", () => {
       }),
     });
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({ provider: providerName, include: ["**/*.ts"] }),
     );
     commit(root, "fixture: failing provider");

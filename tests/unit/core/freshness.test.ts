@@ -77,7 +77,7 @@ describe("checkDocumentationFreshness integration boundaries", () => {
   });
 
   it("uses the working-tree changed-file list when --to is omitted", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-freshness-worktree-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-freshness-worktree-"));
     try {
       const plan = mappedPlan([change()], "# Demo\n\n## API\n\n`createUser`.\n");
       (getGitRoot as jest.Mock).mockResolvedValue(root);
@@ -100,7 +100,7 @@ describe("checkDocumentationFreshness integration boundaries", () => {
   });
 
   it("resolves a discovered README against the repository root from a subdirectory", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-freshness-root-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-freshness-root-"));
     const cwd = path.join(root, "packages", "app");
     try {
       fs.mkdirSync(cwd, { recursive: true });
@@ -209,7 +209,7 @@ describe("assessDocumentationFreshness", () => {
   });
 
   it("maps a planning failure to unknown without exposing a path", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-freshness-plan-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-freshness-plan-"));
     try {
       (getGitRoot as jest.Mock).mockResolvedValue(root);
       jest

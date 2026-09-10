@@ -1,5 +1,5 @@
 name: "❓ Question / Support"
-description: Ask for help using the AiDoc public beta
+description: Ask for help using the StaleDocs public beta
 title: "[Question]: "
 labels: ["question"]
 body:
@@ -10,9 +10,9 @@ body:
   - type: input
     id: version
     attributes:
-      label: AiDoc version or commit
+      label: StaleDocs version or commit
       description: Use the package version or exact source-checkout commit.
-      placeholder: "0.2.0-beta.6 or commit SHA"
+      placeholder: "0.3.0-beta.1 or commit SHA"
     validations:
       required: true
   - type: input

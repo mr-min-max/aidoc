@@ -9,7 +9,7 @@ import {
 
 describe("MCP parser diagnostics", () => {
   it("does not serialize malformed source content in freshness results", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-mcp-parser-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-mcp-parser-"));
     const hooks = path.join(root, "empty-hooks");
     const fakeSourceSecret = ["sk", "proj", "M".repeat(32)].join("-");
     fs.mkdirSync(path.join(root, "src"));
@@ -36,8 +36,8 @@ describe("MCP parser diagnostics", () => {
 
     try {
       git("init", "--quiet", `--template=${hooks}`);
-      git("config", "user.name", "aidoc test");
-      git("config", "user.email", "aidoc-test@example.invalid");
+      git("config", "user.name", "staledocs test");
+      git("config", "user.email", "staledocs-test@example.invalid");
       fs.writeFileSync(path.join(root, "README.md"), "# Fixture\n");
       commit("fixture: baseline");
       const base = git("rev-parse", "HEAD");

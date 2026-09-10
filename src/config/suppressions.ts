@@ -17,7 +17,7 @@ export const EMPTY_SUPPRESSIONS: SuppressionConfig = Object.freeze({
   docPaths: Object.freeze([]),
 });
 
-/** Parses the deliberately small, line-oriented .aidocignore format. */
+/** Parses the deliberately small, line-oriented .staledocsignore format. */
 export function parseSuppressions(content: string): SuppressionConfig {
   const symbols: string[] = [];
   const sourcePaths: string[] = [];
@@ -44,11 +44,11 @@ export function parseSuppressions(content: string): SuppressionConfig {
   });
 }
 
-/** Reads the optional root .aidocignore without exposing filesystem failures. */
+/** Reads the optional root .staledocsignore without exposing filesystem failures. */
 export async function loadSuppressions(root: string): Promise<SuppressionConfig> {
   try {
     const scope = await RepositoryWriteScope.open(root);
-    const target = await scope.prepare(".aidocignore");
+    const target = await scope.prepare(".staledocsignore");
     if (target.existingText === null || target.existingText.length > 256 * 1024) {
       return EMPTY_SUPPRESSIONS;
     }

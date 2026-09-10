@@ -1,7 +1,7 @@
-# AiDoc walkthrough production script
+# StaleDocs walkthrough production script
 
 This is the reviewed 80-second narrative for a future full walkthrough. The
-timing matches `docs/demo/aidoc-walkthrough.vtt` and the five checked-in
+timing matches `docs/demo/staledocs-walkthrough.vtt` and the five checked-in
 animation frames.
 
 The checked-in README animation is deterministic and does not claim to invoke
@@ -27,7 +27,7 @@ Do not show a personal terminal, account details, or a private repository.
 
 Show the changed function leading only to `README.md` and `docs/API.md`.
 
-Say or caption: "AiDoc analyzes the change first and narrows the documentation
+Say or caption: "StaleDocs analyzes the change first and narrows the documentation
 work to two files. It does not send an unbounded repository through this
 demonstration path."
 
@@ -39,11 +39,11 @@ Show relevant context entering a host-owned Markdown draft. Keep
 `prepare_documentation_update` visible as secondary evidence and show
 `No provider calls`.
 
-Say or caption: "AiDoc prepares bounded context. The host owns the draft. In
-this deterministic animation, AiDoc makes no provider call and does not claim
-to invoke Codex. A live Codex host workflow would use the same boundary."
+Say or caption: "StaleDocs prepares bounded context. The host owns the draft. In
+this deterministic animation, StaleDocs makes no provider call and does not claim
+to invoke Codex. A live Codex host workflow would use the same path."
 
-Do not present the host-owned draft as an automatic AiDoc write.
+Do not present the host-owned draft as an automatic StaleDocs write.
 
 ## 50-70s: draft validated
 
@@ -57,7 +57,7 @@ Show the focused change in both `README.md` and `docs/API.md`:
 Keep `validate_documentation_draft` visible and show one green validation
 mark.
 
-Say or caption: "AiDoc validates the exact candidate for both files. Validation
+Say or caption: "StaleDocs validates the exact candidate for both files. Validation
 checks the bounded draft; it does not replace maintainer review."
 
 ## 70-80s: you review

@@ -96,7 +96,7 @@ export function createInteractivePrompter(): {
       const result = await prompts({
         type: "select",
         name: "value",
-        message: "Choose how AiDoc should generate this update",
+        message: "Choose how StaleDocs should generate this update",
         choices: choices.map((choice) => ({
           title: `${choice.group}: ${choice.title}`,
           description: choice.description,

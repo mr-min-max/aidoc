@@ -1,7 +1,7 @@
 # Governance
 
-aidoc is an MIT-licensed project developed in the public canonical repository
-at [`mr-min-max/aidoc`](https://github.com/mr-min-max/aidoc).
+staledocs is an MIT-licensed project developed in the public canonical repository
+at [`mr-min-max/staledocs`](https://github.com/mr-min-max/staledocs).
 
 ## Maintainer Role
 

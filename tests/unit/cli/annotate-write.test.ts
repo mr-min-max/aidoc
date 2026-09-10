@@ -114,7 +114,7 @@ describe("annotate command repository writes", () => {
     secondSource: string;
     modules: ParsedModule[];
   } {
-    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-annotate-"));
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-annotate-"));
     roots.push(cwd);
     const firstFile = path.join(cwd, "src", "one", "index.ts");
     const secondFile = path.join(cwd, "src", "two", "index.ts");
@@ -205,7 +205,7 @@ describe("annotate command repository writes", () => {
   });
 
   it("deduplicates case aliases of one source identity", async () => {
-    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-annotate-alias-"));
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-annotate-alias-"));
     roots.push(cwd);
     execFileSync("git", ["init", "-q", "--initial-branch", "main"], {
       cwd,
@@ -339,12 +339,12 @@ describe("annotate command repository writes", () => {
   });
 
   it("keeps same-basename external dry-run snapshots isolated", async () => {
-    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-annotate-"));
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-annotate-"));
     const firstRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-annotate-external-one-"),
+      path.join(os.tmpdir(), "staledocs-annotate-external-one-"),
     );
     const secondRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-annotate-external-two-"),
+      path.join(os.tmpdir(), "staledocs-annotate-external-two-"),
     );
     roots.push(cwd, firstRoot, secondRoot);
     const firstFile = path.join(firstRoot, "index.ts");
@@ -412,7 +412,7 @@ describe("annotate command repository writes", () => {
     expect(
       fs
         .readdirSync(path.dirname(firstFile))
-        .filter((name) => name.startsWith(".aidoc-write-")),
+        .filter((name) => name.startsWith(".staledocs-write-")),
     ).toEqual([]);
   });
 });

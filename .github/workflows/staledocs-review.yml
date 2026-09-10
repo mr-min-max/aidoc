@@ -1,4 +1,4 @@
-name: AiDoc review
+name: StaleDocs review
 
 on:
   pull_request:

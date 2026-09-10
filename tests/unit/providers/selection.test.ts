@@ -28,8 +28,8 @@ describe("resolveProviderSelection", () => {
       config: config({ provider: "auto", model: "project-model" }),
       overrides: { provider: "openai", model: "command-model" },
       env: {
-        AIDOC_PROVIDER: "anthropic",
-        AIDOC_MODEL: "environment-model",
+        STALEDOCS_PROVIDER: "anthropic",
+        STALEDOCS_MODEL: "environment-model",
         OPENAI_API_KEY: "command-secret",
       },
       interactive: false,
@@ -64,8 +64,8 @@ describe("resolveProviderSelection", () => {
     const selection = await resolveProviderSelection({
       config: config({ provider: "ollama", model: "project-model" }),
       env: {
-        AIDOC_PROVIDER: "openai",
-        AIDOC_MODEL: "environment-model",
+        STALEDOCS_PROVIDER: "openai",
+        STALEDOCS_MODEL: "environment-model",
         OPENAI_API_KEY: "environment-secret",
       },
       interactive: false,
@@ -205,8 +205,8 @@ describe("resolveProviderSelection", () => {
       config: config({ provider: "qwen" }),
       env: {
         DASHSCOPE_API_KEY: "qwen-secret",
-        AIDOC_QWEN_REGION: "singapore",
-        AIDOC_QWEN_WORKSPACE_ID: "workspace-123",
+        STALEDOCS_QWEN_REGION: "singapore",
+        STALEDOCS_QWEN_WORKSPACE_ID: "workspace-123",
       },
       interactive: false,
     });
@@ -243,7 +243,7 @@ describe("resolveProviderSelection", () => {
     ).rejects.toMatchObject({
       code: "PROVIDER_SELECTION_REQUIRED",
       message:
-        "Ollama needs an installed model. Set AIDOC_PROVIDER=ollama AIDOC_MODEL=<installed-model> before running non-interactively.",
+        "Ollama needs an installed model. Set STALEDOCS_PROVIDER=ollama STALEDOCS_MODEL=<installed-model> before running non-interactively.",
     });
   });
 
@@ -298,7 +298,7 @@ describe("resolveProviderSelection", () => {
     });
     const environmentResult = await resolveProviderSelection({
       config: config({ provider: "openai", apiKey: legacyKey }),
-      env: { AIDOC_PROVIDER: providerName },
+      env: { STALEDOCS_PROVIDER: providerName },
       interactive: false,
     });
 
@@ -326,7 +326,7 @@ describe("resolveProviderSelection", () => {
     ).rejects.toMatchObject({
       code: "PROVIDER_SELECTION_REQUIRED",
       message:
-        "Multiple remote providers are ready. Set AIDOC_PROVIDER explicitly before running non-interactively.",
+        "Multiple remote providers are ready. Set STALEDOCS_PROVIDER explicitly before running non-interactively.",
     });
   });
 

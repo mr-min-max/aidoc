@@ -15,7 +15,7 @@ export type ProviderCredentialName =
   | "ANTHROPIC_API_KEY"
   | "DEEPSEEK_API_KEY"
   | "DASHSCOPE_API_KEY"
-  | "AIDOC_COMPAT_API_KEY";
+  | "STALEDOCS_COMPAT_API_KEY";
 
 export type ProviderCredentialEnvironment = Readonly<
   Partial<Record<ProviderCredentialName, string>>
@@ -273,16 +273,16 @@ registerProvider({
 registerProvider({
   name: "openai-compatible",
   available: (c) =>
-    !!selectedCredential(c, "openai-compatible", "AIDOC_COMPAT_API_KEY") &&
+    !!selectedCredential(c, "openai-compatible", "STALEDOCS_COMPAT_API_KEY") &&
     nonEmpty(c.model) &&
     (c.endpoint !== undefined || nonEmpty(c.providerBaseUrl)),
   missingMessage:
-    "An explicit compatible endpoint, model, and AIDOC_COMPAT_API_KEY are required.",
+    "An explicit compatible endpoint, model, and STALEDOCS_COMPAT_API_KEY are required.",
   create: (c) =>
     compatibleProvider(
       c,
       "openai-compatible",
-      selectedCredential(c, "openai-compatible", "AIDOC_COMPAT_API_KEY")!,
+      selectedCredential(c, "openai-compatible", "STALEDOCS_COMPAT_API_KEY")!,
       c.model!,
       endpointSnapshot(c),
     ),

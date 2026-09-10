@@ -33,7 +33,7 @@ const summary = {
 } as const;
 
 function repository(): string {
-  const root = mkdtempSync(join(tmpdir(), "aidoc-impact-targets-"));
+  const root = mkdtempSync(join(tmpdir(), "staledocs-impact-targets-"));
   execFileSync("git", ["init", "-q", "--initial-branch", "main"], {
     cwd: root,
   });

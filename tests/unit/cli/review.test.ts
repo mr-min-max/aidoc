@@ -13,7 +13,7 @@ function git(root: string, ...args: string[]): string {
 }
 
 function fixture(): string {
-  const root = mkdtempSync(join(tmpdir(), "aidoc-review-cli-"));
+  const root = mkdtempSync(join(tmpdir(), "staledocs-review-cli-"));
   mkdirSync(join(root, "src"));
   git(root, "init", "-q", "--initial-branch", "main");
   git(root, "config", "user.email", "test@example.invalid");
@@ -140,7 +140,7 @@ describe("review command", () => {
   });
 
   it("prints suppression detail in text while preserving a clean exit", async () => {
-    writeFileSync(join(root, ".aidocignore"), "createUser\n");
+    writeFileSync(join(root, ".staledocsignore"), "createUser\n");
     writeFileSync(
       join(root, "src", "user.ts"),
       "export function createUser(email: string, role: string): string { return email; }\n",
@@ -156,7 +156,7 @@ describe("review command", () => {
     ).toBe(0);
     expect(output.stdout).toHaveBeenCalledWith(
       "No public API changes in this pull request.\n" +
-        "1 suppressed change from .aidocignore.\n",
+        "1 suppressed change from .staledocsignore.\n",
     );
 
     const result = await createReviewReport({ base: "HEAD" }, root);

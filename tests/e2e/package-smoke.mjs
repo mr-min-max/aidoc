@@ -20,7 +20,7 @@ import {
 } from "./smoke-tarball.mjs";
 import { runImpactDemo } from "../../scripts/demo-impact.mjs";
 
-const rawSentinel = "AIDOC_RAW_SOURCE_MUST_NOT_LEAK";
+const rawSentinel = "STALEDOCS_RAW_SOURCE_MUST_NOT_LEAK";
 
 function credentialFreeEnv() {
   const env = { ...process.env };
@@ -29,15 +29,15 @@ function credentialFreeEnv() {
     "ANTHROPIC_API_KEY",
     "DEEPSEEK_API_KEY",
     "DASHSCOPE_API_KEY",
-    "AIDOC_COMPAT_API_KEY",
-    "AIDOC_PROVIDER",
-    "AIDOC_MODEL",
-    "AIDOC_PROVIDER_BASE_URL",
-    "AIDOC_ALLOW_LOCAL_HTTP",
-    "AIDOC_QWEN_REGION",
-    "AIDOC_QWEN_WORKSPACE_ID",
-    "AIDOC_OLLAMA_HOST",
-    "AIDOC_TRUST_POLICY",
+    "STALEDOCS_COMPAT_API_KEY",
+    "STALEDOCS_PROVIDER",
+    "STALEDOCS_MODEL",
+    "STALEDOCS_PROVIDER_BASE_URL",
+    "STALEDOCS_ALLOW_LOCAL_HTTP",
+    "STALEDOCS_QWEN_REGION",
+    "STALEDOCS_QWEN_WORKSPACE_ID",
+    "STALEDOCS_OLLAMA_HOST",
+    "STALEDOCS_TRUST_POLICY",
   ]) {
     delete env[key];
   }
@@ -82,7 +82,7 @@ function commitFixture(repository, hooks, message) {
   return git("rev-parse", "HEAD");
 }
 
-const root = mkdtempSync(join(tmpdir(), "aidoc-package-smoke-"));
+const root = mkdtempSync(join(tmpdir(), "staledocs-package-smoke-"));
 
 try {
   let tarball = getConfiguredSmokeTarball();
@@ -100,19 +100,14 @@ try {
   mkdirSync(consumer);
   writeFileSync(
     join(consumer, "package.json"),
-    JSON.stringify({ name: "aidoc-smoke-consumer", private: true }),
+    JSON.stringify({ name: "staledocs-smoke-consumer", private: true }),
   );
   execFileSync("npm", ["install", "--ignore-scripts", tarball], {
     cwd: consumer,
     stdio: "pipe",
   });
 
-  const packageRoot = join(
-    consumer,
-    "node_modules",
-    "@mr-min-max",
-    "aidoc-gen",
-  );
+  const packageRoot = join(consumer, "node_modules", "staledocs");
   assertPackedMcpArtifacts(packageRoot);
   const require = createRequire(import.meta.url);
   const { resolveTemplatesDir } = require(
@@ -145,22 +140,22 @@ try {
   const packedPackage = JSON.parse(
     readFileSync(join(packageRoot, "package.json"), "utf8"),
   );
-  assert.equal(packedPackage.name, "@mr-min-max/aidoc-gen");
+  assert.equal(packedPackage.name, "staledocs");
   assert.equal(packedPackage.engines.node, ">=22.12.0");
-  assert.deepEqual(packedPackage.bin, { aidoc: "dist/cli/index.js" });
+  assert.deepEqual(packedPackage.bin, { staledocs: "dist/cli/index.js" });
   const binDirectory = join(consumer, "node_modules", ".bin");
   const cliVersion = (
     process.platform === "win32"
       ? execFileSync(
           process.env.ComSpec ?? "cmd.exe",
-          ["/d", "/s", "/c", "aidoc.cmd --version"],
+          ["/d", "/s", "/c", "staledocs.cmd --version"],
           {
             cwd: binDirectory,
             encoding: "utf8",
             windowsHide: true,
           },
         )
-      : execFileSync(join(binDirectory, "aidoc"), ["--version"], {
+      : execFileSync(join(binDirectory, "staledocs"), ["--version"], {
           cwd: consumer,
           encoding: "utf8",
         })
@@ -178,10 +173,10 @@ try {
     ["init", "--quiet", "--initial-branch=main", `--template=${gitTemplate}`],
     { cwd: fixture, env: credentialFreeEnv(), stdio: "pipe" },
   );
-  execFileSync("git", ["config", "user.name", "aidoc smoke"], {
+  execFileSync("git", ["config", "user.name", "staledocs smoke"], {
     cwd: fixture,
   });
-  execFileSync("git", ["config", "user.email", "aidoc@example.invalid"], {
+  execFileSync("git", ["config", "user.email", "staledocs@example.invalid"], {
     cwd: fixture,
   });
   writeFileSync(
@@ -245,7 +240,7 @@ try {
     /^Documentation impact: 1 public API change \(1 informational\)/u,
   );
   assert.match(demo.human, /Context: \d+ \/ 12000 bytes/u);
-  assert.match(demo.human, /Next: aidoc update/u);
+  assert.match(demo.human, /Next: staledocs update/u);
   assert.equal(
     demo.plan.changes.filter((change) => change.category === "contract-changed")
       .length,
@@ -260,7 +255,7 @@ try {
   assert.equal(JSON.stringify(demo.plan).includes(rawSentinel), false);
 
   const mcpClient = new Client({
-    name: "aidoc-package-smoke",
+    name: "staledocs-package-smoke",
     version: "1.0.0",
   });
   const mcpTransport = new StdioClientTransport({

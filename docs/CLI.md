@@ -1,17 +1,18 @@
-# AiDoc CLI reference
+# StaleDocs CLI reference
 
-This is the complete command catalogue for the published `0.2.0-beta.5`
-CLI. The executable is `aidoc`. For provider credentials, subscription and API
-billing boundaries, and repository safety details, see the [Public Beta guide](./PUBLIC_BETA.md)
-and [SECURITY.md](../SECURITY.md).
+This is the complete command catalogue for the `0.3.0-beta.1` release candidate.
+The executable is `staledocs`. For provider credentials, subscription and API
+billing boundaries, repository safety details, and current caveats, see the
+[Public Beta guide](./PUBLIC_BETA.md), [Limitations](./LIMITATIONS.md), and
+[SECURITY.md](../SECURITY.md).
 
 ## Invocation and provider boundary
 
 Install the beta from npm with the explicit channel:
 
 ```bash
-npm install -g @mr-min-max/aidoc-gen@beta
-aidoc --version
+npm install -g staledocs@beta
+staledocs --version
 ```
 
 The global options are:
@@ -34,11 +35,11 @@ All document writes use the repository-contained safety checks described in the
 writing. `--yes` applies a generated diff without the normal interactive
 confirmation where that option is available.
 
-## Default `aidoc` workflow
+## Default `staledocs` workflow
 
-Run `aidoc` in an interactive terminal to plan the current repository first.
+Run `staledocs` in an interactive terminal to plan the current repository first.
 The plan is deterministic and provider-free. If supported source changes affect
-a safe Markdown target, AiDoc asks whether to prepare an update and then enters
+a safe Markdown target, StaleDocs asks whether to prepare an update and then enters
 the normal provider-backed update flow. It does not write documentation merely
 because the command was run.
 
@@ -50,8 +51,8 @@ seeded provider-free storefront fixture instead:
 npm run demo:storefront
 ```
 
-In a non-interactive terminal, bare `aidoc` prints its short command help. Use
-`aidoc plan` or another explicit command for automation.
+In a non-interactive terminal, bare `staledocs` prints its short command help. Use
+`staledocs plan` or another explicit command for automation.
 
 ## Create project documentation
 
@@ -60,17 +61,17 @@ files through the AST before a real provider generation request. `changelog`
 instead uses normalized Git commit metadata. They accept `--mock` for local
 tests and demos.
 
-### `aidoc readme`
+### `staledocs readme`
 
 Generates `README.md` from code analysis.
 
 ```bash
-aidoc readme
-aidoc readme --output docs/README.md
-aidoc readme --dry-run
-aidoc readme --yes --strict-output
-aidoc readme --no-badges
-aidoc readme --mock
+staledocs readme
+staledocs readme --output docs/README.md
+staledocs readme --dry-run
+staledocs readme --yes --strict-output
+staledocs readme --no-badges
+staledocs readme --mock
 ```
 
 Options:
@@ -82,35 +83,35 @@ Options:
 - `--no-badges` disables badge generation in the generated README.
 - `--mock` uses the mock generator and does not require a provider credential.
 
-### `aidoc api`
+### `staledocs api`
 
 Generates API documentation from the analyzed modules. The default output is
 `./docs/API.md`.
 
 ```bash
-aidoc api
-aidoc api --output docs/API.md
-aidoc api --dry-run --strict-output
-aidoc api --yes
-aidoc api --mock
+staledocs api
+staledocs api --output docs/API.md
+staledocs api --dry-run --strict-output
+staledocs api --yes
+staledocs api --mock
 ```
 
 The options are `-o, --output <path>`, `--dry-run`, `--yes`,
 `--strict-output`, and `--mock` with the same meanings as `readme`.
 
-### `aidoc changelog`
+### `staledocs changelog`
 
 Generates a changelog entry from Git history and prepends it to the changelog
 file. If the file already begins with the standard `# Changelog` header, that
 header is retained while the new entry is inserted after it.
 
 ```bash
-aidoc changelog
-aidoc changelog --from v0.2.0-beta.4 --to HEAD
-aidoc changelog --version 0.2.0-beta.6
-aidoc changelog --output docs/CHANGELOG.md
-aidoc changelog --dry-run --yes --strict-output
-aidoc changelog --mock
+staledocs changelog
+staledocs changelog --from v0.3.0-beta.1 --to HEAD
+staledocs changelog --version 0.3.0-beta.1
+staledocs changelog --output docs/CHANGELOG.md
+staledocs changelog --dry-run --yes --strict-output
+staledocs changelog --mock
 ```
 
 Options:
@@ -124,33 +125,33 @@ Options:
 - `--dry-run`, `--yes`, `--strict-output`, and `--mock` behave as described
   above.
 
-### `aidoc diagram`
+### `staledocs diagram`
 
 Generates a Mermaid architecture diagram from code analysis and wraps it in an
 `# Architecture` Markdown document.
 
 ```bash
-aidoc diagram
-aidoc diagram --output docs/architecture.md
-aidoc diagram --dry-run --strict-output
-aidoc diagram --yes
-aidoc diagram --mock
+staledocs diagram
+staledocs diagram --output docs/architecture.md
+staledocs diagram --dry-run --strict-output
+staledocs diagram --yes
+staledocs diagram --mock
 ```
 
 The default output is `./docs/architecture.md`. The options are
 `-o, --output <path>`, `--dry-run`, `--yes`, `--strict-output`, and `--mock`.
 
-### `aidoc annotate`
+### `staledocs annotate`
 
 Generates JSDoc or TSDoc comments for undocumented functions and shows each
 proposed source diff. Without `--dry-run`, the command asks before applying
 each proposed annotation. `--dry-run` previews proposals and skips writes.
 
 ```bash
-aidoc annotate --all
-aidoc annotate --file src/index.ts
-aidoc annotate --all --dry-run
-aidoc annotate --all --mock
+staledocs annotate --all
+staledocs annotate --file src/index.ts
+staledocs annotate --all --dry-run
+staledocs annotate --all --mock
 ```
 
 Options:
@@ -162,7 +163,7 @@ Options:
 
 ## Keep documentation current
 
-### `aidoc plan`
+### `staledocs plan`
 
 Creates a deterministic AST-backed documentation-impact plan from Git changes.
 It does not construct a provider, call a model, or write a file. Human output
@@ -172,24 +173,24 @@ methods, interfaces, type aliases, enums, and exported constants. JSON output
 is a versioned `aidoc.impact-plan.v1` success or error envelope.
 
 ```bash
-aidoc plan
-aidoc plan --json
-aidoc plan --base origin/main
-aidoc plan --base v1.2.0 --head release-candidate
-aidoc plan --max-context-bytes 24000
+staledocs plan
+staledocs plan --json
+staledocs plan --base origin/main
+staledocs plan --base v1.2.0 --head release-candidate
+staledocs plan --max-context-bytes 24000
 ```
 
 Options:
 
-- `--base <ref>` selects the comparison base. Without it, AiDoc uses
-  `AIDOC_BASE_REF` when configured; otherwise it checks the remote default
+- `--base <ref>` selects the comparison base. Without it, StaleDocs uses
+  `STALEDOCS_BASE_REF` when configured; otherwise it checks the remote default
   branch, `origin/main`, `main`, `origin/master`, `master`, and then `HEAD~1`.
 - `--head <ref>` compares two immutable commits. Without it, the selected base
   is compared with the current working tree.
 - `--json` emits only the versioned JSON result.
 - `--max-context-bytes <count>` overrides the deterministic provider-context
   byte ceiling. It does not permit raw source or raw diffs into that context.
-  For `aidoc plan --json`, each `changes[]` record includes `before` and `after`
+  For `staledocs plan --json`, each `changes[]` record includes `before` and `after`
   AST-rendered signatures when the symbol is added, removed, moved, or
   contract-changed. Callable records also include `arity` with `required` and
   `total` parameter counts for the head signature, or the base signature when the
@@ -205,7 +206,7 @@ Limitations: Python module-level constants are not enumerated. Re-exports from
 other modules (`export * from`, `export { x } from`) and CommonJS
 `module.exports` are not enumerated.
 
-### `aidoc update`
+### `staledocs update`
 
 Runs the plan first, resolves affected Markdown targets, selects targets, and
 then generates updates. It never guesses through an ambiguous target. With no
@@ -213,12 +214,12 @@ explicit target, one safe affected Markdown target is selected automatically;
 multiple targets require `--target` or `--all`.
 
 ```bash
-aidoc update
-aidoc update --target README.md
-aidoc update --target README.md --target docs/API.md
-aidoc update --all
-aidoc update --base origin/main --dry-run
-aidoc update --since HEAD~5 --provider openai --model gpt-5.6-luna
+staledocs update
+staledocs update --target README.md
+staledocs update --target README.md --target docs/API.md
+staledocs update --all
+staledocs update --base origin/main --dry-run
+staledocs update --since HEAD~5 --provider openai --model gpt-5.6-luna
 ```
 
 Options:
@@ -243,16 +244,16 @@ provider setup. If the user cancels selection or provider setup, no model
 request is sent. For multiple selected targets, progress and partial-failure
 messages identify how many targets were processed.
 
-### `aidoc watch`
+### `staledocs watch`
 
 Watches configured source globs and regenerates one document when a relevant
 source change is detected. The process stays alive until interrupted.
 
 ```bash
-aidoc watch
-aidoc watch --target docs/README.md
-aidoc watch --target docs/README.md --auto
-aidoc watch --mock
+staledocs watch
+staledocs watch --target docs/README.md
+staledocs watch --target docs/README.md --auto
+staledocs watch --mock
 ```
 
 Options:
@@ -266,7 +267,7 @@ Live generation uses a configured direct provider or explicit local Ollama
 model. Watch mode uses the same repository-contained write and Trust Gate
 boundaries as other real CLI generation.
 
-### `aidoc check`
+### `staledocs check`
 
 Runs the deterministic, plan-driven documentation freshness guard. A target is
 `stale` only when a Markdown section directly mentions a changed public symbol
@@ -278,12 +279,12 @@ evidence. Unmapped symbols do not fail the check, and implementation-only
 changes fail only when the changed symbol is directly mentioned in the target.
 
 ```bash
-aidoc check
-aidoc check --target docs/API.md --since origin/main
-aidoc check --base origin/main --to HEAD --json
+staledocs check
+staledocs check --target docs/API.md --since origin/main
+staledocs check --base origin/main --to HEAD --json
 ```
 
-With no `--target`, AiDoc discovers the repository's root `README.md` without
+With no `--target`, StaleDocs discovers the repository's root `README.md` without
 assuming capitalization, including `readme.md` and `Readme.md`. The default
 base is `HEAD~1`; `--base` is an alias for `--since`, and `--to` defaults to the
 working tree. Use `--json` for a report containing `status`, `target`,
@@ -308,7 +309,7 @@ changed public symbol is mentioned in README.md` is clean. A missing target emit
 `Documentation target is missing: docs/API.md` and exits 1; an operational
 failure emits `Could not evaluate documentation freshness: ...` and exits 2.
 
-### `aidoc review`
+### `staledocs review`
 
 Reviews the current pull request range with deterministic AST analysis. Review mode
 reports only the drift this pull request introduces; pre-existing stale documentation is not reported.
@@ -316,11 +317,11 @@ It does not use a model, API key, or repository write. With no explicit `--head`
 the working tree is compared with the selected base.
 
 ```bash
-aidoc review
-aidoc review --base origin/main --head HEAD
-aidoc review --format markdown
-aidoc review --format json
-aidoc review --base origin/main --fail-on stale
+staledocs review
+staledocs review --base origin/main --head HEAD
+staledocs review --format markdown
+staledocs review --format json
+staledocs review --base origin/main --fail-on stale
 ```
 
 Options:
@@ -331,11 +332,11 @@ Options:
 - `--fail-on <none|stale|breaking>` controls the exit status. The default is `none`; `stale` fails for stale or breaking findings, and `breaking` fails only for breaking findings.
 - `--max-symbols <n>` limits the text or Markdown change list, defaulting to 30. JSON is never truncated.
 
-Markdown output starts with `<!-- aidoc-review -->`, followed by before and after
+Markdown output starts with `<!-- staledocs-review -->`, followed by before and after
 signatures, affected documentation sections, and co-changed documents. A clean
 review has exactly the marker, heading, and `No public API changes in this pull request.`
 
-### `.aidocignore`
+### `.staledocsignore`
 
 Add deliberate suppressions at the repository root, one per line. Blank lines and
 `#` comments are ignored. An exact symbol or `*` pattern suppresses a symbol; a
@@ -355,31 +356,31 @@ Suppression is not a baseline mode: review mode reports only the drift this pull
 
 ### Pre-commit
 
-AiDoc also provides a pre-commit hook for the Python pre-commit ecosystem:
+StaleDocs also provides a pre-commit hook for the Python pre-commit ecosystem:
 
 ```yaml
 repos:
-  - repo: https://github.com/mr-min-max/aidoc
-    rev: v0.2.0-beta.6
+  - repo: https://github.com/mr-min-max/staledocs
+    rev: v0.3.0-beta.1
     hooks:
-      - id: aidoc-check
+      - id: staledocs-check
 ```
 
-The hook runs `aidoc check --since HEAD` on `pre-push`. It does not pass filenames.
-Install Node.js and `aidoc` before enabling it.
+The hook runs `staledocs check --since HEAD` on `pre-push`. It does not pass filenames.
+Install Node.js and `staledocs` before enabling it.
 
-### `aidoc score`
+### `staledocs score`
 
 Calculates AST-derived documentation coverage for exported symbols. The score
 is a coverage measure, not a judgment of prose quality. It performs no provider
 request. Constants are enumerated but do not count toward the score.
 
 ```bash
-aidoc score
-aidoc score --json
-aidoc score --min 80
-aidoc score --dir src --output docs/score.md
-aidoc score --output docs/score.md --dry-run
+staledocs score
+staledocs score --json
+staledocs score --min 80
+staledocs score --dir src --output docs/score.md
+staledocs score --output docs/score.md --dry-run
 ```
 
 Options:
