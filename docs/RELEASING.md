@@ -46,7 +46,7 @@ Description: Finds documentation that no longer matches your code. Deterministic
 
 Topics: `documentation`, `documentation-drift`, `stale-docs`, `api-docs`, `github-action`, `pull-request`, `code-review`, `linter`, `ci`, `ast`, `typescript`, `javascript`, `python`, `developer-tools`, `mcp`, `codex`, `claude-code`.
 
-The Action Marketplace listing is also owner-only. Publish from the release page in the categories **Code review** and **Continuous integration**.
+The Action Marketplace listing is also owner-only. Publish from the release page in the categories **Code review** and **Continuous integration**. Marketplace rejects an `action.yml` description of 125 characters or more, so that field stays shorter than the repository description above.
 
 ### Awesome-list drafts
 

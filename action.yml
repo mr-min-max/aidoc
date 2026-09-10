@@ -1,5 +1,5 @@
 name: "StaleDocs: documentation drift check"
-description: "Finds documentation that no longer matches your code. Deterministic AST check for pull requests; no API key. TypeScript, JavaScript, Python."
+description: "Finds documentation that no longer matches your code. Deterministic AST check for pull requests; no API key."
 author: "StaleDocs contributors"
 
 branding:
