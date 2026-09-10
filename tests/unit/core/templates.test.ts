@@ -10,7 +10,7 @@ describe("resolveTemplatesDir", () => {
   let root: string;
 
   beforeEach(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-templates-"));
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-templates-"));
   });
 
   afterEach(() => {

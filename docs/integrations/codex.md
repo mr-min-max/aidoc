@@ -1,7 +1,7 @@
-# AiDoc with local Codex
+# StaleDocs with local Codex
 
 This guide covers the published beta.5 CLI with the official local Codex host
-and AiDoc's provider-free MCP tools. It is not a ChatGPT web integration or a
+and StaleDocs's provider-free MCP tools. It is not a ChatGPT web integration or a
 marketplace installation guide.
 
 For the complete command catalogue and beta boundaries, see [CLI.md](../CLI.md)
@@ -12,12 +12,12 @@ covers the separate CI generate and check path.
 
 Sign in to the official local Codex client using its supported ChatGPT
 authentication flow. A ChatGPT Plus/Pro subscription authorizes the host's
-model access; it is not an OpenAI API key and it is not a general AiDoc API
-credential. AiDoc receives no ChatGPT OAuth token. ChatGPT web does not read
+model access; it is not an OpenAI API key and it is not a general StaleDocs API
+credential. StaleDocs receives no ChatGPT OAuth token. ChatGPT web does not read
 local Codex configuration or local STDIO MCP servers.
 
 Consumer subscription access and OpenAI API billing are separate products. If
-you choose direct AiDoc provider mode instead, configure `openai` with
+you choose direct StaleDocs provider mode instead, configure `openai` with
 `OPENAI_API_KEY` and pay the OpenAI API account separately.
 
 Official references: [Codex authentication](https://developers.openai.com/codex/auth)
@@ -28,21 +28,21 @@ and [Codex MCP](https://developers.openai.com/codex/mcp).
 Install the published prerelease:
 
 ```bash
-npm install -g @mr-min-max/aidoc-gen@beta
-aidoc --version
+npm install -g staledocs@beta
+staledocs --version
 ```
 
-For development from an AiDoc checkout:
+For development from an StaleDocs checkout:
 
 ```bash
 npm install
 npm run build
 npm link
-aidoc --version
+staledocs --version
 ```
 
-The repository-owned plugin root is `integrations/codex/aidoc`. Its local MCP
-configuration invokes exactly `aidoc --mcp`. This release does not create a
+The repository-owned plugin root is `integrations/codex/staledocs`. Its local MCP
+configuration invokes exactly `staledocs --mcp`. This release does not create a
 marketplace entry or install a plugin into a personal marketplace. Use the
 host's local plugin-development workflow to load the repository-owned source
 integration when testing it.
@@ -50,23 +50,23 @@ integration when testing it.
 For a copyable MCP setup after the npm install or `npm link`:
 
 ```bash
-codex mcp add aidoc -- aidoc --mcp
+codex mcp add staledocs -- staledocs --mcp
 codex mcp list
 ```
 
 You can verify the connection with `/mcp` in Codex. Remove it with
-`codex mcp remove aidoc`. Marketplace installation/distribution is a later
+`codex mcp remove staledocs`. Marketplace installation/distribution is a later
 step; no marketplace entry is created here.
 
 To reverse the global source-checkout link:
 
 ```bash
-npm unlink -g @mr-min-max/aidoc-gen
+npm unlink -g staledocs
 ```
 
 ## Pinned MCP repository scope
 
-Each `aidoc --mcp` server is pinned to the canonical Git worktree containing
+Each `staledocs --mcp` server is pinned to the canonical Git worktree containing
 its startup cwd. One server serves one startup worktree; start another server
 from another repository when you change repositories. The root and real
 subdirectories are allowed, and both absolute in-worktree paths and
@@ -77,7 +77,7 @@ non-directory paths, and every symlink or junction fail closed before project
 reads. Successful MCP paths are repository-relative POSIX paths.
 
 MCP reads only bounded declarative JSON/YAML/no-extension configuration,
-`package.json#aidoc`, and the pinned-root `.env` allowlist. It rejects
+`package.json#staledocs`, and the pinned-root `.env` allowlist. It rejects
 malformed or symlinked selected configuration, executable JavaScript,
 TypeScript, CJS, or MJS configuration, and the legacy `apiKey` project field.
 Direct CLI cosmiconfig and dotenv behavior is unchanged. This is a repository
@@ -110,7 +110,7 @@ provider-backed MCP generation call and not a subscription-to-API bridge.
 
 ## Trust boundary
 
-AiDoc Trust Gate inspects AiDoc's prepared input and validated output for
+StaleDocs Trust Gate inspects StaleDocs's prepared input and validated output for
 secret findings. Configured `strict` blocks findings; configured `warn` or
 `redact` redacts detected sensitive values before host generation or return.
 An `allowed` result means no findings were detected. Trust Gate does not

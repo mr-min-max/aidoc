@@ -36,7 +36,7 @@ function validCandidate(candidate) {
   return (
     candidate !== null &&
     typeof candidate === "object" &&
-    candidate.name === "@mr-min-max/aidoc-gen" &&
+    candidate.name === "staledocs" &&
     validVersion(candidate.version)
   );
 }
@@ -114,7 +114,7 @@ function validArtifact(candidate, version) {
     return (
       tarball.origin === "https://registry.npmjs.org" &&
       tarball.pathname ===
-        `/@mr-min-max/aidoc-gen/-/aidoc-gen-${candidate.version}.tgz` &&
+        `/staledocs/-/staledocs-${candidate.version}.tgz` &&
       tarball.search === "" &&
       tarball.hash === ""
     );

@@ -44,15 +44,15 @@ function credentialFreeEnv() {
     "ANTHROPIC_API_KEY",
     "DEEPSEEK_API_KEY",
     "DASHSCOPE_API_KEY",
-    "AIDOC_COMPAT_API_KEY",
-    "AIDOC_PROVIDER",
-    "AIDOC_MODEL",
-    "AIDOC_PROVIDER_BASE_URL",
-    "AIDOC_ALLOW_LOCAL_HTTP",
-    "AIDOC_QWEN_REGION",
-    "AIDOC_QWEN_WORKSPACE_ID",
-    "AIDOC_OLLAMA_HOST",
-    "AIDOC_TRUST_POLICY",
+    "STALEDOCS_COMPAT_API_KEY",
+    "STALEDOCS_PROVIDER",
+    "STALEDOCS_MODEL",
+    "STALEDOCS_PROVIDER_BASE_URL",
+    "STALEDOCS_ALLOW_LOCAL_HTTP",
+    "STALEDOCS_QWEN_REGION",
+    "STALEDOCS_QWEN_WORKSPACE_ID",
+    "STALEDOCS_OLLAMA_HOST",
+    "STALEDOCS_TRUST_POLICY",
   ]) {
     delete env[key];
   }
@@ -79,7 +79,7 @@ test("emits deterministic, canonical, credential-free hybrid beta evidence", asy
   const first = await runDemo();
   const second = await runDemo();
   assert.deepEqual(first, second);
-  assert.equal(first.schema_version, "aidoc.hybrid-beta-demo.v1");
+  assert.equal(first.schema_version, "staledocs.hybrid-beta-demo.v1");
   assert.equal(first.status, "pass");
   assert.deepEqual(first.checks, {
     no_impact_plan_has_no_next_action: true,
@@ -111,7 +111,7 @@ test("emits deterministic, canonical, credential-free hybrid beta evidence", asy
 
 test("demo source keeps the canonical schema and credential-free contract visible", async () => {
   const source = await readFile(demoScript, "utf8");
-  assert.match(source, /aidoc\.hybrid-beta-demo\.v1/u);
+  assert.match(source, /staledocs\.hybrid-beta-demo\.v1/u);
   assert.match(source, /prepare_documentation_update/u);
   assert.match(source, /validate_documentation_draft/u);
   assert.match(source, /createUser/u);
@@ -139,7 +139,7 @@ test("demo source keeps the canonical schema and credential-free contract visibl
 });
 
 test("working-tree snapshot detects content, directory, mode, HEAD, and symlink changes", async () => {
-  const fixture = await mkdtemp(path.join(tmpdir(), "aidoc-hybrid-snapshot-"));
+  const fixture = await mkdtemp(path.join(tmpdir(), "staledocs-hybrid-snapshot-"));
   const snapshot = async () => {
     const { snapshotRepositoryTree } = await import(snapshotScript);
     return snapshotRepositoryTree(fixture);

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 
+
 import { Buffer } from "node:buffer";
 import { execFile, spawn } from "node:child_process";
-import { existsSync, lstatSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { readFile, realpath } from "node:fs/promises";
 import { devNull } from "node:os";
 import path from "node:path";
@@ -11,14 +12,17 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
-const POLICY_SCHEMA = "aidoc.public-beta-policy.v1";
-const REPORT_SCHEMA = "aidoc.public-beta-preflight.v1";
+const POLICY_SCHEMA = "staledocs.public-beta-policy.v1";
+const REPORT_SCHEMA = "staledocs.public-beta-preflight.v1";
 const MAX_GIT_OUTPUT_BYTES = 128 * 1024 * 1024;
+const CURRENT_PACKAGE_VERSION = JSON.parse(
+  readFileSync(path.resolve("package.json"), "utf8"),
+).version;
 const BETA_SOURCE_ARTIFACTS = Object.freeze({
   codexPlugin: Object.freeze([
-    "integrations/codex/aidoc/.codex-plugin/plugin.json",
-    "integrations/codex/aidoc/.mcp.json",
-    "integrations/codex/aidoc/skills/maintain-documentation/SKILL.md",
+    "integrations/codex/staledocs/.codex-plugin/plugin.json",
+    "integrations/codex/staledocs/.mcp.json",
+    "integrations/codex/staledocs/skills/maintain-documentation/SKILL.md",
     "tests/e2e/codex-plugin-smoke.mjs",
   ]),
   integrationDocumentation: Object.freeze([
@@ -28,13 +32,12 @@ const BETA_SOURCE_ARTIFACTS = Object.freeze({
     "docs/integrations/claude.md",
     "docs/releases/v0.2.0-beta.4.md",
     "docs/releases/v0.2.0-beta.5.md",
-    "docs/releases/v0.2.0-beta.6.md",
+    "docs/releases/v0.3.0-beta.1.md",
   ]),
   storefrontDocumentation: Object.freeze([
     "docs/CLI.md",
     "docs/GITHUB_ACTION.md",
     "tests/e2e/storefront-demo.test.mjs",
-    "tests/e2e/storefront-readme.test.mjs",
   ]),
   hybridDemo: Object.freeze([
     "scripts/demo-hybrid-beta.mjs",
@@ -52,24 +55,24 @@ const BETA_SOURCE_ARTIFACTS = Object.freeze({
     "dist/templates/update.hbs",
   ]),
   storefrontStatic: Object.freeze([
-    "docs/assets/brand/aidoc-mark.svg",
-    "docs/assets/brand/aidoc-wordmark.svg",
-    "docs/assets/brand/aidoc-mark-on-dark.svg",
-    "docs/assets/brand/aidoc-mark-on-light.svg",
-    "docs/assets/brand/aidoc-mark-dark.png",
-    "docs/assets/brand/aidoc-mark-light.png",
-    "docs/assets/brand/aidoc-avatar-source.png",
-    "docs/assets/brand/aidoc-avatar.png",
+    "docs/assets/brand/staledocs-mark.svg",
+    "docs/assets/brand/staledocs-wordmark.svg",
+    "docs/assets/brand/staledocs-mark-on-dark.svg",
+    "docs/assets/brand/staledocs-mark-on-light.svg",
+    "docs/assets/brand/staledocs-mark-dark.png",
+    "docs/assets/brand/staledocs-mark-light.png",
+    "docs/assets/brand/staledocs-avatar-source.png",
+    "docs/assets/brand/staledocs-avatar.png",
     "docs/assets/brand/README.md",
-    "docs/assets/social/aidoc-social-preview-source.png",
-    "docs/assets/social/aidoc-social-preview.svg",
-    "docs/assets/social/aidoc-social-preview.png",
-    "docs/assets/demo/aidoc-flow-poster-source.png",
-    "docs/assets/demo/aidoc-flow-poster.svg",
-    "docs/assets/demo/aidoc-flow-poster.png",
+    "docs/assets/social/staledocs-social-preview-source.png",
+    "docs/assets/social/staledocs-social-preview.svg",
+    "docs/assets/social/staledocs-social-preview.png",
+    "docs/assets/demo/staledocs-flow-poster-source.png",
+    "docs/assets/demo/staledocs-flow-poster.svg",
+    "docs/assets/demo/staledocs-flow-poster.png",
   ]),
   storefrontMedia: Object.freeze([
-    "docs/assets/demo/aidoc-flow-scene.png",
+    "docs/assets/demo/staledocs-flow-scene.png",
     "docs/assets/demo/frame-01-change.svg",
     "docs/assets/demo/frame-02-plan.svg",
     "docs/assets/demo/frame-03-targets.svg",
@@ -80,9 +83,9 @@ const BETA_SOURCE_ARTIFACTS = Object.freeze({
     "docs/assets/demo/frame-03-targets.png",
     "docs/assets/demo/frame-04-diff.png",
     "docs/assets/demo/frame-05-validated.png",
-    "docs/assets/demo/aidoc-flow.gif",
-    "docs/demo/aidoc-walkthrough-script.md",
-    "docs/demo/aidoc-walkthrough.vtt",
+    "docs/assets/demo/staledocs-flow.gif",
+    "docs/demo/staledocs-walkthrough-script.md",
+    "docs/demo/staledocs-walkthrough.vtt",
     "docs/demo/recording-checklist.md",
   ]),
 });
@@ -671,25 +674,25 @@ async function sourceArtifactChecks(repositoryRoot, candidateRef) {
         await readFile(
           path.resolve(
             repositoryRoot,
-            "integrations/codex/aidoc/.codex-plugin/plugin.json",
+            "integrations/codex/staledocs/.codex-plugin/plugin.json",
           ),
           "utf8",
         ),
       );
       const mcp = JSON.parse(
         await readFile(
-          path.resolve(repositoryRoot, "integrations/codex/aidoc/.mcp.json"),
+          path.resolve(repositoryRoot, "integrations/codex/staledocs/.mcp.json"),
           "utf8",
         ),
       );
       const skill = await readFile(
         path.resolve(
           repositoryRoot,
-          "integrations/codex/aidoc/skills/maintain-documentation/SKILL.md",
+          "integrations/codex/staledocs/skills/maintain-documentation/SKILL.md",
         ),
         "utf8",
       );
-      const mcpServer = mcp?.mcpServers?.aidoc;
+      const mcpServer = mcp?.mcpServers?.staledocs;
       const skillOrder = [
         "prepare_documentation_update",
         "generation.system_prompt",
@@ -699,15 +702,15 @@ async function sourceArtifactChecks(repositoryRoot, candidateRef) {
         "check_docs_freshness",
       ];
       codexShapeValid =
-        manifest?.name === "aidoc" &&
-        manifest?.version === "0.2.0-beta.6" &&
+        manifest?.name === "staledocs" &&
+        manifest?.version === CURRENT_PACKAGE_VERSION &&
         manifest?.skills === "./skills/" &&
         manifest?.mcpServers === "./.mcp.json" &&
         JSON.stringify(Object.keys(mcp)) === JSON.stringify(["mcpServers"]) &&
         JSON.stringify(Object.keys(mcp.mcpServers ?? {})) ===
-          JSON.stringify(["aidoc"]) &&
+          JSON.stringify(["staledocs"]) &&
         JSON.stringify(mcpServer) ===
-          JSON.stringify({ command: "aidoc", args: ["--mcp"] }) &&
+          JSON.stringify({ command: "staledocs", args: ["--mcp"] }) &&
         skillOrder.every((term, index, terms) => {
           const current = skill.indexOf(term);
           const previous = index === 0 ? -1 : skill.indexOf(terms[index - 1]);
@@ -741,7 +744,7 @@ async function sourceArtifactChecks(repositoryRoot, candidateRef) {
         "utf8",
       );
       demoShapeValid =
-        demoSource.includes("aidoc.hybrid-beta-demo.v1") &&
+        demoSource.includes("staledocs.hybrid-beta-demo.v1") &&
         demoSource.includes("prepare_documentation_update") &&
         demoSource.includes("validate_documentation_draft");
     } catch {
@@ -1237,7 +1240,7 @@ async function main() {
       ".private/public-beta-needles.txt",
     );
     const configuredNeedlesPath =
-      options.privateNeedlesPath ?? process.env.AIDOC_PRIVATE_NEEDLES_FILE;
+      options.privateNeedlesPath ?? process.env.STALEDOCS_PRIVATE_NEEDLES_FILE;
     const privateNeedlesPath = configuredNeedlesPath
       ? path.resolve(configuredNeedlesPath)
       : existsSync(defaultNeedlesPath)

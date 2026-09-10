@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:aidoc="urn:aidoc:assets" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc" data-safe-margin="64" data-protected-margin="80" data-step="1" data-visual-system="dimensional-code-to-docs-v1">
-  <title id="title">AiDoc demo step 1: Code changed</title>
+  <title id="title">StaleDocs demo step 1: Code changed</title>
   <desc id="desc">The createUser signature changes from one argument to two while later documentation stages remain visible but subdued.</desc>
   <metadata>
-    <aidoc:copy><aidoc:line>AiDoc</aidoc:line><aidoc:line>Code changed</aidoc:line><aidoc:line>createUser(email) -> createUser(email, role)</aidoc:line><aidoc:line>1 / 5</aidoc:line><aidoc:line>No provider calls</aidoc:line><aidoc:line>No repository writes</aidoc:line><aidoc:line>You decide what is applied</aidoc:line></aidoc:copy>
+    <aidoc:copy><aidoc:line>StaleDocs</aidoc:line><aidoc:line>Code changed</aidoc:line><aidoc:line>createUser(email) -> createUser(email, role)</aidoc:line><aidoc:line>1 / 5</aidoc:line><aidoc:line>No provider calls</aidoc:line><aidoc:line>No repository writes</aidoc:line><aidoc:line>You decide what is applied</aidoc:line></aidoc:copy>
     <aidoc:evidence><aidoc:fact>createUser(email)</aidoc:fact><aidoc:fact>createUser(email, role)</aidoc:fact></aidoc:evidence>
   </metadata>
   <rect width="1280" height="720" fill="#F4F1EA"/>

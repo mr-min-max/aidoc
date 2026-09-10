@@ -6,17 +6,17 @@
   aria-labelledby="title desc"
   data-visual-system="dimensional-code-to-docs-v1"
 >
-  <title id="title">AiDoc storefront social preview</title>
+  <title id="title">StaleDocs documentation drift review</title>
   <desc id="desc">A graphite code repository sends a createUser signature change through a cyan analysis path to README and API documentation, ending at a green validated state. Documentation that keeps up with your code.</desc>
   <metadata>
     <aidoc:copy>
-      <aidoc:line>AiDoc</aidoc:line>
+      <aidoc:line>StaleDocs</aidoc:line>
       <aidoc:line>Documentation that keeps up with your code.</aidoc:line>
       <aidoc:line>Code change -> Impact plan -> Reviewable docs update</aidoc:line>
     </aidoc:copy>
   </metadata>
   <image
-    href="aidoc-social-preview-source.png"
+    href="staledocs-social-preview-source.png"
     x="0"
     y="0"
     width="1280"

@@ -108,7 +108,7 @@ export function loadPlanningConfig(
       : parseContextBudget(overrideMaxContextBytes);
   let config = defaultPlanningConfig();
   try {
-    const result = cosmiconfigSync("aidoc").search(cwd);
+    const result = cosmiconfigSync("staledocs").search(cwd);
     if (result && !result.isEmpty) {
       config = parsePlanningConfig(result.config);
     }

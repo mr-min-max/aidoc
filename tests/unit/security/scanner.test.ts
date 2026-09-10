@@ -19,9 +19,9 @@ describe("applySecretPolicy", () => {
     );
 
     expect(result.text).toBe(
-      "<AIDOC_REDACTED:OPENAI_API_KEY:1>\n" +
-        "again=<AIDOC_REDACTED:OPENAI_API_KEY:1>\n" +
-        "<AIDOC_REDACTED:ANTHROPIC_API_KEY:1>",
+      "<STALEDOCS_REDACTED:OPENAI_API_KEY:1>\n" +
+        "again=<STALEDOCS_REDACTED:OPENAI_API_KEY:1>\n" +
+        "<STALEDOCS_REDACTED:ANTHROPIC_API_KEY:1>",
     );
     expect(result.findings).toEqual([
       { kind: "openai_api_key", count: 2 },
@@ -75,7 +75,7 @@ describe("applySecretPolicy", () => {
     expect(result.findings).toEqual([{ kind: "named_secret", count: 1 }]);
     expect(result.action).toBe("redacted");
     expect(result.text).toBe(
-      '{"clientSecret":"<AIDOC_REDACTED:NAMED_SECRET:1>","visible":"keep"}',
+      '{"clientSecret":"<STALEDOCS_REDACTED:NAMED_SECRET:1>","visible":"keep"}',
     );
     expect(JSON.stringify(result)).not.toContain(fakeSerializedSecret);
   });
@@ -87,7 +87,7 @@ describe("applySecretPolicy", () => {
 
     expect(JSON.stringify(result).includes(fakeEscapedSecret)).toBe(false);
     expect(result.text).toBe(
-      '{"clientSecret":"<AIDOC_REDACTED:NAMED_SECRET:1>","visible":"keep"}',
+      '{"clientSecret":"<STALEDOCS_REDACTED:NAMED_SECRET:1>","visible":"keep"}',
     );
   });
 
@@ -99,7 +99,7 @@ describe("applySecretPolicy", () => {
     );
 
     expect(result).toEqual({
-      text: "clientSecret=<AIDOC_REDACTED:OPENAI_API_KEY:1>",
+      text: "clientSecret=<STALEDOCS_REDACTED:OPENAI_API_KEY:1>",
       findings: [{ kind: "openai_api_key", count: 1 }],
       action: "redacted",
     });
@@ -175,7 +175,7 @@ describe("applySecretPolicy", () => {
     );
 
     expect(result).toEqual({
-      text: "privateKey=<AIDOC_REDACTED:PRIVATE_KEY:1>",
+      text: "privateKey=<STALEDOCS_REDACTED:PRIVATE_KEY:1>",
       findings: [{ kind: "private_key", count: 1 }],
       action: "redacted",
     });
@@ -207,18 +207,18 @@ describe("applySecretPolicy", () => {
     const result = applySecretPolicy(input, "redact", new RedactionSession());
 
     expect(result.findings).toEqual([{ kind: "sensitive_path", count: 1 }]);
-    expect(result.text).toBe(".env.example\n<AIDOC_REDACTED:SENSITIVE_PATH:1>");
+    expect(result.text).toBe(".env.example\n<STALEDOCS_REDACTED:SENSITIVE_PATH:1>");
   });
 
   it("sanitizes diagnostics regardless of the configured request policy", () => {
     const diagnostic = `provider rejected ${fakeOpenAiKey}`;
     const safe = sanitizeDiagnostic(diagnostic);
-    expect(safe).toContain("<AIDOC_REDACTED:OPENAI_API_KEY:1>");
+    expect(safe).toContain("<STALEDOCS_REDACTED:OPENAI_API_KEY:1>");
     expect(safe).not.toContain(fakeOpenAiKey);
   });
 
   it("does not re-redact an opaque Trust Gate placeholder", () => {
-    const placeholder = ["<AIDOC_REDACTED:", "PRIVATE_KEY", ":1>"].join("");
+    const placeholder = ["<STALEDOCS_REDACTED:", "PRIVATE_KEY", ":1>"].join("");
 
     expect(
       applySecretPolicy(placeholder, "redact", new RedactionSession()),
@@ -264,7 +264,7 @@ describe("applySecretPolicy", () => {
       ANTHROPIC_API_KEY: "arbitrary-anthropic-value",
       DEEPSEEK_API_KEY: "arbitrary-deepseek-value",
       DASHSCOPE_API_KEY: "arbitrary-dashscope-value",
-      AIDOC_COMPAT_API_KEY: "arbitrary-compatible-value",
+      STALEDOCS_COMPAT_API_KEY: "arbitrary-compatible-value",
     };
     const input = Object.entries(values)
       .map(([key, value]) => `${key}=${value}`)

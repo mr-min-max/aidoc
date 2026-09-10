@@ -81,7 +81,7 @@ describe("generated document command write preparation", () => {
 
   it("rejects an outside README target before provider transport", async () => {
     // Catches a command-order regression that sends AST data to a provider before output validation.
-    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-command-"));
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-command-"));
     const outside = path.join(cwd, "outside", "README.md");
     const generator = new MockGenerator();
     const generate = jest
@@ -111,7 +111,7 @@ describe("generated document command write preparation", () => {
 
   it("rejects an outside API target before provider transport", async () => {
     // Catches a command-order regression that invokes API generation before validating the output target.
-    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-command-"));
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-command-"));
     const outside = path.join(cwd, "outside", "API.md");
     const generator = new MockGenerator();
     const generate = jest
@@ -139,7 +139,7 @@ describe("generated document command write preparation", () => {
 
   it("rejects an outside CHANGELOG target before provider transport", async () => {
     // Catches a command-order regression that sends Git history to a provider before validating the output target.
-    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-command-"));
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-command-"));
     const outside = path.join(cwd, "outside", "CHANGELOG.md");
     const generator = new MockGenerator();
     const generate = jest
@@ -154,7 +154,7 @@ describe("generated document command write preparation", () => {
         hash: "1234567",
         message: "Add safe changelog output",
         date: "2026-08-10",
-        author: "AiDoc",
+        author: "StaleDocs",
       },
     ]);
     const { prepare } = rejectOutsideTarget();
@@ -178,7 +178,7 @@ describe("generated document command write preparation", () => {
 
   it("rejects an outside diagram target before provider transport", async () => {
     // Catches a command-order regression that invokes diagram generation before validating the output target.
-    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-command-"));
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-command-"));
     const outside = path.join(cwd, "outside", "architecture.md");
     const generator = new MockGenerator();
     const generate = jest
@@ -208,7 +208,7 @@ describe("generated document command write preparation", () => {
 
   it("keeps a README dry-run free of writer scopes and filesystem output", async () => {
     // Catches a dry-run regression that opens a writer scope or creates parent directories and temp files.
-    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-command-"));
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-command-"));
     const output = path.join("preview", "README.md");
     const generator = new MockGenerator();
     const generate = jest
@@ -243,7 +243,7 @@ describe("generated document command write preparation", () => {
   it("rejects a control-bearing README dry-run target before provider transport", async () => {
     // Catches a command-order regression that permits an unsafe dry-run label
     // to reach provider generation or rendered CLI output.
-    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-command-"));
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-command-"));
     const output = `preview/${String.fromCharCode(27)}[2JREADME.md`;
     const generator = new MockGenerator();
     const generate = jest
@@ -274,7 +274,7 @@ describe("generated document command write preparation", () => {
 
   it("merges a changelog entry with the target snapshot instead of a post-provider file read", async () => {
     // Catches a time-of-check/time-of-use regression that discards the prepared snapshot after generation.
-    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-command-"));
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-command-"));
     const output = path.join(cwd, "CHANGELOG.md");
     const existingText = "# Changelog\n\n## [0.1.0]\n\n- Snapshot entry\n";
     const replaceText = jest.fn().mockResolvedValue(undefined);
@@ -308,7 +308,7 @@ describe("generated document command write preparation", () => {
         hash: "1234567",
         message: "Add safe changelog output",
         date: "2026-08-10",
-        author: "AiDoc",
+        author: "StaleDocs",
       },
     ]);
     const exit = suppressCommandFailure();
@@ -344,10 +344,10 @@ describe("score writer construction", () => {
 
   it("does not construct a writer when score has no output", async () => {
     const invocationCwd = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-score-invocation-"),
+      path.join(os.tmpdir(), "staledocs-score-invocation-"),
     );
     const analysisDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-score-analysis-"),
+      path.join(os.tmpdir(), "staledocs-score-analysis-"),
     );
     process.chdir(invocationCwd);
     jest.spyOn(analyzer, "analyzeCodebase").mockResolvedValue([]);
@@ -369,7 +369,7 @@ describe("score writer construction", () => {
 
   it("keeps score dry-run output free of writer scopes and mutation", async () => {
     const invocationCwd = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-score-invocation-"),
+      path.join(os.tmpdir(), "staledocs-score-invocation-"),
     );
     const output = path.join("preview", "score.md");
     process.chdir(invocationCwd);
@@ -396,10 +396,10 @@ describe("score writer construction", () => {
   // analysis directory) instead of the invocation repository captured at entry.
   it("opens real score output from invocation cwd independently of analysis dir", async () => {
     const invocationCwd = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-score-invocation-"),
+      path.join(os.tmpdir(), "staledocs-score-invocation-"),
     );
     const analysisDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-score-analysis-"),
+      path.join(os.tmpdir(), "staledocs-score-analysis-"),
     );
     process.chdir(invocationCwd);
     const capturedInvocationCwd = process.cwd();
@@ -439,10 +439,10 @@ describe("score writer construction", () => {
 
   it("rejects outside score output with status 2 and no report file", async () => {
     const invocationCwd = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-score-invocation-"),
+      path.join(os.tmpdir(), "staledocs-score-invocation-"),
     );
     const outsideDir = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-score-outside-"),
+      path.join(os.tmpdir(), "staledocs-score-outside-"),
     );
     const outside = path.join(outsideDir, "score.md");
     process.chdir(invocationCwd);

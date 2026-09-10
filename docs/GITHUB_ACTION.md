@@ -1,6 +1,6 @@
-# AiDoc GitHub Action
+# StaleDocs GitHub Action
 
-The AiDoc Action reviews pull requests for deterministic documentation drift. Review
+The StaleDocs Action reviews pull requests for deterministic documentation drift. Review
 mode reports only the drift this pull request introduces; pre-existing stale
 documentation is not reported. It uses no model, API key, or repository write for
 analysis.
@@ -10,7 +10,7 @@ analysis.
 Add one workflow to a repository:
 
 ```yaml
-name: AiDoc review
+name: StaleDocs review
 on:
   pull_request:
     types: [opened, synchronize, reopened]
@@ -24,24 +24,22 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      # Replace <phase-4-action-ref> with the Action ref containing review mode.
-      - uses: mr-min-max/aidoc@<phase-4-action-ref>
+      - uses: mr-min-max/staledocs@v0.3.0-beta.1
         with:
           mode: review
           fail-on: none
 ```
 
-The review workflow uses a placeholder because review mode is introduced in this
-phase and is not part of the published beta.6 Action. Replace it with the Phase 4
-branch or release ref that contains review mode. The check and generate examples
-below intentionally retain the published beta.6 ref.
+The review workflow is pinned to the current release candidate. The moving `@v0`
+major convenience pin is available after publication and may move to a later
+release. The check and generate examples below use the same release candidate.
 
 The comment starts with a hidden marker and lists changed signatures, affected
 sections, and whether each section changed in the pull request:
 
 ```markdown
-<!-- aidoc-review -->
-### AiDoc: documentation impact
+<!-- staledocs-review -->
+### StaleDocs: documentation impact
 
 **1 public API change**, 0 potentially breaking. **1 documentation section** mention changed symbols and were not updated in this PR.
 
@@ -52,7 +50,7 @@ sections, and whether each section changed in the pull request:
 **Needs a documentation update**
 - `README.md` > API: `createUser`
 
-<sub>Deterministic AST analysis; no model was used. Suppress a symbol with `.aidocignore`. <a href="https://github.com/mr-min-max/aidoc">AiDoc</a></sub>
+<sub>Deterministic AST analysis; no model was used. Suppress a symbol with `.staledocsignore`. <a href="https://github.com/mr-min-max/staledocs">StaleDocs</a></sub>
 ```
 
 Review mode needs `permissions: contents: read` and `pull-requests: write` for
@@ -89,7 +87,7 @@ Labels use the following stable metadata:
 
 ### Suppressions
 
-Create `.aidocignore` at the repository root. Each line is an exact symbol or a
+Create `.staledocsignore` at the repository root. Each line is an exact symbol or a
 small glob, a source path glob, or a Markdown documentation path glob:
 
 ```text
@@ -111,7 +109,7 @@ Check mode is provider-free and reports only whether selected documents changed 
 public symbols they directly mention. It does not compare prose correctness.
 
 ```yaml
-- uses: mr-min-max/aidoc@v0.2.0-beta.6
+- uses: mr-min-max/staledocs@v0.3.0-beta.1
   with:
     mode: check
     since: ${{ github.event.pull_request.base.sha }}
@@ -126,7 +124,7 @@ The `commands` input is a comma-separated list of `readme`, `api`, `changelog`, 
 Generate mode remains available for provider-backed documentation creation:
 
 ```yaml
-- uses: mr-min-max/aidoc@v0.2.0-beta.6
+- uses: mr-min-max/staledocs@v0.3.0-beta.1
   with:
     mode: generate
     provider: openai
@@ -137,7 +135,7 @@ Generate mode remains available for provider-backed documentation creation:
 
 Generate mode accepts the existing `provider`, `api-key`, `model`, `commands`,
 `output-dir`, `dry-run`, and `auto-commit` inputs. `auto-commit` is opt-in and
-requires `contents: write`; it stages only paths emitted by AiDoc.
+requires `contents: write`; it stages only paths emitted by StaleDocs.
 
 ## Outputs
 
@@ -153,9 +151,9 @@ The Action exposes these outputs:
 | `changed`, `files`, `summary` | Existing generate/check outputs. |
 
 Review comments are deterministic, contain no timestamps, and are owned by the
-GitHub token user as well as the `<!-- aidoc-review -->` marker. A token cannot
+GitHub token user as well as the `<!-- staledocs-review -->` marker. A token cannot
 modify another user's marked comment.
 
 For provider credentials, Trust Gate behavior, and MCP boundaries, see
-[PUBLIC_BETA.md](./PUBLIC_BETA.md). For the CLI review command and suppression
-syntax, see [CLI.md](./CLI.md).
+[PUBLIC_BETA.md](./PUBLIC_BETA.md) and [LIMITATIONS.md](./LIMITATIONS.md). For the CLI
+review command and suppression syntax, see [CLI.md](./CLI.md).

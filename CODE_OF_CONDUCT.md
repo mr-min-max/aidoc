@@ -3,7 +3,7 @@
 ## Our Pledge
 
 We are committed to a respectful, harassment-free community for everyone
-contributing to aidoc.
+contributing to staledocs.
 
 ## Expected Behavior
 

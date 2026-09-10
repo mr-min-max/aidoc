@@ -1,31 +1,32 @@
-# Releasing AiDoc
+# Releasing StaleDocs
 
-This is the maintainer procedure for publishing AiDoc. It separates repository
-preparation from irreversible external release actions.
+This is the maintainer procedure for publishing StaleDocs. It separates repository preparation from irreversible external release actions.
 
 ## Release Boundary
 
-Merging a release-readiness pull request does not publish a package. The
-release workflow runs only after a matching `v*` tag is pushed. Do not create
-or push a release tag without a separate explicit publication decision made
-after every pre-release check below passes.
+Merging a release-readiness pull request does not publish a package. The release workflow runs only after a matching `v*` tag is pushed. Do not create or push a release tag without a separate explicit publication decision made after every pre-release check below passes.
 
-The first npm beta is `@mr-min-max/aidoc-gen@0.2.0-beta.4`. The release workflow
-publishes prereleases with the npm `beta` dist-tag and never selects `latest`.
-Every npm package must have a `latest` dist-tag, however, so a package whose
-only version is a prerelease can still have registry-managed `latest` pointing
-to that version. Do not try to remove that required tag. The supported public
-installation command is always explicit:
+## 0.3.0-beta.1 procedure
 
-```bash
-npm install -g @mr-min-max/aidoc-gen@beta
-```
+Use the same OIDC workflow and tag `v0.3.0-beta.1`. Before publication, fetch `origin/main`, confirm the release candidate is based on that commit, run the local release gates, and confirm the tree is clean. The owner then publishes the tag through the existing OIDC workflow. After npm accepts the package, run `npm dist-tag add staledocs@0.3.0-beta.1 latest` so a pre-1.0 project whose only versions are betas makes the bare install work; the `beta` tag remains for explicitness.
 
-The public `v0.2.0-beta.3` tag records a failed first-publication attempt. npm
-verified provenance but rejected the unscoped name under its package-similarity
-policy; no npm version or GitHub Release was created. That tag must not be
-moved, deleted, repointed, rerun, or reused. Recovery continues only through
-the scoped beta.4 package and a new tag.
+The old package `@mr-min-max/aidoc-gen` is not changed by this branch. After StaleDocs is published, the owner runs `npm deprecate @mr-min-max/aidoc-gen "Renamed to staledocs: npm i -g staledocs"`.
+
+The owner also renames the GitHub repository to `staledocs` before the release tag, updates the npm Trusted Publisher to `mr-min-max/staledocs` and `release.yml`, and creates the moving major tag with `git tag -f v0 v0.3.0-beta.1 && git push -f origin v0` after publication. These are owner-only external actions.
+
+### Repository metadata
+
+Description: Finds documentation that no longer matches your code. Deterministic AST check for pull requests; no API key. TypeScript, JavaScript, Python.
+
+Topics: `documentation`, `documentation-drift`, `stale-docs`, `api-docs`, `github-action`, `pull-request`, `code-review`, `linter`, `ci`, `ast`, `typescript`, `javascript`, `python`, `developer-tools`, `mcp`, `codex`, `claude-code`.
+
+The Action Marketplace listing is also owner-only. Publish from the release page in the categories **Code review** and **Continuous integration**.
+
+### Awesome-list drafts
+
+- `sindresorhus/awesome-actions` (Utilities): StaleDocs checks documentation drift in pull requests with deterministic AST analysis. https://github.com/mr-min-max/staledocs
+- `punkpeye/awesome-mcp-servers` (Developer Tools): StaleDocs prepares and validates focused documentation updates through MCP. https://github.com/mr-min-max/staledocs
+- `dzharii/awesome-typescript` (Tools): StaleDocs maps changed TypeScript symbols to stale documentation sections. https://github.com/mr-min-max/staledocs
 
 ## Historical beta.4 Verification Record
 

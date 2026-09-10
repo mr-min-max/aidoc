@@ -2,7 +2,7 @@ import { existsSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import process from "node:process";
 
-const TARBALL_ENV = "AIDOC_TEST_TARBALL";
+const TARBALL_ENV = "STALEDOCS_TEST_TARBALL";
 
 /** Returns a validated prebuilt tarball, or null for the local pack fallback. */
 export function getConfiguredSmokeTarball(env = process.env) {

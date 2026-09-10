@@ -132,8 +132,8 @@ describe("renderUpdateGenerationEnvelope", () => {
     const context = impactContext();
     context.documentation[0].directReferences.push({
       file: "README.md",
-      section: "`aidoc api`",
-      slug: "aidoc-api",
+      section: "`staledocs api`",
+      slug: "staledocs-api",
       reason: "heading",
     });
     context.documentation[0].recommendations.push({
@@ -159,7 +159,7 @@ describe("renderUpdateGenerationEnvelope", () => {
     expect(envelope.prompt).toContain(
       "  after:  transform(input: string, options?: Options): number",
     );
-    expect(envelope.prompt).toContain("  mentioned in: API; `aidoc api`");
+    expect(envelope.prompt).toContain("  mentioned in: API; `staledocs api`");
     expect(envelope.prompt).not.toContain("&#x");
   });
 

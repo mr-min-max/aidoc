@@ -5,7 +5,7 @@ Code changed: createUser(email) now requires createUser(email, role).
 One public contract changed.
 
 00:10.000 --> 00:25.000
-AiDoc narrows the change to README.md and docs/API.md.
+StaleDocs narrows the change to README.md and docs/API.md.
 Only those two documentation files enter the update path.
 
 00:25.000 --> 00:50.000

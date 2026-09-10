@@ -12,7 +12,7 @@ import { join, resolve } from "node:path";
 import process from "node:process";
 
 const cli = resolve("dist/cli/index.js");
-const repo = mkdtempSync(join(tmpdir(), "aidoc-check-cli-"));
+const repo = mkdtempSync(join(tmpdir(), "staledocs-check-cli-"));
 const fakePolicySecret = ["sk", "proj", "X".repeat(32)].join("-");
 const fakeParserSecret = ["sk", "proj", "J".repeat(32)].join("-");
 const emptyGitTemplate = join(repo, "empty-git-template");
@@ -71,8 +71,8 @@ function check(target, since) {
 
 try {
   git("init", "--quiet", `--template=${emptyGitTemplate}`);
-  git("config", "user.name", "aidoc test");
-  git("config", "user.email", "aidoc-test@example.invalid");
+  git("config", "user.name", "staledocs test");
+  git("config", "user.email", "staledocs-test@example.invalid");
   mkdirSync(join(repo, "src"));
   writeFileSync(join(repo, "README.md"), "# Fixture\n\n## API\n\n`api` is public.\n");
   writeFileSync(
@@ -156,7 +156,7 @@ try {
   writeFileSync(
     join(repo, "package.json"),
     JSON.stringify({
-      name: "aidoc-policy-fixture",
+      name: "staledocs-policy-fixture",
       description: fakePolicySecret,
     }),
   );
@@ -168,9 +168,9 @@ try {
       encoding: "utf8",
       env: {
         ...process.env,
-        AIDOC_PROVIDER: "openai",
-        AIDOC_MODEL: "gpt-5.6-luna",
-        AIDOC_TRUST_POLICY: "strict",
+        STALEDOCS_PROVIDER: "openai",
+        STALEDOCS_MODEL: "gpt-5.6-luna",
+        STALEDOCS_TRUST_POLICY: "strict",
         OPENAI_API_KEY: ["runtime", "provider", "credential"].join("-"),
       },
     },

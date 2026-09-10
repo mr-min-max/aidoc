@@ -42,8 +42,8 @@ function immutableRepository(): {
   base: string;
   head: string;
 } {
-  const root = mkdtempSync(join(tmpdir(), "aidoc-mcp-plan-"));
-  const outside = mkdtempSync(join(tmpdir(), "aidoc-mcp-outside-"));
+  const root = mkdtempSync(join(tmpdir(), "staledocs-mcp-plan-"));
+  const outside = mkdtempSync(join(tmpdir(), "staledocs-mcp-outside-"));
   const hooks = join(root, "hooks");
   mkdirSync(hooks);
   git(root, "init", "-q", "--initial-branch", "main");
@@ -212,11 +212,11 @@ describe("MCP impact planning", () => {
     });
   });
 
-  it("reads and applies root .aidocignore through the pinned MCP scope", async () => {
+  it("reads and applies root .staledocsignore through the pinned MCP scope", async () => {
     const fixture = immutableRepository();
     roots.push(fixture.root, fixture.outside);
-    writeFileSync(join(fixture.root, ".aidocignore"), "greet\n");
-    writeFileSync(join(fixture.outside, ".aidocignore"), "Other.*\n");
+    writeFileSync(join(fixture.root, ".staledocsignore"), "greet\n");
+    writeFileSync(join(fixture.outside, ".staledocsignore"), "Other.*\n");
     const context = await createMCPServerContext(
       fixture.root,
       Object.create(null),
@@ -234,7 +234,7 @@ describe("MCP impact planning", () => {
     expect(result.ignored.suppressed).toBe(1);
     expect(readOptionalFile).toHaveBeenCalledWith(
       context.scope.rootDirectory(),
-      ".aidocignore",
+      ".staledocsignore",
       { maxBytes: 256 * 1024 },
     );
   });

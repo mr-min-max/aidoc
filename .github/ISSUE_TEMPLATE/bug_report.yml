@@ -1,18 +1,18 @@
 name: 🐛 Bug Report
-description: Report a bug or unexpected behavior in aidoc
+description: Report a bug or unexpected behavior in staledocs
 title: "[Bug]: "
 labels: ["bug", "triage"]
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for helping improve aidoc! Please fill in the details below.
+        Thanks for helping improve staledocs! Please fill in the details below.
   - type: input
     id: version
     attributes:
-      label: aidoc version
-      description: "Run `aidoc --version`, or provide the Git commit for a source checkout"
-      placeholder: "0.2.0-beta.6 or commit SHA"
+      label: staledocs version
+      description: "Run `staledocs --version`, or provide the Git commit for a source checkout"
+      placeholder: "0.3.0-beta.1 or commit SHA"
     validations:
       required: true
   - type: dropdown
@@ -42,14 +42,14 @@ body:
       label: Provider-free reproduction
       description: Planning bugs should be reproduced without credentials when possible.
       options:
-        - label: I tried to reproduce this with `aidoc plan` or `aidoc plan --json`
+        - label: I tried to reproduce this with `staledocs plan` or `staledocs plan --json`
   - type: textarea
     id: reproduce
     attributes:
       label: Steps to reproduce
       description: How can we reproduce this issue?
       value: |
-        1. Run `aidoc ...`
+        1. Run `staledocs ...`
         2. ...
     validations:
       required: true

@@ -20,7 +20,7 @@ import {
 import * as parserRegistry from "../../../src/parsers/registry";
 
 function repository(): string {
-  const root = mkdtempSync(join(tmpdir(), "aidoc-planner-"));
+  const root = mkdtempSync(join(tmpdir(), "staledocs-planner-"));
   const hooks = join(root, "hooks");
   mkdirSync(hooks);
   execFileSync("git", ["init", "-q", "--initial-branch", "main"], {
@@ -277,7 +277,7 @@ describe("createImpactPlan", () => {
 
   test("skips configured documentation reached through an intermediate external symlink", async () => {
     const root = repository();
-    const externalRoot = mkdtempSync(join(tmpdir(), "aidoc-external-docs-"));
+    const externalRoot = mkdtempSync(join(tmpdir(), "staledocs-external-docs-"));
     mkdirSync(join(externalRoot, "sub"));
     writeFileSync(
       join(externalRoot, "sub", "API.md"),
@@ -285,7 +285,7 @@ describe("createImpactPlan", () => {
     );
     symlinkSync(externalRoot, join(root, "bridge"), "dir");
     writeFileSync(
-      join(root, ".aidocrc.json"),
+      join(root, ".staledocsrc.json"),
       JSON.stringify({ outputDir: "bridge/sub" }),
     );
     writeFileSync(
@@ -311,7 +311,7 @@ describe("createImpactPlan", () => {
     const root = repository();
     const docs = join(root, "docs");
     const parkedDocs = join(root, "docs-before-swap");
-    const externalDocs = mkdtempSync(join(tmpdir(), "aidoc-external-swap-"));
+    const externalDocs = mkdtempSync(join(tmpdir(), "staledocs-external-swap-"));
     const documentationPath = join(docs, "API.md");
     mkdirSync(docs);
     writeFileSync(documentationPath, "# Internal notes\nNo public API here.\n");
@@ -371,7 +371,7 @@ describe("createImpactPlan", () => {
     const root = repository();
     const docs = join(root, "docs");
     const parkedDocs = join(root, "docs-inside-repository");
-    const externalDocs = mkdtempSync(join(tmpdir(), "aidoc-coordinated-docs-"));
+    const externalDocs = mkdtempSync(join(tmpdir(), "staledocs-coordinated-docs-"));
     const documentationPath = join(docs, "API.md");
     mkdirSync(docs);
     writeFileSync(documentationPath, "# Internal notes\nNo public API here.\n");
@@ -449,7 +449,7 @@ describe("createImpactPlan", () => {
   });
 
   test("releases source-bearing snapshot files before documentation access", async () => {
-    const root = mkdtempSync(join(tmpdir(), "aidoc-planner-lifetime-"));
+    const root = mkdtempSync(join(tmpdir(), "staledocs-planner-lifetime-"));
     const files: GitSnapshotSet["files"] = [
       {
         status: "modified",
@@ -538,7 +538,7 @@ describe("createImpactPlan", () => {
     mkdirSync(join(root, "custom-docs"));
     writeFileSync(join(root, "api.ts"), "export const api = 1;\n");
     writeFileSync(
-      join(root, ".aidocrc.json"),
+      join(root, ".staledocsrc.json"),
       JSON.stringify({ outputDir: "custom-docs" }),
     );
     writeFileSync(join(root, "custom-docs", "API.md"), "# API\n`api`\n");
@@ -595,7 +595,7 @@ describe("createImpactPlan", () => {
     const root = repository();
     mkdirSync(join(root, "docs"));
     writeFileSync(
-      join(root, ".aidocrc.json"),
+      join(root, ".staledocsrc.json"),
       JSON.stringify({ exclude: ["ignored.ts", "docs/private.md"] }),
     );
     writeFileSync(
@@ -793,7 +793,7 @@ describe("createImpactPlan", () => {
       "export function hidden(value: number) { return value; }\n",
     );
     writeFileSync(
-      join(root, ".aidocignore"),
+      join(root, ".staledocsignore"),
       "createUser\nsrc/internal/**\ndocs/legacy/**.md\n",
     );
     const result = await createImpactPlan({ cwd: root });

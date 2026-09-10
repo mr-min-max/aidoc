@@ -22,7 +22,7 @@ import { RepositoryWriteError, type AtomicWriteStage } from "./types";
 const execFileAsync = promisify(execFile);
 const GIT_DISCOVERY_TIMEOUT_MS = 5_000;
 const GIT_DISCOVERY_MAX_BUFFER = 16 * 1024;
-const TEMPORARY_FILE_PREFIX = ".aidoc-write-";
+const TEMPORARY_FILE_PREFIX = ".staledocs-write-";
 const TEMPORARY_CREATE_ATTEMPTS = 8;
 
 type FileType = "directory" | "regular-file";

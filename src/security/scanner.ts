@@ -43,13 +43,13 @@ const credentialUrlPattern =
 const namedSecretPattern =
   /(?<![A-Za-z0-9_$])["']?(?:apiKey|api_key|api-key|accessToken|access_token|access-token|authToken|auth_token|auth-token|clientSecret|client_secret|client-secret|password|passphrase|secret|token|privateKey|private_key|private-key)["']?(?![A-Za-z0-9_$])\s*(?:=|:)\s*(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)'|([^\s,;}\]\r\n]+))/gi;
 const canonicalPrefixedSecretPattern =
-  /(?<![A-Za-z0-9_$])["']?(?:JWT_SECRET|GITHUB_TOKEN|OPENAI_API_KEY|ANTHROPIC_API_KEY|DEEPSEEK_API_KEY|DASHSCOPE_API_KEY|AIDOC_COMPAT_API_KEY)["']?(?![A-Za-z0-9_$])\s*(?:=|:)\s*(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)'|([^\s,;}\]\r\n]+))/gi;
+  /(?<![A-Za-z0-9_$])["']?(?:JWT_SECRET|GITHUB_TOKEN|OPENAI_API_KEY|ANTHROPIC_API_KEY|DEEPSEEK_API_KEY|DASHSCOPE_API_KEY|STALEDOCS_COMPAT_API_KEY)["']?(?![A-Za-z0-9_$])\s*(?:=|:)\s*(?:"((?:\\.|[^"\\\r\n])*)"|'((?:\\.|[^'\\\r\n])*)'|([^\s,;}\]\r\n]+))/gi;
 const unixUserPathPattern =
   /(?<![A-Za-z0-9/])\/(?:Users|home)\/[^\s/]+(?:\/[^\s]*)?/g;
 const windowsUserPathPattern =
   /\b[A-Za-z]:[\\/](?:Users|home)[\\/][^\s\\/]+(?:[\\/][^\s]*)*/g;
-const redactionPlaceholderPrefix = "<AIDOC_REDACTED:";
-const redactionPlaceholderPattern = /^<AIDOC_REDACTED:[A-Z_]+:\d+>$/;
+const redactionPlaceholderPrefix = "<STALEDOCS_REDACTED:";
+const redactionPlaceholderPattern = /^<STALEDOCS_REDACTED:[A-Z_]+:\d+>$/;
 const sensitiveBasenamePattern =
   /(?<![A-Za-z0-9._-])(?:\.env(?:\.(?!example(?=$|[\\/\s,;:)"'\]}`<>]))[A-Za-z0-9_.-]+)?|\.npmrc|\.pypirc|\.netrc|id_(?:rsa|dsa|ecdsa|ed25519))(?=$|[\\/\s,;:)"'\]}`<>])/g;
 const awsCredentialsPattern =
@@ -81,7 +81,7 @@ export class RedactionSession {
     const byValue = this.values.get(kind) ?? new Map<string, number>();
     this.values.set(kind, byValue);
     if (!byValue.has(value)) byValue.set(value, byValue.size + 1);
-    return `<AIDOC_REDACTED:${kind.toUpperCase()}:${byValue.get(value)}>`;
+    return `<STALEDOCS_REDACTED:${kind.toUpperCase()}:${byValue.get(value)}>`;
   }
 }
 

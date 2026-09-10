@@ -8,10 +8,10 @@ import {
 } from "../../scripts/verify-npm-published.mjs";
 
 const candidate = Object.freeze({
-  name: "@mr-min-max/aidoc-gen",
-  version: "0.2.0-beta.6",
+  name: "staledocs",
+  version: "0.3.0-beta.1",
 });
-const expectedLatest = "0.2.0-beta.4";
+const expectedLatest = "0.3.0-beta.1";
 
 function publishedMetadata(overrides = {}) {
   return {
@@ -27,7 +27,7 @@ function publishedMetadata(overrides = {}) {
         dist: {
           integrity: "sha512-aGlzdG9yaWNhbA==",
           tarball:
-            "https://registry.npmjs.org/@mr-min-max/aidoc-gen/-/aidoc-gen-0.2.0-beta.4.tgz",
+            "https://registry.npmjs.org/staledocs/-/staledocs-0.3.0-beta.1.tgz",
         },
       },
       [candidate.version]: {
@@ -36,7 +36,7 @@ function publishedMetadata(overrides = {}) {
         dist: {
           integrity: "sha512-c2FmZS1pbnRlZ3JpdHk=",
           tarball:
-            "https://registry.npmjs.org/@mr-min-max/aidoc-gen/-/aidoc-gen-0.2.0-beta.6.tgz",
+            "https://registry.npmjs.org/staledocs/-/staledocs-0.3.0-beta.1.tgz",
         },
       },
     },
@@ -57,36 +57,36 @@ test("selects explicit beta and latest versions without accepting extra argument
     versionOverride: undefined,
   });
   assert.deepEqual(
-    parsePublishedStateArguments(["--version", "0.2.0-beta.6"]),
+    parsePublishedStateArguments(["--version", "0.3.0-beta.1"]),
     {
       expectedLatest: undefined,
-      versionOverride: "0.2.0-beta.6",
+      versionOverride: "0.3.0-beta.1",
     },
   );
   assert.deepEqual(
     parsePublishedStateArguments([
       "--version",
-      "0.2.0-beta.6",
+      "0.3.0-beta.1",
       "--latest",
-      "0.2.0-beta.4",
+      "0.3.0-beta.1",
     ]),
     {
-      expectedLatest: "0.2.0-beta.4",
-      versionOverride: "0.2.0-beta.6",
+      expectedLatest: "0.3.0-beta.1",
+      versionOverride: "0.3.0-beta.1",
     },
   );
 
   for (const args of [
     ["--version"],
     ["--version", ""],
-    ["--latest", "0.2.0-beta.4"],
-    ["--version", "0.2.0-beta.6", "extra"],
-    ["--other", "0.2.0-beta.6"],
-    ["--version", "../0.2.0-beta.6"],
-    ["--version", "0.2.0-beta.6\nseeded-secret"],
-    ["--version", "0.2.0-beta.6", "--latest", ""],
-    ["--version", "0.2.0-beta.6", "--latest", "../0.2.0-beta.4"],
-    ["--latest", "0.2.0-beta.4", "--version", "0.2.0-beta.6"],
+    ["--latest", "0.3.0-beta.1"],
+    ["--version", "0.3.0-beta.1", "extra"],
+    ["--other", "0.3.0-beta.1"],
+    ["--version", "../0.3.0-beta.1"],
+    ["--version", "0.3.0-beta.1\nseeded-secret"],
+    ["--version", "0.3.0-beta.1", "--latest", ""],
+    ["--version", "0.3.0-beta.1", "--latest", "../0.3.0-beta.1"],
+    ["--latest", "0.3.0-beta.1", "--version", "0.3.0-beta.1"],
   ]) {
     assert.throws(
       () => parsePublishedStateArguments(args),
@@ -118,7 +118,7 @@ test("accepts the immutable beta version, exact beta tag, and required latest ta
     requests.map(({ url }) => url),
     [
       "https://registry.npmjs.org/aidoc-gen/0.2.0-beta.3",
-      "https://registry.npmjs.org/%40mr-min-max%2Faidoc-gen",
+      "https://registry.npmjs.org/staledocs",
     ],
   );
   for (const { options } of requests) {
@@ -140,7 +140,7 @@ test("allows latest to move only when it still names an existing version", async
     dist: {
       integrity: "sha512-c3RhYmxl",
       tarball:
-        "https://registry.npmjs.org/@mr-min-max/aidoc-gen/-/aidoc-gen-1.0.0.tgz",
+        "https://registry.npmjs.org/staledocs/-/staledocs-1.0.0.tgz",
     },
   };
 
@@ -157,8 +157,16 @@ test("allows latest to move only when it still names an existing version", async
 
 test("fails when the pinned latest tag moves even to another existing version", async () => {
   const metadata = publishedMetadata({
-    "dist-tags": { beta: candidate.version, latest: candidate.version },
+    "dist-tags": { beta: candidate.version, latest: "1.0.0" },
   });
+  metadata.versions["1.0.0"] = {
+    name: candidate.name,
+    version: "1.0.0",
+    dist: {
+      integrity: "sha512-c3RhYmxl",
+      tarball: "https://registry.npmjs.org/staledocs/-/staledocs-1.0.0.tgz",
+    },
+  };
 
   await assert.rejects(
     verifyNpmVersionPublished({

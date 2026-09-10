@@ -11,7 +11,7 @@ body:
     id: review-comment
     attributes:
       label: Review comment text
-      description: Paste the complete AiDoc review comment.
+      description: Paste the complete StaleDocs review comment.
       render: markdown
     validations:
       required: true
@@ -41,7 +41,7 @@ body:
   - type: dropdown
     id: suppression-tried
     attributes:
-      label: Was .aidocignore tried?
+      label: Was .staledocsignore tried?
       options:
         - "Yes"
         - "No"

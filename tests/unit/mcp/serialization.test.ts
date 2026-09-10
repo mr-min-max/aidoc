@@ -44,7 +44,7 @@ function snapshotFixture(root: string): Array<{ file: string; hash: string }> {
 
 describe("MCP provider output serialization", () => {
   it("rejects a registered provider object before MCP can serialize it", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-mcp-object-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-mcp-object-"));
     const providerName = `object-mcp-provider-${Date.now()}`;
     const fakeSecret = ["sk", "proj", "S".repeat(32)].join("-");
     let serializationCalls = 0;
@@ -66,7 +66,7 @@ describe("MCP provider output serialization", () => {
     });
     fs.mkdirSync(path.join(root, "src"));
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({ provider: providerName, trustPolicy: "redact" }),
     );
     fs.writeFileSync(
@@ -74,8 +74,8 @@ describe("MCP provider output serialization", () => {
       "export function documented(): string { return 'safe'; }\n",
     );
     git(root, "init", "--quiet");
-    git(root, "config", "user.name", "aidoc test");
-    git(root, "config", "user.email", "aidoc-test@example.invalid");
+    git(root, "config", "user.name", "staledocs test");
+    git(root, "config", "user.email", "staledocs-test@example.invalid");
     git(root, "add", ".");
     git(root, "-c", "commit.gpgSign=false", "commit", "-m", "fixture");
 
@@ -91,7 +91,7 @@ describe("MCP provider output serialization", () => {
   });
 
   it("generates content without mutating the fixture tree", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-mcp-readonly-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-mcp-readonly-"));
     const providerName = `readonly-mcp-provider-${Date.now()}`;
     registerProvider({
       name: providerName,
@@ -103,7 +103,7 @@ describe("MCP provider output serialization", () => {
     });
     fs.mkdirSync(path.join(root, "src"));
     fs.writeFileSync(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({ provider: providerName, trustPolicy: "strict" }),
     );
     fs.writeFileSync(
@@ -111,8 +111,8 @@ describe("MCP provider output serialization", () => {
       "export function documented(): string { return 'safe'; }\n",
     );
     git(root, "init", "--quiet");
-    git(root, "config", "user.name", "aidoc test");
-    git(root, "config", "user.email", "aidoc-test@example.invalid");
+    git(root, "config", "user.name", "staledocs test");
+    git(root, "config", "user.email", "staledocs-test@example.invalid");
     git(root, "add", ".");
     git(root, "-c", "commit.gpgSign=false", "commit", "-m", "fixture");
 

@@ -22,7 +22,7 @@ import {
 const program = new Command();
 
 program
-  .name("aidoc")
+  .name("staledocs")
   .description(
     "AST-first documentation creation and change-aware updates for codebases.",
   )

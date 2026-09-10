@@ -13,7 +13,7 @@ import {
 } from "../../../src/cli/commands/plan";
 
 function repository(): string {
-  const root = mkdtempSync(join(tmpdir(), "aidoc-plan-cli-"));
+  const root = mkdtempSync(join(tmpdir(), "staledocs-plan-cli-"));
   const hooks = join(root, "hooks");
   mkdirSync(hooks);
   execFileSync("git", ["init", "-q", "--initial-branch", "main"], {
@@ -85,7 +85,7 @@ describe("plan command", () => {
     expect(output.stdout.join("")).toMatch(
       /^Documentation impact: 1 public API change/u,
     );
-    expect(output.stdout.join("")).toMatch(/Next: aidoc update\n?$/u);
+    expect(output.stdout.join("")).toMatch(/Next: staledocs update\n?$/u);
     expect(dotenvConfig).not.toHaveBeenCalled();
     expect(loadContext).not.toHaveBeenCalled();
     expect(resolveTemplates).not.toHaveBeenCalled();

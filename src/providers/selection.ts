@@ -72,8 +72,8 @@ function providerSource(
   if (overrides?.provider !== undefined) {
     return { provider: overrides.provider, source: "command" };
   }
-  if (env.AIDOC_PROVIDER !== undefined && env.AIDOC_PROVIDER.length > 0) {
-    return { provider: env.AIDOC_PROVIDER, source: "environment" };
+  if (env.STALEDOCS_PROVIDER !== undefined && env.STALEDOCS_PROVIDER.length > 0) {
+    return { provider: env.STALEDOCS_PROVIDER, source: "environment" };
   }
   if (config.provider !== "auto") {
     return { provider: config.provider, source: "project" };
@@ -89,8 +89,8 @@ function envModel(
   if (overrides?.model !== undefined) {
     return { model: overrides.model, source: "command" };
   }
-  if (env.AIDOC_MODEL !== undefined && env.AIDOC_MODEL.length > 0) {
-    return { model: env.AIDOC_MODEL, source: "environment" };
+  if (env.STALEDOCS_MODEL !== undefined && env.STALEDOCS_MODEL.length > 0) {
+    return { model: env.STALEDOCS_MODEL, source: "environment" };
   }
   if (config.model !== undefined) {
     return { model: config.model, source: "project" };
@@ -104,8 +104,8 @@ function allowLocalHttp(
   config: AidocConfig,
 ): boolean {
   if (overrides?.allowLocalHttp !== undefined) return overrides.allowLocalHttp;
-  if (env.AIDOC_ALLOW_LOCAL_HTTP === "true") return true;
-  if (env.AIDOC_ALLOW_LOCAL_HTTP === "false") return false;
+  if (env.STALEDOCS_ALLOW_LOCAL_HTTP === "true") return true;
+  if (env.STALEDOCS_ALLOW_LOCAL_HTTP === "false") return false;
   return config.allowLocalHttp;
 }
 
@@ -116,7 +116,7 @@ function providerBaseUrl(
 ): string | undefined {
   return (
     overrides?.providerBaseUrl ??
-    (env.AIDOC_PROVIDER_BASE_URL || undefined) ??
+    (env.STALEDOCS_PROVIDER_BASE_URL || undefined) ??
     config.providerBaseUrl
   );
 }
@@ -173,7 +173,7 @@ function missingCredentialGuidance(
     credentialEnv !== "ANTHROPIC_API_KEY" &&
     credentialEnv !== "DEEPSEEK_API_KEY" &&
     credentialEnv !== "DASHSCOPE_API_KEY" &&
-    credentialEnv !== "AIDOC_COMPAT_API_KEY"
+    credentialEnv !== "STALEDOCS_COMPAT_API_KEY"
   ) {
     return undefined;
   }
@@ -243,18 +243,18 @@ function effectiveQwenConfig(
   env: NodeJS.ProcessEnv,
 ): AidocConfig {
   const environmentRegion = QWEN_REGIONS.includes(
-    env.AIDOC_QWEN_REGION as NonNullable<AidocConfig["qwenRegion"]>,
+    env.STALEDOCS_QWEN_REGION as NonNullable<AidocConfig["qwenRegion"]>,
   )
-    ? (env.AIDOC_QWEN_REGION as NonNullable<AidocConfig["qwenRegion"]>)
+    ? (env.STALEDOCS_QWEN_REGION as NonNullable<AidocConfig["qwenRegion"]>)
     : undefined;
   return {
     ...config,
     ...(environmentRegion === undefined
       ? {}
       : { qwenRegion: environmentRegion }),
-    ...(env.AIDOC_QWEN_WORKSPACE_ID === undefined
+    ...(env.STALEDOCS_QWEN_WORKSPACE_ID === undefined
       ? {}
-      : { qwenWorkspaceId: env.AIDOC_QWEN_WORKSPACE_ID }),
+      : { qwenWorkspaceId: env.STALEDOCS_QWEN_WORKSPACE_ID }),
   };
 }
 
@@ -394,7 +394,7 @@ export async function resolveProviderSelection(input: {
   const prompter = input.prompter ?? createInteractivePrompter();
   const commandAuto = input.overrides?.provider === "auto";
   const environmentAuto =
-    input.overrides?.provider === undefined && env.AIDOC_PROVIDER === "auto";
+    input.overrides?.provider === undefined && env.STALEDOCS_PROVIDER === "auto";
   const source =
     commandAuto || environmentAuto
       ? {}

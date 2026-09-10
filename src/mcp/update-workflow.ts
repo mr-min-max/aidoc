@@ -595,7 +595,7 @@ function isStaleRepositoryError(error: unknown): boolean {
 }
 
 function environmentTrustPolicy(): TrustPolicy {
-  const value = process.env.AIDOC_TRUST_POLICY;
+  const value = process.env.STALEDOCS_TRUST_POLICY;
   return value === "warn" || value === "strict" || value === "redact"
     ? value
     : "redact";

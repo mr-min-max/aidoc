@@ -29,7 +29,7 @@ describe("Markdown Output", () => {
   });
 
   it("reads existing markdown for a read-only preview", () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-test-"));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-test-"));
     const outPath = path.join(tmpDir, "test.md");
     fs.writeFileSync(outPath, "# Test\n\nContent");
     try {

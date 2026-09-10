@@ -1,4 +1,4 @@
-# AiDoc walkthrough recording checklist
+# StaleDocs walkthrough recording checklist
 
 Use this checklist for the optional 60 to 90 second full walkthrough. The
 checked-in GIF is the deterministic README animation. It is not a substitute

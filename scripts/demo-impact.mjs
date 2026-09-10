@@ -8,14 +8,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFile = promisify(execFileCallback);
-const RAW_SENTINEL = "AIDOC_DEMO_RAW_SOURCE_MUST_NOT_LEAK";
+const RAW_SENTINEL = "STALEDOCS_DEMO_RAW_SOURCE_MUST_NOT_LEAK";
 const MAX_BUFFER = 4 * 1024 * 1024;
 
 function credentialFreeEnv(extra = {}) {
   const env = { ...process.env, ...extra };
   delete env.OPENAI_API_KEY;
   delete env.ANTHROPIC_API_KEY;
-  delete env.AIDOC_OLLAMA_HOST;
+  delete env.STALEDOCS_OLLAMA_HOST;
   return env;
 }
 
@@ -53,7 +53,7 @@ function validateDemo(human, result) {
     /^Documentation impact: 1 public API change \(1 informational\)/u,
   );
   assert.match(human, /Context: \d+ \/ 12000 bytes/u);
-  assert.match(human, /Next: aidoc update/u);
+  assert.match(human, /Next: staledocs update/u);
   assert.equal(
     result.plan.changes.filter(
       (change) => change.category === "contract-changed",
@@ -77,7 +77,7 @@ function validateDemo(human, result) {
 
 export async function runImpactDemo({ cliPath, quiet = false }) {
   const resolvedCli = resolve(cliPath);
-  const root = await mkdtemp(join(tmpdir(), "aidoc-impact-demo-"));
+  const root = await mkdtemp(join(tmpdir(), "staledocs-impact-demo-"));
   const repository = join(root, "repository");
   const template = join(root, "git-template");
   const hooks = join(template, "hooks");
@@ -90,11 +90,11 @@ export async function runImpactDemo({ cliPath, quiet = false }) {
       ["init", "--quiet", "--initial-branch=main", `--template=${template}`],
       { cwd: repository, env: credentialFreeEnv() },
     );
-    await run("git", ["config", "user.name", "aidoc demo"], {
+    await run("git", ["config", "user.name", "staledocs demo"], {
       cwd: repository,
       env: credentialFreeEnv(),
     });
-    await run("git", ["config", "user.email", "aidoc@example.invalid"], {
+    await run("git", ["config", "user.email", "staledocs@example.invalid"], {
       cwd: repository,
       env: credentialFreeEnv(),
     });

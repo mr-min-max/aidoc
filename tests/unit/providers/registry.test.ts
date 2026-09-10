@@ -56,9 +56,9 @@ describe("provider registry", () => {
 
   it("constructs Qwen and generic compatible providers from accepted endpoints", () => {
     const originalQwen = process.env.DASHSCOPE_API_KEY;
-    const originalCompat = process.env.AIDOC_COMPAT_API_KEY;
+    const originalCompat = process.env.STALEDOCS_COMPAT_API_KEY;
     process.env.DASHSCOPE_API_KEY = "fake-qwen-key";
-    process.env.AIDOC_COMPAT_API_KEY = "fake-compatible-key";
+    process.env.STALEDOCS_COMPAT_API_KEY = "fake-compatible-key";
     const qwenEndpoint = {
       url: new URL("https://dashscope.aliyuncs.com/compatible-mode/v1"),
       origin: "https://dashscope.aliyuncs.com",
@@ -94,8 +94,8 @@ describe("provider registry", () => {
     } finally {
       if (originalQwen === undefined) delete process.env.DASHSCOPE_API_KEY;
       else process.env.DASHSCOPE_API_KEY = originalQwen;
-      if (originalCompat === undefined) delete process.env.AIDOC_COMPAT_API_KEY;
-      else process.env.AIDOC_COMPAT_API_KEY = originalCompat;
+      if (originalCompat === undefined) delete process.env.STALEDOCS_COMPAT_API_KEY;
+      else process.env.STALEDOCS_COMPAT_API_KEY = originalCompat;
     }
   });
 
@@ -122,7 +122,7 @@ describe("provider registry", () => {
       "ANTHROPIC_API_KEY",
       "DEEPSEEK_API_KEY",
       "DASHSCOPE_API_KEY",
-      "AIDOC_COMPAT_API_KEY",
+      "STALEDOCS_COMPAT_API_KEY",
     ] as const;
     const previous = new Map(
       credentialNames.map((name) => [name, process.env[name]] as const),
@@ -145,7 +145,7 @@ describe("provider registry", () => {
       ANTHROPIC_API_KEY: "snapshot-anthropic",
       DEEPSEEK_API_KEY: "snapshot-deepseek",
       DASHSCOPE_API_KEY: "snapshot-qwen",
-      AIDOC_COMPAT_API_KEY: "snapshot-compatible",
+      STALEDOCS_COMPAT_API_KEY: "snapshot-compatible",
     });
     try {
       expect(
@@ -196,7 +196,7 @@ describe("provider registry", () => {
       "ANTHROPIC_API_KEY",
       "DEEPSEEK_API_KEY",
       "DASHSCOPE_API_KEY",
-      "AIDOC_COMPAT_API_KEY",
+      "STALEDOCS_COMPAT_API_KEY",
     ] as const;
     const previous = new Map(
       credentialNames.map((name) => [name, process.env[name]] as const),
@@ -251,7 +251,7 @@ describe("provider registry", () => {
           model: "snapshot-model",
           endpoint: compatibleEndpoint,
         }),
-      ).toThrow(/AIDOC_COMPAT_API_KEY/);
+      ).toThrow(/STALEDOCS_COMPAT_API_KEY/);
     } finally {
       for (const [name, value] of previous) {
         if (value === undefined) delete process.env[name];

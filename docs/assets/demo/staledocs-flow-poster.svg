@@ -6,8 +6,8 @@
   aria-labelledby="title desc"
   data-visual-system="dimensional-code-to-docs-v1"
 >
-  <title id="title">AiDoc code-to-docs review flow</title>
-  <desc id="desc">A graphite repository layer shows createUser gaining a role, two documentation targets, and a warm-white AiDoc document. The deterministic demo makes no provider calls or repository writes, and the maintainer decides what is applied.</desc>
+  <title id="title">StaleDocs code-to-docs review flow</title>
+  <desc id="desc">A graphite repository layer shows createUser gaining a role, two documentation targets, and a warm-white StaleDocs document. The deterministic demo makes no provider calls or repository writes, and the maintainer decides what is applied.</desc>
   <metadata>
     <aidoc:contract>
       <aidoc:fact>createUser(email)</aidoc:fact>
@@ -22,7 +22,7 @@
   </metadata>
   <rect width="1280" height="720" fill="#0E141B" />
   <image
-    href="aidoc-flow-poster-source.png"
+    href="staledocs-flow-poster-source.png"
     x="0"
     y="0"
     width="1280"

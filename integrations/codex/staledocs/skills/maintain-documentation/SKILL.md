@@ -1,20 +1,20 @@
 ---
 name: maintain-documentation
-description: Use when a user asks to plan, update, or validate repository documentation after code changes through AiDoc's local MCP workflow.
+description: Use when a user asks to plan, update, or validate repository documentation after code changes through StaleDocs's local MCP workflow.
 ---
 
 # Maintain documentation safely
 
 Use this workflow when the user asks to plan, update, or validate repository
-documentation after code changes. The local AiDoc MCP server provides a
+documentation after code changes. The local StaleDocs MCP server provides a
 provider-free preparation and validation boundary. The host supplies the
-model-generated Markdown; AiDoc does not receive a ChatGPT or Claude OAuth
-token and this path is not a subscription bridge to an AiDoc provider.
+model-generated Markdown; StaleDocs does not receive a ChatGPT or Claude OAuth
+token and this path is not a subscription bridge to an StaleDocs provider.
 
 ## Fail-closed workflow
 
 If MCP returns `MCP_INVALID_PATH_INPUT`, `MCP_DIRECTORY_DENIED`, or
-`MCP_UNSAFE_CONFIGURATION`, stop. Explain that the host must start AiDoc in the
+`MCP_UNSAFE_CONFIGURATION`, stop. Explain that the host must start StaleDocs in the
 intended Git worktree, correct the safe repository-relative path, or correct
 the safe declarative configuration. Never retry another directory, guess a
 path, or call a provider-backed generation tool to work around the failure.
@@ -51,7 +51,7 @@ path, or call a provider-backed generation tool to work around the failure.
 
 ## Host boundary
 
-AiDoc Trust Gate inspects AiDoc's prepared input and validated output for
+StaleDocs Trust Gate inspects StaleDocs's prepared input and validated output for
 secret findings. With configured `strict`, findings block the operation; with
 configured `warn` or `redact`, detected sensitive values are redacted before
 host generation or return. An `allowed` result means no findings were
@@ -64,5 +64,5 @@ or OAuth token. It does not invoke legacy provider-backed MCP generation as a
 subscription bridge. Do not call `generate_readme`, `generate_api_docs`, or
 `generate_diagram` in this workflow: those are separate provider-backed tools
 that require direct-provider credentials and API billing. If the user
-explicitly chooses direct AiDoc provider mode, use its separately documented
+explicitly chooses direct StaleDocs provider mode, use its separately documented
 credential and billing rules instead of this host-managed workflow.

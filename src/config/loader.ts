@@ -19,20 +19,20 @@ function ownString(
   }
 }
 
-/** Projects the allowlisted AIDOC_* environment settings into config fields. */
+/** Projects the allowlisted STALEDOCS_* environment settings into config fields. */
 export function environmentConfig(
   env: Readonly<NodeJS.ProcessEnv>,
 ): Record<string, unknown> {
   const allowLocalHttp = parseBooleanEnvironment(
-    ownString(env, "AIDOC_ALLOW_LOCAL_HTTP"),
+    ownString(env, "STALEDOCS_ALLOW_LOCAL_HTTP"),
   );
-  const provider = ownString(env, "AIDOC_PROVIDER");
-  const model = ownString(env, "AIDOC_MODEL");
-  const providerBaseUrl = ownString(env, "AIDOC_PROVIDER_BASE_URL");
-  const qwenRegion = ownString(env, "AIDOC_QWEN_REGION");
-  const qwenWorkspaceId = ownString(env, "AIDOC_QWEN_WORKSPACE_ID");
-  const ollamaHost = ownString(env, "AIDOC_OLLAMA_HOST");
-  const trustPolicy = ownString(env, "AIDOC_TRUST_POLICY");
+  const provider = ownString(env, "STALEDOCS_PROVIDER");
+  const model = ownString(env, "STALEDOCS_MODEL");
+  const providerBaseUrl = ownString(env, "STALEDOCS_PROVIDER_BASE_URL");
+  const qwenRegion = ownString(env, "STALEDOCS_QWEN_REGION");
+  const qwenWorkspaceId = ownString(env, "STALEDOCS_QWEN_WORKSPACE_ID");
+  const ollamaHost = ownString(env, "STALEDOCS_OLLAMA_HOST");
+  const trustPolicy = ownString(env, "STALEDOCS_TRUST_POLICY");
   return {
     ...(provider ? { provider } : {}),
     ...(model ? { model } : {}),
@@ -58,7 +58,7 @@ export function loadConfig(
   searchFrom?: string,
   env: NodeJS.ProcessEnv = process.env,
 ): AidocConfig {
-  const explorer = cosmiconfigSync("aidoc");
+  const explorer = cosmiconfigSync("staledocs");
   const result = searchFrom ? explorer.search(searchFrom) : explorer.search();
   let fileConfig: AidocConfig = defaultConfig;
 
@@ -69,7 +69,7 @@ export function loadConfig(
         : undefined;
     if (apiKeyDescriptor !== undefined) {
       console.warn(
-        'Deprecated Aidoc config field "apiKey" detected; use the provider-specific environment variable instead.',
+        'Deprecated StaleDocs config field "apiKey" detected; use the provider-specific environment variable instead.',
       );
     }
     try {
@@ -78,7 +78,7 @@ export function loadConfig(
         ...result.config,
       });
     } catch {
-      console.warn("⚠️  Invalid aidoc configuration. Using defaults.");
+      console.warn("⚠️  Invalid staledocs configuration. Using defaults.");
     }
   }
 
@@ -94,7 +94,7 @@ export function loadProviderConfig(searchFrom?: string): AidocConfig {
 function safeFileRecord(value: unknown): Record<string, unknown> {
   if (value === undefined) return {};
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error("invalid aidoc configuration");
+    throw new Error("invalid staledocs configuration");
   }
 
   const result: Record<string, unknown> = Object.create(null) as Record<
@@ -105,17 +105,17 @@ function safeFileRecord(value: unknown): Record<string, unknown> {
   try {
     keys = Object.keys(value);
   } catch {
-    throw new Error("invalid aidoc configuration");
+    throw new Error("invalid staledocs configuration");
   }
   for (const key of keys) {
     let descriptor: PropertyDescriptor | undefined;
     try {
       descriptor = Object.getOwnPropertyDescriptor(value, key);
     } catch {
-      throw new Error("invalid aidoc configuration");
+      throw new Error("invalid staledocs configuration");
     }
     if (descriptor === undefined || !("value" in descriptor)) {
-      throw new Error("invalid aidoc configuration");
+      throw new Error("invalid staledocs configuration");
     }
     result[key] = descriptor.value;
   }

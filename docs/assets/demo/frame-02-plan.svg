@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:aidoc="urn:aidoc:assets" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc" data-safe-margin="64" data-protected-margin="80" data-step="2" data-visual-system="dimensional-code-to-docs-v1">
-  <title id="title">AiDoc demo step 2: Two docs affected</title>
-  <desc id="desc">AiDoc prepares bounded context and identifies two affected documentation targets.</desc>
+  <title id="title">StaleDocs demo step 2: Two docs affected</title>
+  <desc id="desc">StaleDocs prepares bounded context and identifies two affected documentation targets.</desc>
   <metadata>
-    <aidoc:copy><aidoc:line>AiDoc</aidoc:line><aidoc:line>Two docs affected</aidoc:line><aidoc:line>prepare_documentation_update</aidoc:line><aidoc:line>2 / 5</aidoc:line><aidoc:line>No provider calls</aidoc:line><aidoc:line>No repository writes</aidoc:line><aidoc:line>You decide what is applied</aidoc:line></aidoc:copy>
+    <aidoc:copy><aidoc:line>StaleDocs</aidoc:line><aidoc:line>Two docs affected</aidoc:line><aidoc:line>prepare_documentation_update</aidoc:line><aidoc:line>2 / 5</aidoc:line><aidoc:line>No provider calls</aidoc:line><aidoc:line>No repository writes</aidoc:line><aidoc:line>You decide what is applied</aidoc:line></aidoc:copy>
     <aidoc:evidence><aidoc:fact>prepare_documentation_update</aidoc:fact><aidoc:fact>README.md</aidoc:fact><aidoc:fact>docs/API.md</aidoc:fact><aidoc:fact>No provider calls</aidoc:fact></aidoc:evidence>
   </metadata>
   <rect width="1280" height="720" fill="#F4F1EA"/>

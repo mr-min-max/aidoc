@@ -1,68 +1,68 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-provider="${AIDOC_INPUT_PROVIDER:-openai}"
-model="${AIDOC_INPUT_MODEL:-}"
-commands="${AIDOC_INPUT_COMMANDS:-readme}"
-mode="${AIDOC_INPUT_MODE:-review}"
-output_dir="${AIDOC_INPUT_OUTPUT_DIR:-./docs}"
-dry_run="${AIDOC_INPUT_DRY_RUN:-false}"
-since="${AIDOC_INPUT_SINCE:-HEAD~1}"
-api_key="${AIDOC_INPUT_API_KEY:-}"
-changed_files_file="${AIDOC_CHANGED_FILES_FILE:-}"
-trust_policy="${AIDOC_INPUT_TRUST_POLICY:-strict}"
-fail_on="${AIDOC_INPUT_FAIL_ON:-none}"
-comment="${AIDOC_INPUT_COMMENT:-true}"
-labels="${AIDOC_INPUT_LABELS:-true}"
-github_token="${AIDOC_INPUT_GITHUB_TOKEN:-}"
+provider="${STALEDOCS_INPUT_PROVIDER:-openai}"
+model="${STALEDOCS_INPUT_MODEL:-}"
+commands="${STALEDOCS_INPUT_COMMANDS:-readme}"
+mode="${STALEDOCS_INPUT_MODE:-review}"
+output_dir="${STALEDOCS_INPUT_OUTPUT_DIR:-./docs}"
+dry_run="${STALEDOCS_INPUT_DRY_RUN:-false}"
+since="${STALEDOCS_INPUT_SINCE:-HEAD~1}"
+api_key="${STALEDOCS_INPUT_API_KEY:-}"
+changed_files_file="${STALEDOCS_CHANGED_FILES_FILE:-}"
+trust_policy="${STALEDOCS_INPUT_TRUST_POLICY:-strict}"
+fail_on="${STALEDOCS_INPUT_FAIL_ON:-none}"
+comment="${STALEDOCS_INPUT_COMMENT:-true}"
+labels="${STALEDOCS_INPUT_LABELS:-true}"
+github_token="${STALEDOCS_INPUT_GITHUB_TOKEN:-}"
 
 case "$mode" in
   review|generate|check) ;;
-  *) echo "Unsupported aidoc Action mode input" >&2; exit 2 ;;
+  *) echo "Unsupported staledocs Action mode input" >&2; exit 2 ;;
 esac
 
 if [ "$mode" = "review" ]; then
   case "$fail_on" in
     none|stale|breaking) ;;
-    *) echo "Unsupported aidoc fail-on input" >&2; exit 2 ;;
+    *) echo "Unsupported staledocs fail-on input" >&2; exit 2 ;;
   esac
   case "$comment" in
     true|false) ;;
-    *) echo "Unsupported aidoc comment input" >&2; exit 2 ;;
+    *) echo "Unsupported staledocs comment input" >&2; exit 2 ;;
   esac
   case "$labels" in
     true|false) ;;
-    *) echo "Unsupported aidoc labels input" >&2; exit 2 ;;
+    *) echo "Unsupported staledocs labels input" >&2; exit 2 ;;
   esac
 
-  export AIDOC_ORIGIN="action"
+  export STALEDOCS_ORIGIN="action"
   runner_temp="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
   mkdir -p "$runner_temp"
-  report="$runner_temp/aidoc-review.json"
-  markdown="$runner_temp/aidoc-review.md"
-  text_report="$runner_temp/aidoc-review.txt"
-  base="${AIDOC_PR_BASE_SHA:-}"
-  head="${AIDOC_PR_HEAD_SHA:-}"
+  report="$runner_temp/staledocs-review.json"
+  markdown="$runner_temp/staledocs-review.md"
+  text_report="$runner_temp/staledocs-review.txt"
+  base="${STALEDOCS_PR_BASE_SHA:-}"
+  head="${STALEDOCS_PR_HEAD_SHA:-}"
   in_pr="true"
   if [ -z "$base" ]; then
     in_pr="false"
     base="$since"
   fi
   if ! git cat-file -e "$base^{commit}" 2>/dev/null; then
-    echo "AiDoc could not find the pull request base commit $base; use actions/checkout with fetch-depth: 0." >&2
+    echo "StaleDocs could not find the pull request base commit $base; use actions/checkout with fetch-depth: 0." >&2
     exit 2
   fi
 
   review_args=(review --format json --fail-on "$fail_on" --base "$base")
   if [ -n "$head" ]; then review_args+=(--head "$head"); fi
   review_status=0
-  aidoc "${review_args[@]}" > "$report" || review_status=$?
+  staledocs "${review_args[@]}" > "$report" || review_status=$?
 
   presentation_failure=0
   if [ "$in_pr" = "false" ]; then
     text_status=0
     text_args=(review --format text --fail-on "$fail_on" --base "$base")
-    aidoc "${text_args[@]}" > "$text_report" || text_status=$?
+    staledocs "${text_args[@]}" > "$text_report" || text_status=$?
     if [ "$text_status" -ne 0 ] && [ "$text_status" -ne 1 ]; then
       presentation_failure="$text_status"
     fi
@@ -70,7 +70,7 @@ if [ "$mode" = "review" ]; then
     markdown_status=0
     markdown_args=(review --format markdown --fail-on "$fail_on" --base "$base")
     if [ -n "$head" ]; then markdown_args+=(--head "$head"); fi
-    aidoc "${markdown_args[@]}" > "$markdown" || markdown_status=$?
+    staledocs "${markdown_args[@]}" > "$markdown" || markdown_status=$?
     if [ "$markdown_status" -ne 0 ] && [ "$markdown_status" -ne 1 ]; then
       presentation_failure="$markdown_status"
     fi
@@ -94,15 +94,15 @@ if [ "$mode" = "review" ]; then
     echo "breaking=$breaking"
     echo "report=$report"
     echo "changed=false"
-    echo "files<<AIDOC_FILES_EOF"
-    echo "AIDOC_FILES_EOF"
-    echo "summary<<AIDOC_SUMMARY_EOF"
+    echo "files<<STALEDOCS_FILES_EOF"
+    echo "STALEDOCS_FILES_EOF"
+    echo "summary<<STALEDOCS_SUMMARY_EOF"
     if [ "$in_pr" = "true" ] && [ -s "$markdown" ]; then
       cat "$markdown"
     elif [ -s "$text_report" ]; then
       cat "$text_report"
     fi
-    echo "AIDOC_SUMMARY_EOF"
+    echo "STALEDOCS_SUMMARY_EOF"
   } >> "$GITHUB_OUTPUT"
 
   permission_notice_sent="false"
@@ -112,7 +112,7 @@ if [ "$mode" = "review" ]; then
   }
   posting_notice() {
     if [ "$permission_notice_sent" = "false" ]; then
-      echo "::notice::AiDoc could not post a comment (read-only token); see the job summary"
+      echo "::notice::StaleDocs could not post a comment (read-only token); see the job summary"
       if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f "$markdown" ]; then
         cat "$markdown" >> "$GITHUB_STEP_SUMMARY"
       fi
@@ -126,11 +126,11 @@ if [ "$mode" = "review" ]; then
     exit "$review_status"
   fi
 
-  repo="${AIDOC_REPOSITORY:-${GITHUB_REPOSITORY:-}}"
-  pr_number="${AIDOC_PR_NUMBER:-}"
+  repo="${STALEDOCS_REPOSITORY:-${GITHUB_REPOSITORY:-}}"
+  pr_number="${STALEDOCS_PR_NUMBER:-}"
   if [ -n "$repo" ] && [ -n "$pr_number" ]; then
-    comments="$runner_temp/aidoc-review-comments.json"
-    comments_stderr="$runner_temp/aidoc-review-comments.err"
+    comments="$runner_temp/staledocs-review-comments.json"
+    comments_stderr="$runner_temp/staledocs-review-comments.err"
     comments_status=0
     comment_id=""
     if [ "$comment" = "true" ]; then
@@ -144,7 +144,7 @@ if [ "$mode" = "review" ]; then
         if [ -n "$token_user_from_api" ]; then
           token_user="$token_user_from_api"
         fi
-        comment_id="$(jq -s -r --arg marker '<!-- aidoc-review -->' --arg user "$token_user" 'add | map(select(((.body // "") | startswith($marker)) and ((.user.login // "") == $user))) | .[0].id // empty' "$comments")"
+        comment_id="$(jq -s -r --arg marker '<!-- staledocs-review -->' --arg user "$token_user" 'add | map(select(((.body // "") | startswith($marker)) and ((.user.login // "") == $user))) | .[0].id // empty' "$comments")"
       elif [ "$comments_status" -ne 0 ]; then
         comments_error="$(cat "$comments_stderr")"
         case "$comments_error" in
@@ -167,7 +167,7 @@ if [ "$mode" = "review" ]; then
             fi
           fi
         else
-          comment_payload="$runner_temp/aidoc-review-comment.json"
+          comment_payload="$runner_temp/staledocs-review-comment.json"
           jq -n --rawfile body "$markdown" '{body: $body}' > "$comment_payload"
           comment_status=0
           if [ -n "$comment_id" ]; then
@@ -198,7 +198,7 @@ if [ "$mode" = "review" ]; then
       if [ "$label_create_status" -ne 0 ]; then
         case "$label_create_output" in *403*|*Forbidden*) posting_notice ;; *) mark_operation_failure "$label_create_status" ;; esac
       fi
-      label_payload="$runner_temp/aidoc-review-label.json"
+      label_payload="$runner_temp/staledocs-review-label.json"
       if [ "${stale_documents:-0}" -gt 0 ] 2>/dev/null; then
         jq -n '{labels:["docs-stale"]}' > "$label_payload"
         label_status=0
@@ -245,12 +245,12 @@ fi
 
 case "$trust_policy" in
   warn|redact|strict) ;;
-  *) echo "Unsupported aidoc trust-policy input" >&2; exit 2 ;;
+  *) echo "Unsupported staledocs trust-policy input" >&2; exit 2 ;;
 esac
 
 case "$dry_run" in
   true|false) ;;
-  *) echo "Unsupported aidoc dry-run input" >&2; exit 2 ;;
+  *) echo "Unsupported staledocs dry-run input" >&2; exit 2 ;;
 esac
 
 case "$provider" in
@@ -263,7 +263,7 @@ case "$provider" in
   ollama)
     ;;
   *)
-    echo "Unsupported aidoc provider input" >&2
+    echo "Unsupported staledocs provider input" >&2
     exit 2
     ;;
 esac
@@ -273,10 +273,10 @@ if [ "$mode" = "generate" ] && [ "$provider" != "ollama" ] && [ -z "$api_key" ];
   exit 2
 fi
 
-export AIDOC_PROVIDER="$provider"
-export AIDOC_MODEL="$model"
-export AIDOC_TRUST_POLICY="$trust_policy"
-export AIDOC_ORIGIN="action"
+export STALEDOCS_PROVIDER="$provider"
+export STALEDOCS_MODEL="$model"
+export STALEDOCS_TRUST_POLICY="$trust_policy"
+export STALEDOCS_ORIGIN="action"
 
 changed="false"
 changed_files=()
@@ -294,12 +294,12 @@ for raw_command in "${command_list[@]}"; do
     api) output_file="$output_dir/API.md" ;;
     changelog) output_file="./CHANGELOG.md" ;;
     diagram) output_file="$output_dir/architecture.md" ;;
-    *) echo "Unsupported aidoc command input" >&2; exit 2 ;;
+    *) echo "Unsupported staledocs command input" >&2; exit 2 ;;
   esac
 
   if [ "$mode" = "check" ]; then
     check_status=0
-    check_report="$(aidoc check --target "$output_file" --since "$since" --json)" || check_status=$?
+    check_report="$(staledocs check --target "$output_file" --since "$since" --json)" || check_status=$?
     check_message="$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).message)' "$check_report")"
     summary_lines+=("$check_message")
     if [ "$check_status" -ne 0 ]; then
@@ -324,7 +324,7 @@ for raw_command in "${command_list[@]}"; do
   if [ "$dry_run" = "true" ]; then
     args+=("--dry-run")
   fi
-  aidoc "${args[@]}"
+  staledocs "${args[@]}"
 
   if [ "$dry_run" != "true" ]; then
     after=""
@@ -344,14 +344,14 @@ done
 
 {
   echo "changed=$changed"
-  echo "files<<AIDOC_FILES_EOF"
+  echo "files<<STALEDOCS_FILES_EOF"
   if [ "${#changed_files[@]}" -gt 0 ]; then
     printf '%s\n' "${changed_files[@]}"
   fi
-  echo "AIDOC_FILES_EOF"
-  echo "summary<<AIDOC_SUMMARY_EOF"
+  echo "STALEDOCS_FILES_EOF"
+  echo "summary<<STALEDOCS_SUMMARY_EOF"
   printf '%s\n' "${summary_lines[@]}"
-  echo "AIDOC_SUMMARY_EOF"
+  echo "STALEDOCS_SUMMARY_EOF"
 } >> "$GITHUB_OUTPUT"
 
 if [ "$check_exit_status" -ne 0 ]; then

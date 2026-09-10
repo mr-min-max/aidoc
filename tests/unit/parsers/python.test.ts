@@ -15,7 +15,7 @@ describe("PythonParser", () => {
 
   it("parses captured Python source without reopening its backing path", async () => {
     const root = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-python-captured-"),
+      path.join(os.tmpdir(), "staledocs-python-captured-"),
     );
     const backingPath = path.join(root, "captured.py");
     const source = `
@@ -148,8 +148,8 @@ class Service:
   });
 
   it("includes the local Python version and override hint on parse failure", async () => {
-    const original = process.env.AIDOC_PYTHON;
-    delete process.env.AIDOC_PYTHON;
+    const original = process.env.STALEDOCS_PYTHON;
+    delete process.env.STALEDOCS_PYTHON;
     const calls: Array<{ command: string; args: string[] }> = [];
     const runner = async (command: string, args: string[]) => {
       calls.push({ command, args });
@@ -163,21 +163,21 @@ class Service:
       await expect(
         new PythonParser(runner).parseSource("src/broken.py", "def broken(:\n"),
       ).rejects.toThrow(
-        "Failed to parse Python source (local python3 is 3.9; the project may need a newer interpreter; set AIDOC_PYTHON to choose one).",
+        "Failed to parse Python source (local python3 is 3.9; the project may need a newer interpreter; set STALEDOCS_PYTHON to choose one).",
       );
       expect(calls.map(({ command }) => command)).toEqual([
         "python3",
         "python3",
       ]);
     } finally {
-      if (original === undefined) delete process.env.AIDOC_PYTHON;
-      else process.env.AIDOC_PYTHON = original;
+      if (original === undefined) delete process.env.STALEDOCS_PYTHON;
+      else process.env.STALEDOCS_PYTHON = original;
     }
   });
 
-  it("uses AIDOC_PYTHON as the Python executable override", async () => {
-    const original = process.env.AIDOC_PYTHON;
-    process.env.AIDOC_PYTHON = "/opt/py/bin/python3.12";
+  it("uses STALEDOCS_PYTHON as the Python executable override", async () => {
+    const original = process.env.STALEDOCS_PYTHON;
+    process.env.STALEDOCS_PYTHON = "/opt/py/bin/python3.12";
     const commands: string[] = [];
     const runner = async (command: string) => {
       commands.push(command);
@@ -193,13 +193,13 @@ class Service:
       ).resolves.toMatchObject({ language: "python" });
       expect(commands).toEqual(["/opt/py/bin/python3.12"]);
     } finally {
-      if (original === undefined) delete process.env.AIDOC_PYTHON;
-      else process.env.AIDOC_PYTHON = original;
+      if (original === undefined) delete process.env.STALEDOCS_PYTHON;
+      else process.env.STALEDOCS_PYTHON = original;
     }
   });
 
   it("accepts a genuinely parsed empty Python source file", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-python-empty-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-python-empty-"));
     const emptyFile = path.join(root, "empty.py");
     fs.writeFileSync(emptyFile, "");
 
@@ -217,7 +217,7 @@ class Service:
   });
 
   it("does not expose malformed Python source through parser diagnostics", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-python-error-"));
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-python-error-"));
     const fakeSourceSecret = ["sk", "proj", "Y".repeat(32)].join("-");
     const brokenFile = path.join(root, "broken.py");
     fs.writeFileSync(brokenFile, `def broken(${fakeSourceSecret}:\n`);
@@ -233,7 +233,7 @@ class Service:
       expect(thrown).toBeInstanceOf(Error);
       expect((thrown as Error).message).not.toContain(fakeSourceSecret);
       expect((thrown as Error).message).toMatch(
-        /^Failed to parse Python source \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\)\.$/u,
+        /^Failed to parse Python source \(local python3 is \d+\.\d+; the project may need a newer interpreter; set STALEDOCS_PYTHON to choose one\)\.$/u,
       );
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
@@ -255,7 +255,7 @@ class Service:
 
     expect(thrown).toBeInstanceOf(Error);
     expect((thrown as Error).message).toMatch(
-      /^Failed to parse Python source \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\)\.$/u,
+      /^Failed to parse Python source \(local python3 is \d+\.\d+; the project may need a newer interpreter; set STALEDOCS_PYTHON to choose one\)\.$/u,
     );
     expect((thrown as Error).message).not.toContain(sourceSentinel);
   });
@@ -1581,7 +1581,7 @@ def request() -> int:
 
     expect(thrown).toBeInstanceOf(Error);
     expect((thrown as Error).message).toMatch(
-      /^Failed to parse Python source \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\)\.$/u,
+      /^Failed to parse Python source \(local python3 is \d+\.\d+; the project may need a newer interpreter; set STALEDOCS_PYTHON to choose one\)\.$/u,
     );
     expect((thrown as Error).message).not.toContain(sourceSentinel);
     expect((thrown as Error).cause).toEqual(new Error("Python parser failed."));
@@ -1646,7 +1646,7 @@ def request() -> int:
 
     expect(thrown).toBeInstanceOf(Error);
     expect((thrown as Error).message).toMatch(
-      /^Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\))?\.$/u,
+      /^Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set STALEDOCS_PYTHON to choose one\))?\.$/u,
     );
     expect(String(thrown)).not.toContain(sourceSentinel);
     expect(String((thrown as Error).cause)).not.toContain(sourceSentinel);
@@ -1861,7 +1861,7 @@ def request() -> int:
       }
 
       expect((thrown as Error).message).toMatch(
-        /^Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\))?\.$/u,
+        /^Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set STALEDOCS_PYTHON to choose one\))?\.$/u,
       );
       expect(String(thrown)).not.toContain(sentinel);
       expect(String((thrown as Error).cause)).not.toContain(sentinel);
@@ -1890,7 +1890,7 @@ def request() -> int:
 
     expect(thrown).toBeInstanceOf(Error);
     expect((thrown as Error).message).toMatch(
-      /^Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set AIDOC_PYTHON to choose one\))?\.$/u,
+      /^Failed to parse Python source(?: \(local python3 is \d+\.\d+; the project may need a newer interpreter; set STALEDOCS_PYTHON to choose one\))?\.$/u,
     );
     expect(String(thrown)).not.toContain(sourceSentinel);
     expect(String(thrown)).not.toContain(stderrSentinel);

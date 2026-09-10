@@ -114,8 +114,8 @@ describe("review output", () => {
     });
 
     expect(renderReviewMarkdown(full)).toBe(
-      '<!-- aidoc-review -->\n' +
-        '### AiDoc: documentation impact\n\n' +
+      '<!-- staledocs-review -->\n' +
+        '### StaleDocs: documentation impact\n\n' +
         '**3 public API changes**, 1 potentially breaking. **2 documentation sections** mention changed symbols and were not updated in this PR.\n\n' +
         '| Symbol | Change | Before | After |\n' +
         '| --- | --- | --- | --- |\n' +
@@ -128,7 +128,7 @@ describe("review output", () => {
         '**Updated in this PR**\n' +
         '- `CHANGELOG.md`\n\n' +
         '**Not mentioned in any documentation:** `helperExport`\n\n' +
-        '<sub>Deterministic AST analysis; no model was used. Suppress a symbol with `.aidocignore`. <a href="https://github.com/mr-min-max/aidoc">AiDoc</a></sub>',
+        '<sub>Deterministic AST analysis; no model was used. Suppress a symbol with `.staledocsignore`. <a href="https://github.com/mr-min-max/staledocs">StaleDocs</a></sub>',
     );
   });
 
@@ -139,7 +139,7 @@ describe("review output", () => {
       documents: [],
       verdict: "clean",
     }))).toBe(
-      "<!-- aidoc-review -->\n### AiDoc: documentation impact\nNo public API changes in this pull request.",
+      "<!-- staledocs-review -->\n### StaleDocs: documentation impact\nNo public API changes in this pull request.",
     );
   });
 

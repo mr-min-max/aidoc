@@ -96,7 +96,7 @@ const pythonVersionCache = new WeakMap<
 >();
 
 function resolvePythonExecutable(): string {
-  const configured = process.env.AIDOC_PYTHON;
+  const configured = process.env.STALEDOCS_PYTHON;
   if (configured === undefined || configured.length === 0) {
     return DEFAULT_PYTHON_EXECUTABLE;
   }
@@ -106,7 +106,7 @@ function resolvePythonExecutable(): string {
     !configured.includes("/") && !configured.includes("\\");
   if (hasUnsafeCharacter || (!isBareExecutable && !isAbsolute(configured))) {
     throw createSafeParserError(
-      "Invalid AIDOC_PYTHON value.",
+      "Invalid STALEDOCS_PYTHON value.",
       "Invalid Python executable override.",
     );
   }
@@ -179,7 +179,7 @@ async function createParseFailure(
 ): Promise<Error> {
   const version = await readPythonVersion(executePython, executable);
   const message = version
-    ? `Failed to parse Python source (local ${executable === DEFAULT_PYTHON_EXECUTABLE ? DEFAULT_PYTHON_EXECUTABLE : "configured Python"} is ${version.major}.${version.minor}; the project may need a newer interpreter; set AIDOC_PYTHON to choose one).`
+    ? `Failed to parse Python source (local ${executable === DEFAULT_PYTHON_EXECUTABLE ? DEFAULT_PYTHON_EXECUTABLE : "configured Python"} is ${version.major}.${version.minor}; the project may need a newer interpreter; set STALEDOCS_PYTHON to choose one).`
     : "Failed to parse Python source.";
   return createSafeParserError(message, "Python parser failed.");
 }

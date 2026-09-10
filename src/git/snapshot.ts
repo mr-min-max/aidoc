@@ -146,7 +146,7 @@ export class GitSnapshotReader {
   }): Promise<GitSnapshotSet> {
     const headLabel = options.head ?? "HEAD";
     this.validateRef(headLabel);
-    let baseLabel = options.base ?? this.env.AIDOC_BASE_REF;
+    let baseLabel = options.base ?? this.env.STALEDOCS_BASE_REF;
     if (baseLabel !== undefined && baseLabel.length > 0) {
       this.validateRef(baseLabel);
     }

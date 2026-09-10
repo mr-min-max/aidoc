@@ -51,8 +51,8 @@ function commit(root: string, message: string): void {
 }
 
 function fixture(): { root: string; selected: string; outside: string } {
-  const root = mkdtempSync(join(tmpdir(), "aidoc-mcp-config-"));
-  const outside = mkdtempSync(join(tmpdir(), "aidoc-mcp-config-outside-"));
+  const root = mkdtempSync(join(tmpdir(), "staledocs-mcp-config-"));
+  const outside = mkdtempSync(join(tmpdir(), "staledocs-mcp-config-outside-"));
   const selected = join(root, "packages", "api");
   mkdirSync(join(selected, "src"), { recursive: true });
   writeFileSync(
@@ -102,11 +102,11 @@ describe("MCP scoped configuration", () => {
     const value = await openFixture();
     roots.push(value.root, value.outside);
     writeFileSync(
-      join(value.root, ".aidocrc.json"),
+      join(value.root, ".staledocsrc.json"),
       JSON.stringify({ model: "root-model", include: ["**/*.ts"] }),
     );
     writeFileSync(
-      join(value.selected, ".aidocrc.yaml"),
+      join(value.selected, ".staledocsrc.yaml"),
       "model: selected-model\ninclude:\n  - '**/*.tsx'\n",
     );
 
@@ -120,25 +120,25 @@ describe("MCP scoped configuration", () => {
     const candidates = [
       [
         "package.json",
-        JSON.stringify({ aidoc: { model: "package" } }),
+        JSON.stringify({ staledocs: { model: "package" } }),
         "package",
       ],
-      [".aidocrc", "model: no-extension\n", "no-extension"],
-      [".aidocrc.json", JSON.stringify({ model: "json" }), "json"],
-      [".aidocrc.yaml", "model: yaml\n", "yaml"],
-      [".aidocrc.yml", "model: yml\n", "yml"],
+      [".staledocsrc", "model: no-extension\n", "no-extension"],
+      [".staledocsrc.json", JSON.stringify({ model: "json" }), "json"],
+      [".staledocsrc.yaml", "model: yaml\n", "yaml"],
+      [".staledocsrc.yml", "model: yml\n", "yml"],
       [
-        ".config/aidocrc",
+        ".config/staledocsrc",
         "model: config-no-extension\n",
         "config-no-extension",
       ],
       [
-        ".config/aidocrc.json",
+        ".config/staledocsrc.json",
         JSON.stringify({ model: "config-json" }),
         "config-json",
       ],
-      [".config/aidocrc.yaml", "model: config-yaml\n", "config-yaml"],
-      [".config/aidocrc.yml", "model: config-yml\n", "config-yml"],
+      [".config/staledocsrc.yaml", "model: config-yaml\n", "config-yaml"],
+      [".config/staledocsrc.yml", "model: config-yml\n", "config-yml"],
     ] as const;
 
     for (const [relativePath, content, expectedModel] of candidates) {
@@ -161,18 +161,18 @@ describe("MCP scoped configuration", () => {
 
   it("denies every executable MCP configuration filename without executing it", async () => {
     const candidates = [
-      ".aidocrc.js",
-      ".aidocrc.ts",
-      ".aidocrc.cjs",
-      ".aidocrc.mjs",
-      ".config/aidocrc.js",
-      ".config/aidocrc.ts",
-      ".config/aidocrc.cjs",
-      ".config/aidocrc.mjs",
-      "aidoc.config.js",
-      "aidoc.config.ts",
-      "aidoc.config.cjs",
-      "aidoc.config.mjs",
+      ".staledocsrc.js",
+      ".staledocsrc.ts",
+      ".staledocsrc.cjs",
+      ".staledocsrc.mjs",
+      ".config/staledocsrc.js",
+      ".config/staledocsrc.ts",
+      ".config/staledocsrc.cjs",
+      ".config/staledocsrc.mjs",
+      "staledocs.config.js",
+      "staledocs.config.ts",
+      "staledocs.config.cjs",
+      "staledocs.config.mjs",
     ] as const;
     for (const relativePath of candidates) {
       const value = await openFixture();
@@ -201,15 +201,15 @@ describe("MCP scoped configuration", () => {
     roots.push(value.root, value.outside);
     const marker = join(value.root, "marker.txt");
     writeFileSync(
-      join(value.selected, ".aidocrc.json"),
+      join(value.selected, ".staledocsrc.json"),
       JSON.stringify({ model: "selected-model" }),
     );
     writeFileSync(
-      join(value.selected, ".aidocrc.js"),
+      join(value.selected, ".staledocsrc.js"),
       `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "ran"); module.exports = {};`,
     );
     writeFileSync(
-      join(value.root, "aidoc.config.js"),
+      join(value.root, "staledocs.config.js"),
       "module.exports = {};\n",
     );
 
@@ -226,22 +226,22 @@ describe("MCP scoped configuration", () => {
     const loader = new MCPScopedConfigLoader(value.scope, Object.create(null));
 
     writeFileSync(
-      join(value.selected, ".aidocrc.js"),
+      join(value.selected, ".staledocsrc.js"),
       "module.exports = {};\n",
     );
     await expectUnsafe(loader.loadPlanning(value.directory));
-    rmSync(join(value.selected, ".aidocrc.js"));
+    rmSync(join(value.selected, ".staledocsrc.js"));
 
-    writeFileSync(join(value.selected, ".aidocrc.json"), "{\n");
+    writeFileSync(join(value.selected, ".staledocsrc.json"), "{\n");
     await expectUnsafe(loader.loadPlanning(value.directory));
-    rmSync(join(value.selected, ".aidocrc.json"));
+    rmSync(join(value.selected, ".staledocsrc.json"));
 
     writeFileSync(
-      join(value.selected, ".aidocrc.json"),
+      join(value.selected, ".staledocsrc.json"),
       JSON.stringify({ apiKey: "not-an-output" }),
     );
     await expectUnsafe(loader.loadPlanning(value.directory));
-    rmSync(join(value.selected, ".aidocrc.json"));
+    rmSync(join(value.selected, ".staledocsrc.json"));
 
     writeFileSync(
       join(value.root, "config.json"),
@@ -249,10 +249,10 @@ describe("MCP scoped configuration", () => {
     );
     symlinkSync(
       join(value.root, "config.json"),
-      join(value.selected, ".aidocrc.json"),
+      join(value.selected, ".staledocsrc.json"),
     );
     await expectUnsafe(loader.loadPlanning(value.directory));
-    rmSync(join(value.selected, ".aidocrc.json"));
+    rmSync(join(value.selected, ".staledocsrc.json"));
 
     writeFileSync(join(value.selected, "package.json"), "{\n");
     await expectUnsafe(loader.loadPlanning(value.directory));
@@ -261,12 +261,12 @@ describe("MCP scoped configuration", () => {
   it("does not search above the pinned root and reads only the root .env", async () => {
     const value = await openFixture();
     roots.push(value.root, value.outside);
-    const parentConfig = join(value.root, "..", ".aidocrc.json");
+    const parentConfig = join(value.root, "..", ".staledocsrc.json");
     try {
       writeFileSync(parentConfig, JSON.stringify({ model: "parent-secret" }));
       writeFileSync(
         join(value.root, ".env"),
-        "AIDOC_PROVIDER=ollama\nAIDOC_MODEL=local\nUNKNOWN=ignored\n",
+        "STALEDOCS_PROVIDER=ollama\nSTALEDOCS_MODEL=local\nUNKNOWN=ignored\n",
       );
 
       const before = JSON.stringify(process.env);
@@ -278,8 +278,8 @@ describe("MCP scoped configuration", () => {
       expect(result.config.provider).toBe("ollama");
       expect(result.config.model).toBe("local");
       expect(result.effectiveEnvironment).toEqual({
-        AIDOC_PROVIDER: "ollama",
-        AIDOC_MODEL: "local",
+        STALEDOCS_PROVIDER: "ollama",
+        STALEDOCS_MODEL: "local",
       });
       expect(Object.getPrototypeOf(result.effectiveEnvironment)).toBeNull();
       expect(Object.isFrozen(result.effectiveEnvironment)).toBe(true);
@@ -292,7 +292,7 @@ describe("MCP scoped configuration", () => {
   it("does not observe a parent configuration and planning does not read root .env", async () => {
     const value = await openFixture();
     roots.push(value.root, value.outside);
-    const parentConfig = join(value.root, "..", ".aidocrc.json");
+    const parentConfig = join(value.root, "..", ".staledocsrc.json");
     try {
       writeFileSync(
         parentConfig,
@@ -300,7 +300,7 @@ describe("MCP scoped configuration", () => {
       );
       writeFileSync(
         join(value.root, ".env"),
-        "AIDOC_PROVIDER=not-a-provider\n",
+        "STALEDOCS_PROVIDER=not-a-provider\n",
       );
       const loader = new MCPScopedConfigLoader(
         value.scope,
@@ -322,20 +322,20 @@ describe("MCP scoped configuration", () => {
     writeFileSync(
       join(value.root, ".env"),
       [
-        "AIDOC_PROVIDER=ollama",
-        "AIDOC_MODEL=file-model",
-        "AIDOC_PROVIDER_BASE_URL=http://127.0.0.1:11434/v1",
-        "AIDOC_ALLOW_LOCAL_HTTP=true",
-        "AIDOC_QWEN_REGION=singapore",
-        "AIDOC_QWEN_WORKSPACE_ID=workspace",
-        "AIDOC_OLLAMA_HOST=http://127.0.0.1:11434",
-        "AIDOC_TRUST_POLICY=strict",
+        "STALEDOCS_PROVIDER=ollama",
+        "STALEDOCS_MODEL=file-model",
+        "STALEDOCS_PROVIDER_BASE_URL=http://127.0.0.1:11434/v1",
+        "STALEDOCS_ALLOW_LOCAL_HTTP=true",
+        "STALEDOCS_QWEN_REGION=singapore",
+        "STALEDOCS_QWEN_WORKSPACE_ID=workspace",
+        "STALEDOCS_OLLAMA_HOST=http://127.0.0.1:11434",
+        "STALEDOCS_TRUST_POLICY=strict",
         "OPENAI_API_KEY=file-openai",
         "UNKNOWN=drop-me",
       ].join("\n"),
     );
     const host = Object.freeze({
-      AIDOC_MODEL: "host-model",
+      STALEDOCS_MODEL: "host-model",
       OPENAI_API_KEY: "host-openai",
     });
     const loader = new MCPScopedConfigLoader(value.scope, host);
@@ -364,11 +364,11 @@ describe("MCP scoped configuration", () => {
     roots.push(value.root, value.outside);
     writeFileSync(
       join(value.root, ".env"),
-      "AIDOC_PROVIDER=ollama\nAIDOC_MODEL=root-model\n",
+      "STALEDOCS_PROVIDER=ollama\nSTALEDOCS_MODEL=root-model\n",
     );
     const getter = jest.fn(() => "host-model");
     const host = Object.create(null) as Record<string, string>;
-    Object.defineProperty(host, "AIDOC_MODEL", {
+    Object.defineProperty(host, "STALEDOCS_MODEL", {
       configurable: true,
       get: getter,
     });
@@ -390,7 +390,7 @@ describe("MCP scoped configuration", () => {
     await expectUnsafe(loader.loadProvider(value.directory));
     rmSync(join(value.root, ".env"));
     writeFileSync(
-      join(value.root, ".aidocrc.json"),
+      join(value.root, ".staledocsrc.json"),
       JSON.stringify({ outputDir: "../outside" }),
     );
     await expectUnsafe(loader.loadPlanning(value.directory));
@@ -414,7 +414,7 @@ describe("MCP scoped configuration", () => {
     for (const config of invalidValues) {
       const value = await openFixture();
       roots.push(value.root, value.outside);
-      writeFileSync(join(value.root, ".aidocrc.json"), JSON.stringify(config));
+      writeFileSync(join(value.root, ".staledocsrc.json"), JSON.stringify(config));
       const loader = new MCPScopedConfigLoader(
         value.scope,
         Object.create(null),
@@ -506,8 +506,8 @@ describe("MCP scoped configuration", () => {
     });
     expect(
       environmentConfig({
-        AIDOC_PROVIDER: "openai",
-        AIDOC_ALLOW_LOCAL_HTTP: "false",
+        STALEDOCS_PROVIDER: "openai",
+        STALEDOCS_ALLOW_LOCAL_HTTP: "false",
         UNKNOWN: "ignored",
       }),
     ).toEqual({ provider: "openai", allowLocalHttp: false });
@@ -515,8 +515,8 @@ describe("MCP scoped configuration", () => {
       parseConfigValues(
         {},
         {
-          AIDOC_PROVIDER: "ollama",
-          AIDOC_MODEL: "model",
+          STALEDOCS_PROVIDER: "ollama",
+          STALEDOCS_MODEL: "model",
         },
       ),
     ).toMatchObject({ provider: "ollama", model: "model" });

@@ -123,7 +123,7 @@ function planningResult(impact: boolean): ImpactPlanningResult {
   return { plan, providerContext, suppressed: [] };
 }
 
-describe("default aidoc entry", () => {
+describe("default staledocs entry", () => {
   afterEach(() => jest.restoreAllMocks());
 
   it("shows concise help and does not plan in a non-interactive shell", async () => {

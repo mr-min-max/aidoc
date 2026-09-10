@@ -7,52 +7,52 @@ const runner = path.resolve("action/run.sh");
 const fakeOpenAiKey = ["fake", "openai", "key", "for", "tests"].join("-");
 const fakeValidationCredential = ["sk", "proj", "V".repeat(32)].join("-");
 
-function setupFakeAidoc(root: string): string {
+function setupFakeStaledocs(root: string): string {
   const bin = path.join(root, "bin");
   fs.mkdirSync(bin);
-  const fake = path.join(bin, "aidoc");
+  const fake = path.join(bin, "staledocs");
   fs.writeFileSync(
     fake,
     `#!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' "$*" >> "$AIDOC_FAKE_LOG"
-printf 'trust-policy=%s\norigin=%s\n' "\${AIDOC_TRUST_POLICY:-}" "\${AIDOC_ORIGIN:-}" >> "$AIDOC_FAKE_LOG"
+printf '%s\n' "$*" >> "$STALEDOCS_FAKE_LOG"
+printf 'trust-policy=%s\norigin=%s\n' "\${STALEDOCS_TRUST_POLICY:-}" "\${STALEDOCS_ORIGIN:-}" >> "$STALEDOCS_FAKE_LOG"
 if [ "$1" = "review" ]; then
   format="text"
   while [ "$#" -gt 0 ]; do
     if [ "$1" = "--format" ]; then format="$2"; shift 2; else shift; fi
   done
-  review_exit="\${AIDOC_FAKE_EXIT:-0}"
+  review_exit="\${STALEDOCS_FAKE_EXIT:-0}"
   case "$format" in
     json)
-      review_exit="\${AIDOC_FAKE_REVIEW_JSON_EXIT:-\${AIDOC_FAKE_EXIT:-0}}"
-      if [ "\${AIDOC_FAKE_REVIEW_ZERO:-false}" = "true" ]; then
+      review_exit="\${STALEDOCS_FAKE_REVIEW_JSON_EXIT:-\${STALEDOCS_FAKE_EXIT:-0}}"
+      if [ "\${STALEDOCS_FAKE_REVIEW_ZERO:-false}" = "true" ]; then
         printf '%s\n' '{"schemaVersion":"aidoc.review.v1","base":{"type":"git","label":"base","commit":"base"},"head":{"type":"working-tree","label":"working tree"},"summary":{"publicApiChanges":0,"breaking":0,"staleDocuments":0,"coChangedDocuments":0,"unmappedSymbols":0,"suppressed":0},"changes":[],"documents":[],"unmapped":[],"suppressed":[],"verdict":"clean"}'
       else
         printf '%s\n' '{"schemaVersion":"aidoc.review.v1","base":{"type":"git","label":"base","commit":"base"},"head":{"type":"working-tree","label":"working tree"},"summary":{"publicApiChanges":1,"breaking":0,"staleDocuments":1,"coChangedDocuments":0,"unmappedSymbols":0,"suppressed":0},"changes":[{"id":"x","qualifiedName":"createUser","kind":"function","category":"contract-changed","risk":"review-required","path":"src/user.ts","before":"createUser(email: string): string","after":"createUser(email: string, role: string): string"}],"documents":[{"path":"README.md","status":"stale","sections":[{"section":"API","slug":"api","symbols":["createUser"]}]}],"unmapped":[],"suppressed":[],"verdict":"stale"}'
       fi
       ;;
     markdown)
-      review_exit="\${AIDOC_FAKE_REVIEW_MARKDOWN_EXIT:-\${AIDOC_FAKE_EXIT:-0}}"
-      printf '%s\n' '<!-- aidoc-review -->' '### AiDoc: documentation impact' '**1 public API change**'
+      review_exit="\${STALEDOCS_FAKE_REVIEW_MARKDOWN_EXIT:-\${STALEDOCS_FAKE_EXIT:-0}}"
+      printf '%s\n' '<!-- staledocs-review -->' '### StaleDocs: documentation impact' '**1 public API change**'
       ;;
     *)
-      review_exit="\${AIDOC_FAKE_REVIEW_TEXT_EXIT:-\${AIDOC_FAKE_EXIT:-0}}"
-      printf '%s\n' 'AiDoc: documentation impact (stale)' 'createUser: parameters'
+      review_exit="\${STALEDOCS_FAKE_REVIEW_TEXT_EXIT:-\${STALEDOCS_FAKE_EXIT:-0}}"
+      printf '%s\n' 'StaleDocs: documentation impact (stale)' 'createUser: parameters'
       ;;
   esac
   exit "$review_exit"
 fi
 if [ "$1" = "check" ]; then
-  if [ "\${AIDOC_FAKE_CHECK_RESULT:-clean}" = "stale" ]; then
+  if [ "\${STALEDOCS_FAKE_CHECK_RESULT:-clean}" = "stale" ]; then
     printf '%s\n' '{"status":"stale","target":"README.md","targetChanged":false,"referencedSymbols":["createUser"],"sections":[{"section":"API","slug":"api","symbols":["createUser"]}],"unmappedSymbols":[],"sourceFiles":["src/user.ts"],"message":"README.md is stale for changed public symbols"}'
   else
     printf '%s\n' '{"status":"clean","target":"README.md","targetChanged":false,"referencedSymbols":[],"sections":[],"unmappedSymbols":[],"sourceFiles":[],"message":"No changed public symbol is mentioned in README.md"}'
   fi
-  exit "\${AIDOC_FAKE_EXIT:-0}"
+  exit "\${STALEDOCS_FAKE_EXIT:-0}"
 fi
-if [ "\${AIDOC_FAKE_EXIT:-0}" != "0" ]; then
-  exit "$AIDOC_FAKE_EXIT"
+if [ "\${STALEDOCS_FAKE_EXIT:-0}" != "0" ]; then
+  exit "$STALEDOCS_FAKE_EXIT"
 fi
 output=""
 while [ "$#" -gt 0 ]; do
@@ -76,32 +76,32 @@ function setupFakeGh(root: string): string {
     fake,
     `#!/usr/bin/env bash
 set -euo pipefail
-printf '%s\n' "$*" >> "$AIDOC_GH_LOG"
-if [ "\${AIDOC_GH_MODE:-}" = "forbidden" ] && { [[ "$*" == *"-X POST"* ]] || [[ "$*" == *"-X PATCH"* ]] || [[ "$*" == *"-X DELETE"* ]] || [[ "$1" = "label" ]]; }; then
+printf '%s\n' "$*" >> "$STALEDOCS_GH_LOG"
+if [ "\${STALEDOCS_GH_MODE:-}" = "forbidden" ] && { [[ "$*" == *"-X POST"* ]] || [[ "$*" == *"-X PATCH"* ]] || [[ "$*" == *"-X DELETE"* ]] || [[ "$1" = "label" ]]; }; then
   printf '%s\n' '403 Forbidden' >&2
   exit 1
 fi
-if [ "\${AIDOC_GH_MODE:-}" = "failure" ]; then
+if [ "\${STALEDOCS_GH_MODE:-}" = "failure" ]; then
   printf '%s\n' '500 Server Error' >&2
   exit 1
 fi
-if [ "\${AIDOC_GH_MODE:-}" = "comment-post" ] && [[ "$*" == *"-X POST"* ]] && [[ "$*" == *"/comments"* ]]; then
+if [ "\${STALEDOCS_GH_MODE:-}" = "comment-post" ] && [[ "$*" == *"-X POST"* ]] && [[ "$*" == *"/comments"* ]]; then
   printf '%s\n' '500 Server Error' >&2
   exit 1
 fi
-if [ "\${AIDOC_GH_MODE:-}" = "comment-patch" ] && [[ "$*" == *"-X PATCH"* ]] && [[ "$*" == *"/comments/"* ]]; then
+if [ "\${STALEDOCS_GH_MODE:-}" = "comment-patch" ] && [[ "$*" == *"-X PATCH"* ]] && [[ "$*" == *"/comments/"* ]]; then
   printf '%s\n' '500 Server Error' >&2
   exit 1
 fi
-if [ "\${AIDOC_GH_MODE:-}" = "label-create" ] && [ "$1" = "label" ]; then
+if [ "\${STALEDOCS_GH_MODE:-}" = "label-create" ] && [ "$1" = "label" ]; then
   printf '%s\n' '500 Server Error' >&2
   exit 1
 fi
-if [ "\${AIDOC_GH_MODE:-}" = "label-add" ] && [[ "$*" == *"-X POST"* ]] && [[ "$*" == *"/labels"* ]]; then
+if [ "\${STALEDOCS_GH_MODE:-}" = "label-add" ] && [[ "$*" == *"-X POST"* ]] && [[ "$*" == *"/labels"* ]]; then
   printf '%s\n' '500 Server Error' >&2
   exit 1
 fi
-if [ "\${AIDOC_GH_MODE:-}" = "label-delete" ] && [[ "$*" == *"-X DELETE"* ]] && [[ "$*" == *"/labels/"* ]]; then
+if [ "\${STALEDOCS_GH_MODE:-}" = "label-delete" ] && [[ "$*" == *"-X DELETE"* ]] && [[ "$*" == *"/labels/"* ]]; then
   printf '%s\n' '500 Server Error' >&2
   exit 1
 fi
@@ -112,13 +112,13 @@ if [[ "$*" == *"/issues/"*"/comments/"* ]]; then
   exit 1
 fi
 if [ "$1" = "api" ] && [ "$2" = "user" ]; then
-  if [ "\${AIDOC_GH_USER_FORBIDDEN:-false}" = "true" ]; then
+  if [ "\${STALEDOCS_GH_USER_FORBIDDEN:-false}" = "true" ]; then
     printf '%s\n' 'gh: Resource not accessible by integration (HTTP 403)' >&2
     exit 1
   fi
   printf '%s\n' 'github-actions[bot]'
 elif [ "$1" = "api" ] && [[ "$*" == *"/comments"* ]] && [[ "$*" != *"/comments/"* ]]; then
-  printf '%s\n' "\${AIDOC_GH_COMMENTS:-[]}"
+  printf '%s\n' "\${STALEDOCS_GH_COMMENTS:-[]}"
 fi
 `,
   );
@@ -139,17 +139,17 @@ interface RunnerResult {
 }
 
 function runRunner(overrides: NodeJS.ProcessEnv = {}): RunnerResult {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "aidoc-action-"));
-  const bin = setupFakeAidoc(root);
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-action-"));
+  const bin = setupFakeStaledocs(root);
   const ghBin = setupFakeGh(root);
-  const log = path.join(root, "aidoc.log");
+  const log = path.join(root, "staledocs.log");
   const ghLog = path.join(root, "gh.log");
   const githubOutput = path.join(root, "github-output");
   const changedFiles = path.join(root, "changed-files");
   const summary = path.join(root, "summary");
   const temp = path.join(root, "temp");
   fs.mkdirSync(temp);
-  if (overrides.AIDOC_INPUT_MODE === "review") {
+  if (overrides.STALEDOCS_INPUT_MODE === "review") {
     spawnSync("git", ["init", "-q", "--initial-branch", "main"], { cwd: root });
     spawnSync("git", ["config", "user.email", "test@example.invalid"], { cwd: root });
     spawnSync("git", ["config", "user.name", "test"], { cwd: root });
@@ -160,27 +160,27 @@ function runRunner(overrides: NodeJS.ProcessEnv = {}): RunnerResult {
     spawnSync("git", ["commit", "-qam", "second"], { cwd: root });
   }
   const inheritedEnvironment = { ...process.env };
-  delete inheritedEnvironment.AIDOC_INPUT_TRUST_POLICY;
+  delete inheritedEnvironment.STALEDOCS_INPUT_TRUST_POLICY;
   const result = spawnSync("bash", [runner], {
     cwd: root,
     encoding: "utf8",
     env: {
       ...inheritedEnvironment,
       PATH: `${bin}${path.delimiter}${ghBin}${path.delimiter}${process.env.PATH}`,
-      AIDOC_FAKE_LOG: log,
-      AIDOC_GH_LOG: ghLog,
+      STALEDOCS_FAKE_LOG: log,
+      STALEDOCS_GH_LOG: ghLog,
       GITHUB_OUTPUT: githubOutput,
       GITHUB_STEP_SUMMARY: summary,
       RUNNER_TEMP: temp,
-      AIDOC_CHANGED_FILES_FILE: changedFiles,
-      AIDOC_INPUT_PROVIDER: "openai",
-      AIDOC_INPUT_API_KEY: fakeOpenAiKey,
-      AIDOC_INPUT_MODEL: "test-model",
-      AIDOC_INPUT_COMMANDS: "readme",
-      AIDOC_INPUT_MODE: "generate",
-      AIDOC_INPUT_OUTPUT_DIR: "./docs",
-      AIDOC_INPUT_DRY_RUN: "false",
-      AIDOC_INPUT_SINCE: "HEAD~1",
+      STALEDOCS_CHANGED_FILES_FILE: changedFiles,
+      STALEDOCS_INPUT_PROVIDER: "openai",
+      STALEDOCS_INPUT_API_KEY: fakeOpenAiKey,
+      STALEDOCS_INPUT_MODEL: "test-model",
+      STALEDOCS_INPUT_COMMANDS: "readme",
+      STALEDOCS_INPUT_MODE: "generate",
+      STALEDOCS_INPUT_OUTPUT_DIR: "./docs",
+      STALEDOCS_INPUT_DRY_RUN: "false",
+      STALEDOCS_INPUT_SINCE: "HEAD~1",
       ...overrides,
     },
   });
@@ -210,16 +210,16 @@ function runRunner(overrides: NodeJS.ProcessEnv = {}): RunnerResult {
 
 describe("action/run.sh", () => {
   it("propagates generation failures", () => {
-    expect(runRunner({ AIDOC_FAKE_EXIT: "1" }).status).toBe(1);
+    expect(runRunner({ STALEDOCS_FAKE_EXIT: "1" }).status).toBe(1);
   });
 
-  it("propagates a strict policy rejection from the aidoc CLI", () => {
-    expect(runRunner({ AIDOC_FAKE_EXIT: "2" }).status).toBe(2);
+  it("propagates a strict policy rejection from the staledocs CLI", () => {
+    expect(runRunner({ STALEDOCS_FAKE_EXIT: "2" }).status).toBe(2);
   });
 
   it("propagates an external-output rejection without claiming changed files", () => {
     const externalRoot = fs.mkdtempSync(
-      path.join(os.tmpdir(), "aidoc-action-external-"),
+      path.join(os.tmpdir(), "staledocs-action-external-"),
     );
     const sentinel = path.join(externalRoot, "sentinel.txt");
     const outputDirectory = path.join(externalRoot, "generated");
@@ -227,9 +227,9 @@ describe("action/run.sh", () => {
     fs.writeFileSync(sentinel, sentinelContents);
     try {
       const result = runRunner({
-        AIDOC_INPUT_COMMANDS: "api",
-        AIDOC_INPUT_OUTPUT_DIR: outputDirectory,
-        AIDOC_FAKE_EXIT: "2",
+        STALEDOCS_INPUT_COMMANDS: "api",
+        STALEDOCS_INPUT_OUTPUT_DIR: outputDirectory,
+        STALEDOCS_FAKE_EXIT: "2",
       });
       expect(result.status).toBe(2);
       expect(result.log).toContain(`api --output ${outputDirectory}/API.md`);
@@ -242,24 +242,24 @@ describe("action/run.sh", () => {
   });
 
   it("fails generation when a remote provider credential is missing", () => {
-    const result = runRunner({ AIDOC_INPUT_API_KEY: "" });
+    const result = runRunner({ STALEDOCS_INPUT_API_KEY: "" });
     expect(result.status).toBe(2);
     expect(result.log).toBe("");
   });
   it("does not echo unrelated hostile inputs when a remote credential is missing", () => {
     const result = runRunner({
-      AIDOC_INPUT_API_KEY: "",
-      AIDOC_INPUT_COMMANDS: fakeValidationCredential,
+      STALEDOCS_INPUT_API_KEY: "",
+      STALEDOCS_INPUT_COMMANDS: fakeValidationCredential,
     });
     expect(result.status).toBe(2);
     expect(result.log).toBe("");
     expect(result.stderr).not.toContain(fakeValidationCredential);
   });
 
-  it("rejects invalid legacy inputs before invoking aidoc", () => {
+  it("rejects invalid legacy inputs before invoking staledocs", () => {
     for (const overrides of [
-      { AIDOC_INPUT_DRY_RUN: "yes" },
-      { AIDOC_INPUT_TRUST_POLICY: "unsafe" },
+      { STALEDOCS_INPUT_DRY_RUN: "yes" },
+      { STALEDOCS_INPUT_TRUST_POLICY: "unsafe" },
     ]) {
       const result = runRunner(overrides);
       expect(result.status).toBe(2);
@@ -268,12 +268,12 @@ describe("action/run.sh", () => {
   });
 
   it.each([
-    ["trust-policy", { AIDOC_INPUT_TRUST_POLICY: fakeValidationCredential }],
-    ["mode", { AIDOC_INPUT_MODE: fakeValidationCredential }],
-    ["dry-run", { AIDOC_INPUT_DRY_RUN: fakeValidationCredential }],
-    ["provider", { AIDOC_INPUT_PROVIDER: fakeValidationCredential }],
-    ["command", { AIDOC_INPUT_COMMANDS: fakeValidationCredential }],
-  ])("does not echo an invalid %s input before aidoc starts", (_branch, overrides) => {
+    ["trust-policy", { STALEDOCS_INPUT_TRUST_POLICY: fakeValidationCredential }],
+    ["mode", { STALEDOCS_INPUT_MODE: fakeValidationCredential }],
+    ["dry-run", { STALEDOCS_INPUT_DRY_RUN: fakeValidationCredential }],
+    ["provider", { STALEDOCS_INPUT_PROVIDER: fakeValidationCredential }],
+    ["command", { STALEDOCS_INPUT_COMMANDS: fakeValidationCredential }],
+  ])("does not echo an invalid %s input before staledocs starts", (_branch, overrides) => {
     const result = runRunner(overrides);
     expect(result.status).toBe(2);
     expect(result.log).toBe("");
@@ -292,23 +292,23 @@ describe("action/run.sh", () => {
   });
 
   it("uses deterministic check mode without an API key and reports its message", () => {
-    const result = runRunner({ AIDOC_INPUT_MODE: "check", AIDOC_INPUT_API_KEY: "" });
+    const result = runRunner({ STALEDOCS_INPUT_MODE: "check", STALEDOCS_INPUT_API_KEY: "" });
     expect(result.status).toBe(0);
     expect(result.log).toContain("check --target ./README.md --since HEAD~1 --json");
     expect(result.log).not.toContain("--mock");
     expect(result.output).toContain(
-      "summary<<AIDOC_SUMMARY_EOF\nNo changed public symbol is mentioned in README.md\n",
+      "summary<<STALEDOCS_SUMMARY_EOF\nNo changed public symbol is mentioned in README.md\n",
     );
   });
 
   it("runs review without PR context, writes outputs, and never invokes gh", () => {
     const result = runRunner({
-      AIDOC_INPUT_MODE: "review",
-      AIDOC_INPUT_PROVIDER: "ignored-provider",
-      AIDOC_INPUT_API_KEY: "ignored-key",
-      AIDOC_INPUT_COMMANDS: "ignored-command",
-      AIDOC_INPUT_OUTPUT_DIR: "/ignored/output",
-      AIDOC_INPUT_FAIL_ON: "none",
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_INPUT_PROVIDER: "ignored-provider",
+      STALEDOCS_INPUT_API_KEY: "ignored-key",
+      STALEDOCS_INPUT_COMMANDS: "ignored-command",
+      STALEDOCS_INPUT_OUTPUT_DIR: "/ignored/output",
+      STALEDOCS_INPUT_FAIL_ON: "none",
     });
     expect(result.status).toBe(0);
     expect(result.log).toContain("review --format json --fail-on none --base HEAD~1");
@@ -319,28 +319,28 @@ describe("action/run.sh", () => {
     expect(result.output).toContain("report=");
     expect(result.report).toContain('"schemaVersion":"aidoc.review.v1"');
     expect(result.ghLog).toBe("");
-    expect(result.stdout).toContain("AiDoc: documentation impact (stale)");
+    expect(result.stdout).toContain("StaleDocs: documentation impact (stale)");
   });
   it("reports a stale check message before propagating the failure", () => {
     const result = runRunner({
-      AIDOC_INPUT_MODE: "check",
-      AIDOC_INPUT_API_KEY: "",
-      AIDOC_FAKE_CHECK_RESULT: "stale",
-      AIDOC_FAKE_EXIT: "1",
+      STALEDOCS_INPUT_MODE: "check",
+      STALEDOCS_INPUT_API_KEY: "",
+      STALEDOCS_FAKE_CHECK_RESULT: "stale",
+      STALEDOCS_FAKE_EXIT: "1",
     });
     expect(result.status).toBe(1);
-    expect(result.output).toContain("summary<<AIDOC_SUMMARY_EOF\nREADME.md is stale for changed public symbols\n");
+    expect(result.output).toContain("summary<<STALEDOCS_SUMMARY_EOF\nREADME.md is stale for changed public symbols\n");
   });
 
   it("updates a marked token-owned comment with PATCH", () => {
     const result = runRunner({
-      AIDOC_INPUT_MODE: "review",
-      AIDOC_PR_BASE_SHA: "HEAD",
-      AIDOC_PR_HEAD_SHA: "HEAD",
-      AIDOC_REPOSITORY: "owner/repo",
-      AIDOC_PR_NUMBER: "7",
-      AIDOC_INPUT_GITHUB_TOKEN: "token",
-      AIDOC_GH_COMMENTS: '[{"id":42,"body":"<!-- aidoc-review -->\\nold","user":{"login":"github-actions[bot]"}}]',
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_PR_BASE_SHA: "HEAD",
+      STALEDOCS_PR_HEAD_SHA: "HEAD",
+      STALEDOCS_REPOSITORY: "owner/repo",
+      STALEDOCS_PR_NUMBER: "7",
+      STALEDOCS_INPUT_GITHUB_TOKEN: "token",
+      STALEDOCS_GH_COMMENTS: '[{"id":42,"body":"<!-- staledocs-review -->\\nold","user":{"login":"github-actions[bot]"}}]',
     });
     expect(result.status).toBe(0);
     expect(result.ghLog).toContain("api repos/owner/repo/issues/7/comments --paginate");
@@ -351,14 +351,14 @@ describe("action/run.sh", () => {
 
   it("stays sticky when the installation token cannot read GET /user", () => {
     const result = runRunner({
-      AIDOC_INPUT_MODE: "review",
-      AIDOC_PR_BASE_SHA: "HEAD",
-      AIDOC_PR_HEAD_SHA: "HEAD",
-      AIDOC_REPOSITORY: "owner/repo",
-      AIDOC_PR_NUMBER: "7",
-      AIDOC_INPUT_GITHUB_TOKEN: "token",
-      AIDOC_GH_USER_FORBIDDEN: "true",
-      AIDOC_GH_COMMENTS: '[{"id":42,"body":"<!-- aidoc-review -->\\nold","user":{"login":"github-actions[bot]"}}]',
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_PR_BASE_SHA: "HEAD",
+      STALEDOCS_PR_HEAD_SHA: "HEAD",
+      STALEDOCS_REPOSITORY: "owner/repo",
+      STALEDOCS_PR_NUMBER: "7",
+      STALEDOCS_INPUT_GITHUB_TOKEN: "token",
+      STALEDOCS_GH_USER_FORBIDDEN: "true",
+      STALEDOCS_GH_COMMENTS: '[{"id":42,"body":"<!-- staledocs-review -->\\nold","user":{"login":"github-actions[bot]"}}]',
     });
     expect(result.status).toBe(0);
     expect(result.ghLog).toContain("api -X PATCH repos/owner/repo/issues/comments/42 --input");
@@ -368,13 +368,13 @@ describe("action/run.sh", () => {
 
   it("posts a marked comment when no token-owned comment exists", () => {
     const result = runRunner({
-      AIDOC_INPUT_MODE: "review",
-      AIDOC_PR_BASE_SHA: "HEAD",
-      AIDOC_PR_HEAD_SHA: "HEAD",
-      AIDOC_REPOSITORY: "owner/repo",
-      AIDOC_PR_NUMBER: "7",
-      AIDOC_INPUT_GITHUB_TOKEN: "token",
-      AIDOC_GH_COMMENTS: "[]",
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_PR_BASE_SHA: "HEAD",
+      STALEDOCS_PR_HEAD_SHA: "HEAD",
+      STALEDOCS_REPOSITORY: "owner/repo",
+      STALEDOCS_PR_NUMBER: "7",
+      STALEDOCS_INPUT_GITHUB_TOKEN: "token",
+      STALEDOCS_GH_COMMENTS: "[]",
     });
     expect(result.status).toBe(0);
     expect(result.ghLog).toContain("api -X POST repos/owner/repo/issues/7/comments --input");
@@ -382,14 +382,14 @@ describe("action/run.sh", () => {
 
   it("deletes the token-owned comment when the report has zero public API changes", () => {
     const result = runRunner({
-      AIDOC_INPUT_MODE: "review",
-      AIDOC_PR_BASE_SHA: "HEAD",
-      AIDOC_PR_HEAD_SHA: "HEAD",
-      AIDOC_REPOSITORY: "owner/repo",
-      AIDOC_PR_NUMBER: "7",
-      AIDOC_INPUT_GITHUB_TOKEN: "token",
-      AIDOC_GH_COMMENTS: '[{"id":42,"body":"<!-- aidoc-review -->\\nold","user":{"login":"github-actions[bot]"}}]',
-      AIDOC_FAKE_REVIEW_ZERO: "true",
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_PR_BASE_SHA: "HEAD",
+      STALEDOCS_PR_HEAD_SHA: "HEAD",
+      STALEDOCS_REPOSITORY: "owner/repo",
+      STALEDOCS_PR_NUMBER: "7",
+      STALEDOCS_INPUT_GITHUB_TOKEN: "token",
+      STALEDOCS_GH_COMMENTS: '[{"id":42,"body":"<!-- staledocs-review -->\\nold","user":{"login":"github-actions[bot]"}}]',
+      STALEDOCS_FAKE_REVIEW_ZERO: "true",
     });
     expect(result.status).toBe(0);
     expect(result.ghLog).toContain("api -X DELETE repos/owner/repo/issues/comments/42");
@@ -398,13 +398,13 @@ describe("action/run.sh", () => {
 
   it("uses the locked label colors and descriptions", () => {
     const result = runRunner({
-      AIDOC_INPUT_MODE: "review",
-      AIDOC_PR_BASE_SHA: "HEAD",
-      AIDOC_PR_HEAD_SHA: "HEAD",
-      AIDOC_REPOSITORY: "owner/repo",
-      AIDOC_PR_NUMBER: "7",
-      AIDOC_INPUT_GITHUB_TOKEN: "token",
-      AIDOC_INPUT_COMMENT: "false",
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_PR_BASE_SHA: "HEAD",
+      STALEDOCS_PR_HEAD_SHA: "HEAD",
+      STALEDOCS_REPOSITORY: "owner/repo",
+      STALEDOCS_PR_NUMBER: "7",
+      STALEDOCS_INPUT_GITHUB_TOKEN: "token",
+      STALEDOCS_INPUT_COMMENT: "false",
     });
     expect(result.ghLog).toContain("label create docs-stale --color e4e669 --description Documentation sections mentioning changed public symbols are stale --force");
     expect(result.ghLog).toContain("label create breaking-change --color d73a4a --description Potentially breaking public API changes detected --force");
@@ -412,48 +412,48 @@ describe("action/run.sh", () => {
 
   it("writes the Markdown report to the step summary and keeps a read-only token non-fatal", () => {
     const result = runRunner({
-      AIDOC_INPUT_MODE: "review",
-      AIDOC_PR_BASE_SHA: "HEAD",
-      AIDOC_PR_HEAD_SHA: "HEAD",
-      AIDOC_REPOSITORY: "owner/repo",
-      AIDOC_PR_NUMBER: "7",
-      AIDOC_INPUT_GITHUB_TOKEN: "token",
-      AIDOC_GH_MODE: "forbidden",
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_PR_BASE_SHA: "HEAD",
+      STALEDOCS_PR_HEAD_SHA: "HEAD",
+      STALEDOCS_REPOSITORY: "owner/repo",
+      STALEDOCS_PR_NUMBER: "7",
+      STALEDOCS_INPUT_GITHUB_TOKEN: "token",
+      STALEDOCS_GH_MODE: "forbidden",
     });
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("::notice::AiDoc could not post a comment (read-only token); see the job summary");
-    expect(result.summary).toContain("<!-- aidoc-review -->");
+    expect(result.stdout).toContain("::notice::StaleDocs could not post a comment (read-only token); see the job summary");
+    expect(result.summary).toContain("<!-- staledocs-review -->");
   });
 
   it("tolerates 404 when removing absent labels", () => {
     const result = runRunner({
-      AIDOC_INPUT_MODE: "review",
-      AIDOC_PR_BASE_SHA: "HEAD",
-      AIDOC_PR_HEAD_SHA: "HEAD",
-      AIDOC_REPOSITORY: "owner/repo",
-      AIDOC_PR_NUMBER: "7",
-      AIDOC_INPUT_GITHUB_TOKEN: "token",
-      AIDOC_FAKE_REVIEW_ZERO: "true",
-      AIDOC_GH_MODE: "not-found",
-      AIDOC_INPUT_COMMENT: "false",
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_PR_BASE_SHA: "HEAD",
+      STALEDOCS_PR_HEAD_SHA: "HEAD",
+      STALEDOCS_REPOSITORY: "owner/repo",
+      STALEDOCS_PR_NUMBER: "7",
+      STALEDOCS_INPUT_GITHUB_TOKEN: "token",
+      STALEDOCS_FAKE_REVIEW_ZERO: "true",
+      STALEDOCS_GH_MODE: "not-found",
+      STALEDOCS_INPUT_COMMENT: "false",
     });
     expect(result.status).toBe(0);
     expect(result.stdout).not.toContain("read-only token");
   });
   it.each([
-    ["comment POST", { AIDOC_GH_MODE: "comment-post", AIDOC_GH_COMMENTS: "[]" }],
-    ["comment PATCH", { AIDOC_GH_MODE: "comment-patch", AIDOC_GH_COMMENTS: '[{"id":42,"body":"<!-- aidoc-review -->\\nold","user":{"login":"github-actions[bot]"}}]' }],
-    ["label create", { AIDOC_GH_MODE: "label-create", AIDOC_INPUT_COMMENT: "false" }],
-    ["label add", { AIDOC_GH_MODE: "label-add", AIDOC_INPUT_COMMENT: "false" }],
-    ["label delete", { AIDOC_GH_MODE: "label-delete", AIDOC_INPUT_COMMENT: "false", AIDOC_FAKE_REVIEW_ZERO: "true" }],
+    ["comment POST", { STALEDOCS_GH_MODE: "comment-post", STALEDOCS_GH_COMMENTS: "[]" }],
+    ["comment PATCH", { STALEDOCS_GH_MODE: "comment-patch", STALEDOCS_GH_COMMENTS: '[{"id":42,"body":"<!-- staledocs-review -->\\nold","user":{"login":"github-actions[bot]"}}]' }],
+    ["label create", { STALEDOCS_GH_MODE: "label-create", STALEDOCS_INPUT_COMMENT: "false" }],
+    ["label add", { STALEDOCS_GH_MODE: "label-add", STALEDOCS_INPUT_COMMENT: "false" }],
+    ["label delete", { STALEDOCS_GH_MODE: "label-delete", STALEDOCS_INPUT_COMMENT: "false", STALEDOCS_FAKE_REVIEW_ZERO: "true" }],
   ])("fails on an unrelated GitHub API operation error (%s)", (_label, overrides) => {
     const result = runRunner({
-      AIDOC_INPUT_MODE: "review",
-      AIDOC_PR_BASE_SHA: "HEAD",
-      AIDOC_PR_HEAD_SHA: "HEAD",
-      AIDOC_REPOSITORY: "owner/repo",
-      AIDOC_PR_NUMBER: "7",
-      AIDOC_INPUT_GITHUB_TOKEN: "token",
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_PR_BASE_SHA: "HEAD",
+      STALEDOCS_PR_HEAD_SHA: "HEAD",
+      STALEDOCS_REPOSITORY: "owner/repo",
+      STALEDOCS_PR_NUMBER: "7",
+      STALEDOCS_INPUT_GITHUB_TOKEN: "token",
       ...overrides,
     });
     expect(result.status).toBe(1);
@@ -461,16 +461,16 @@ describe("action/run.sh", () => {
 
   it("fails when the presentation review command has an operational error", () => {
     const result = runRunner({
-      AIDOC_INPUT_MODE: "review",
-      AIDOC_FAKE_REVIEW_TEXT_EXIT: "2",
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_FAKE_REVIEW_TEXT_EXIT: "2",
     });
     expect(result.status).toBe(2);
   });
 
   it("preserves an expected presentation fail-on status", () => {
     const result = runRunner({
-      AIDOC_INPUT_MODE: "review",
-      AIDOC_FAKE_REVIEW_TEXT_EXIT: "1",
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_FAKE_REVIEW_TEXT_EXIT: "1",
     });
     expect(result.status).toBe(0);
   });
@@ -483,13 +483,13 @@ describe("composite Action package", () => {
 
   it("links composite outputs to the runner step", () => {
     const metadata = fs.readFileSync(path.resolve("action.yml"), "utf8");
-    expect(metadata).toMatch(/\bid: aidoc\b/);
+    expect(metadata).toMatch(/\bid: staledocs\b/);
     for (const output of ["changed", "files", "summary", "verdict", "public-api-changes", "stale-documents", "breaking", "report"]) {
-      expect(metadata).toContain(`value: \${{ steps.aidoc.outputs.${output} }}`);
+      expect(metadata).toContain(`value: \${{ steps.staledocs.outputs.${output} }}`);
     }
   });
 
-  it("stages only paths emitted by aidoc", () => {
+  it("stages only paths emitted by staledocs", () => {
     const metadata = fs.readFileSync(path.resolve("action.yml"), "utf8");
     expect(metadata).not.toContain("git add -A");
     expect(metadata).toContain("git diff --cached --quiet");
@@ -510,6 +510,6 @@ describe("composite Action package", () => {
   it("installs the npm version declared by the same Action ref", () => {
     const metadata = fs.readFileSync(path.resolve("action.yml"), "utf8");
     expect(metadata).toContain("require('./package.json').version");
-    expect(metadata).toContain("@mr-min-max/aidoc-gen@$version");
+    expect(metadata).toContain("staledocs@$version");
   });
 });

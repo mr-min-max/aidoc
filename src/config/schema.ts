@@ -14,7 +14,7 @@ export const ConfigSchema = z.object({
         listProviders().some((p) => p.name === val),
       {
         message:
-          "Unknown provider. Run `aidoc` with a registered provider name.",
+          "Unknown provider. Run `staledocs` with a registered provider name.",
       },
     ),
   model: z.string().min(1).optional(),

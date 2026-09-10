@@ -1,8 +1,8 @@
 {
-  "schemaVersion": "aidoc.public-beta-policy.v1",
-  "canonicalRepository": "mr-min-max/aidoc",
+  "schemaVersion": "staledocs.public-beta-policy.v1",
+  "canonicalRepository": "mr-min-max/staledocs",
   "defaultBranch": "main",
-  "candidateBranch": "codex/release-integrity",
+  "candidateBranch": "fable/p5-storefront-release",
   "protectedIdentities": [
     {
       "name": "mr-min-max",

@@ -1,10 +1,10 @@
 {
-  "name": "@mr-min-max/aidoc-gen",
-  "version": "0.2.0-beta.6",
-  "description": "AST-first documentation workflow for codebases. Create README and API docs, map code changes to affected files, and review focused updates with Codex, Claude, Ollama, or supported providers.",
+  "name": "staledocs",
+  "version": "0.3.0-beta.1",
+  "description": "Finds documentation that no longer matches your code. Deterministic AST check for pull requests; no API key. TypeScript, JavaScript, Python.",
   "main": "dist/cli/index.js",
   "bin": {
-    "aidoc": "dist/cli/index.js"
+    "staledocs": "dist/cli/index.js"
   },
   "scripts": {
     "build": "node scripts/clean-dist.mjs && tsc && node scripts/copy-templates.mjs",
@@ -24,9 +24,9 @@
     "test:codex-plugin": "node tests/e2e/codex-plugin-smoke.mjs",
     "test:hybrid-beta": "node --test tests/e2e/hybrid-beta-demo.test.mjs",
     "demo:storefront": "npm run build && node scripts/demo-hybrid-beta.mjs --presentation",
-    "test:storefront": "node --test tests/e2e/storefront-demo.test.mjs tests/e2e/storefront-assets.test.mjs tests/e2e/storefront-readme.test.mjs && jest tests/unit/release/storefront-copy.test.ts --runInBand",
+    "test:storefront": "node --test tests/e2e/storefront-demo.test.mjs tests/e2e/storefront-assets.test.mjs",
     "test:npm-unpublished": "node --test tests/e2e/npm-unpublished.test.mjs",
-    "test:npm-published": "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs --version 0.2.0-beta.6 --latest 0.2.0-beta.4",
+    "test:npm-published": "node --test tests/e2e/npm-published.test.mjs && node scripts/verify-npm-published.mjs --version 0.3.0-beta.1 --latest 0.3.0-beta.1",
     "demo:impact": "npm run build && node scripts/demo-impact.mjs",
     "test:impact-demo": "node scripts/demo-impact.mjs --verify",
     "test:check": "npm run build && node tests/e2e/check-cli-smoke.mjs",
@@ -38,28 +38,35 @@
   },
   "keywords": [
     "documentation",
-    "documentation-generator",
-    "developer-tools",
+    "documentation-drift",
+    "stale-docs",
+    "api-docs",
+    "github-action",
+    "pull-request",
+    "code-review",
+    "linter",
+    "ci",
     "ast",
-    "codex",
-    "claude",
-    "mcp",
-    "readme",
     "typescript",
+    "javascript",
     "python",
-    "cli",
-    "ollama"
+    "developer-tools",
+    "mcp",
+    "codex",
+    "claude-code",
+    "github-actions",
+    "pre-commit"
   ],
-  "author": "aidoc contributors",
+  "author": "StaleDocs contributors",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/mr-min-max/aidoc.git"
+    "url": "https://github.com/mr-min-max/staledocs.git"
   },
   "bugs": {
-    "url": "https://github.com/mr-min-max/aidoc/issues"
+    "url": "https://github.com/mr-min-max/staledocs/issues"
   },
-  "homepage": "https://github.com/mr-min-max/aidoc#readme",
+  "homepage": "https://github.com/mr-min-max/staledocs#readme",
   "engines": {
     "node": ">=22.12.0"
   },

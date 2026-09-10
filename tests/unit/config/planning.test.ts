@@ -14,7 +14,7 @@ describe("planning configuration", () => {
   let root: string;
 
   beforeEach(async () => {
-    root = await fs.mkdtemp(path.join(os.tmpdir(), "aidoc-planning-"));
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "staledocs-planning-"));
   });
 
   afterEach(async () => {
@@ -23,7 +23,7 @@ describe("planning configuration", () => {
 
   it("selects safe fields from a config without evaluating provider getters", async () => {
     await fs.writeFile(
-      path.join(root, ".aidocrc.cjs"),
+      path.join(root, ".staledocsrc.cjs"),
       `module.exports = { include: ["src/**"], exclude: ["src/vendor/**"], outputDir: "./api", maxContextBytes: 1024,
         get provider() { throw new Error("credential sentinel"); },
         get apiKey() { throw new Error("credential sentinel"); },
@@ -81,7 +81,7 @@ describe("planning configuration", () => {
 
   it("falls back atomically when safe fields are malformed", async () => {
     await fs.writeFile(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({
         include: "src/**",
         outputDir: 42,
@@ -95,7 +95,7 @@ describe("planning configuration", () => {
 
   it("rejects an invalid budget in a discovered config", async () => {
     await fs.writeFile(
-      path.join(root, ".aidocrc.json"),
+      path.join(root, ".staledocsrc.json"),
       JSON.stringify({ include: ["src/**"], maxContextBytes: 1023 }),
     );
     expect(() => loadPlanningConfig(root)).toThrow(
