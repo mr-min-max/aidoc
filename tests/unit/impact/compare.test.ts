@@ -369,8 +369,12 @@ describe("impact snapshot comparison", () => {
       unmapped: 1,
       byCategory: {
         added: 1,
+        exposed: 0,
         removed: 1,
+        exposed: 0,
+        hidden: 0,
         moved: 0,
+        hidden: 0,
         "contract-changed": 0,
         "implementation-changed": 0,
         "documentation-changed": 0,

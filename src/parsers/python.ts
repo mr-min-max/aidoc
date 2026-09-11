@@ -14,6 +14,7 @@ import {
   ContractFacet,
   ParserModuleSnapshot,
   ParserSymbolSnapshot,
+  ReexportEdge,
 } from "../impact/types";
 
 const PYTHON_UNAVAILABLE_CODES = new Set(["ENOENT"]);
@@ -22,8 +23,7 @@ const PYTHON_VERSION_SCRIPT = "import sys; print(sys.version_info[:2])";
 const PYTHON_EXECUTION_TIMEOUT = 15000;
 const PYTHON_EXECUTION_MAX_BUFFER = 10 * 1024 * 1024;
 const SNAPSHOT_HASH_PATTERN = /^[0-9a-f]{64}$/u;
-const PYTHON_IDENTIFIER_PATTERN =
-  /^(?!_)(?:_|\p{ID_Start})(?:_|\p{ID_Continue})*$/u;
+const PYTHON_IDENTIFIER_PATTERN = /^(?:_|\p{ID_Start})(?:_|\p{ID_Continue})*$/u;
 const PYTHON_KEYWORDS = new Set([
   "False",
   "None",
@@ -235,12 +235,16 @@ function isSafeSnapshotSignature(value: unknown): value is string {
   return true;
 }
 
-function isPublicPythonIdentifier(value: string): boolean {
+function isPythonIdentifier(value: string): boolean {
   return (
     value.normalize("NFKC") === value &&
     PYTHON_IDENTIFIER_PATTERN.test(value) &&
     !PYTHON_KEYWORDS.has(value)
   );
+}
+
+function isPublicPythonIdentifier(value: string): boolean {
+  return !value.startsWith("_") && isPythonIdentifier(value);
 }
 
 function isSafeQualifiedName(
@@ -868,6 +872,47 @@ def dependency_modules(tree):
             modules.append('.' * node.level + (node.module or ''))
     return sorted(modules)
 
+def module_reexports(tree):
+    edges = []
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.level >= 1:
+            names = None if any(alias.name == '*' for alias in node.names) else [
+                {
+                    'exported': alias.asname or alias.name,
+                    'local': alias.name,
+                }
+                for alias in node.names
+            ]
+            edges.append({
+                'specifier': '.' * node.level + (node.module or ''),
+                'names': names,
+            })
+    return edges
+
+def dunder_all(tree):
+    for node in tree.body:
+        targets = (
+            node.targets
+            if isinstance(node, ast.Assign)
+            else ([node.target] if isinstance(node, ast.AnnAssign) else [])
+        )
+        if any(
+            isinstance(target, ast.Name) and target.id == '__all__'
+            for target in targets
+        ):
+            value = node.value
+            if (
+                isinstance(value, (ast.List, ast.Tuple))
+                and all(
+                    isinstance(element, ast.Constant)
+                    and isinstance(element.value, str)
+                    for element in value.elts
+                )
+            ):
+                return sorted(element.value for element in value.elts)
+            return None
+    return None
+
 def snapshot_source(filepath, source):
     tree = ast.parse(source, filename=filepath)
     symbols = []
@@ -895,6 +940,8 @@ def snapshot_source(filepath, source):
         'language': 'python',
         'dependencyFingerprint': hash_payload(dependency_modules(tree)),
         'symbols': symbols,
+        'reexports': module_reexports(tree),
+        'dunderAll': dunder_all(tree),
     }
 
 def analyze_file(filepath):
@@ -1151,11 +1198,27 @@ export class PythonParser implements LanguageParser {
   }
 
   private mapSnapshot(raw: unknown): ParserModuleSnapshot {
+    if (!isRecord(raw)) throw invalidSnapshotOutput();
+    const keys = Object.keys(raw);
+    const allowedKeys = [
+      "language",
+      "dependencyFingerprint",
+      "symbols",
+      "reexports",
+      "dunderAll",
+    ];
     if (
-      !isExactRecord(raw, ["language", "dependencyFingerprint", "symbols"]) ||
+      !["language", "dependencyFingerprint", "symbols"].every((key) =>
+        Object.hasOwn(raw, key),
+      ) ||
+      keys.some((key) => !allowedKeys.includes(key)) ||
       raw.language !== "python" ||
       !isSnapshotHash(raw.dependencyFingerprint) ||
-      !Array.isArray(raw.symbols)
+      !Array.isArray(raw.symbols) ||
+      (raw.reexports !== undefined && !Array.isArray(raw.reexports)) ||
+      (raw.dunderAll !== undefined &&
+        raw.dunderAll !== null &&
+        !Array.isArray(raw.dunderAll))
     ) {
       throw invalidSnapshotOutput();
     }
@@ -1168,12 +1231,62 @@ export class PythonParser implements LanguageParser {
         throw invalidSnapshotOutput();
       }
     }
+    const reexports =
+      raw.reexports === undefined
+        ? undefined
+        : raw.reexports.map((edge) => this.mapReexport(edge));
+    const dunderAll =
+      raw.dunderAll === undefined || raw.dunderAll === null
+        ? undefined
+        : this.mapDunderAll(raw.dunderAll as unknown[]);
 
     return {
       language: "python",
       dependencyFingerprint: raw.dependencyFingerprint,
       symbols,
+      ...(reexports === undefined ? {} : { reexports }),
+      ...(dunderAll === undefined ? {} : { dunderAll }),
     };
+  }
+
+  private mapReexport(raw: unknown): ReexportEdge {
+    if (
+      !isExactRecord(raw, ["specifier", "names"]) ||
+      typeof raw.specifier !== "string" ||
+      !raw.specifier.startsWith(".") ||
+      (raw.names !== null && !Array.isArray(raw.names))
+    ) {
+      throw invalidSnapshotOutput();
+    }
+    if (raw.names === null) return { specifier: raw.specifier };
+    const names = raw.names.map((name) => {
+      if (
+        !isExactRecord(name, ["exported", "local"]) ||
+        typeof name.exported !== "string" ||
+        typeof name.local !== "string" ||
+        !isPythonIdentifier(name.exported) ||
+        !isPythonIdentifier(name.local)
+      ) {
+        throw invalidSnapshotOutput();
+      }
+      return { exported: name.exported, local: name.local };
+    });
+    return { specifier: raw.specifier, names };
+  }
+
+  private mapDunderAll(raw: unknown[]): string[] {
+    const names = raw.map((name) => {
+      if (typeof name !== "string" || !isPythonIdentifier(name)) {
+        throw invalidSnapshotOutput();
+      }
+      return name;
+    });
+    for (let index = 1; index < names.length; index += 1) {
+      if (compareUnicodeCodePoints(names[index - 1], names[index]) >= 0) {
+        throw invalidSnapshotOutput();
+      }
+    }
+    return names;
   }
 
   private mapSnapshotSymbol(raw: unknown): ParserSymbolSnapshot {

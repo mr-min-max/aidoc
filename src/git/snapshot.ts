@@ -362,6 +362,63 @@ export class GitSnapshotReader {
     }
   }
 
+  /** Lists package initializers, capped before boundary selection. */
+  async listPythonPackageEntries(
+    revision: "base" | "head",
+    limit = 21,
+  ): Promise<string[]> {
+    const commit = revision === "base" ? this.baseCommit : this.headCommit;
+    if (commit === undefined || !Number.isSafeInteger(limit)) {
+      throw new PlanFailure(
+        "PLAN_SOURCE_READ_FAILED",
+        "Unable to read repository snapshot.",
+      );
+    }
+    if (limit <= 0) return [];
+    try {
+      const output =
+        revision === "head" && this.headUsesWorkingTree
+          ? (
+              await Promise.all([
+                this.run(["ls-files", "-z", "--"]),
+                this.run([
+                  "ls-files",
+                  "--others",
+                  "--exclude-standard",
+                  "-z",
+                  "--",
+                ]),
+              ])
+            ).join("")
+          : await this.run([
+              "ls-tree",
+              "-r",
+              "--name-only",
+              "-z",
+              commit,
+              "--",
+            ]);
+      return [...new Set(parseNulPaths(output))]
+        .map(normalizePath)
+        .filter((candidate): candidate is string => candidate !== undefined)
+        .filter((candidate) => {
+          const parts = candidate.split("/");
+          return (
+            parts[parts.length - 1] === "__init__.py" &&
+            parts.length >= 2 &&
+            parts.length <= 4
+          );
+        })
+        .sort()
+        .slice(0, limit);
+    } catch {
+      throw new PlanFailure(
+        "PLAN_SOURCE_READ_FAILED",
+        "Unable to read repository snapshot.",
+      );
+    }
+  }
+
   private async gitRoot(): Promise<string> {
     try {
       return (await this.run(["rev-parse", "--show-toplevel"])).trim();

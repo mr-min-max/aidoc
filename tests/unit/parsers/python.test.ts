@@ -199,7 +199,9 @@ class Service:
   });
 
   it("accepts a genuinely parsed empty Python source file", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-python-empty-"));
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "staledocs-python-empty-"),
+    );
     const emptyFile = path.join(root, "empty.py");
     fs.writeFileSync(emptyFile, "");
 
@@ -217,7 +219,9 @@ class Service:
   });
 
   it("does not expose malformed Python source through parser diagnostics", async () => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "staledocs-python-error-"));
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "staledocs-python-error-"),
+    );
     const fakeSourceSecret = ["sk", "proj", "Y".repeat(32)].join("-");
     const brokenFile = path.join(root, "broken.py");
     fs.writeFileSync(brokenFile, `def broken(${fakeSourceSecret}:\n`);
@@ -303,6 +307,45 @@ def request(value: str = "secret-default") -> int:
   });
 
   // Break caught: source positions, comments, or whitespace participate in fingerprints.
+  it("snapshots static relative reexports and literal dunder all", async () => {
+    const snapshot = await parser.snapshot(
+      "pkg/__init__.py",
+      `from .core import run as execute, helper
+from .sub import *
+__all__ = ["execute", "visible"]
+`,
+    );
+
+    expect(snapshot.reexports).toEqual([
+      {
+        specifier: ".core",
+        names: [
+          { exported: "execute", local: "run" },
+          { exported: "helper", local: "helper" },
+        ],
+      },
+      { specifier: ".sub" },
+    ]);
+    expect(snapshot.dunderAll).toEqual(["execute", "visible"]);
+  });
+
+  it("treats dynamic dunder all as absent", async () => {
+    const snapshot = await parser.snapshot(
+      "pkg/__init__.py",
+      `from .core import run
+__all__ = [name for name in values]
+`,
+    );
+
+    expect(snapshot.dunderAll).toBeUndefined();
+    expect(snapshot.reexports).toEqual([
+      {
+        specifier: ".core",
+        names: [{ exported: "run", local: "run" }],
+      },
+    ]);
+  });
+
   it("keeps snapshots stable across formatting and line movement", async () => {
     const compact = await parser.snapshot(
       "src/client.py",

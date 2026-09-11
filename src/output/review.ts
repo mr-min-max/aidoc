@@ -264,6 +264,10 @@ function appendMore(lines: string[], count: number): void {
 }
 
 function changeLabel(change: ReviewReportChange): string {
+  if (change.category === "exposed") return "now exported";
+  if (change.category === "hidden") {
+    return "no longer exported (breaking)";
+  }
   const facets = change.changedContractFacets ?? [];
   const label =
     change.category === "contract-changed" && facets.length > 0

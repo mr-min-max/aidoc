@@ -227,7 +227,9 @@ function isReviewChange(change: SymbolChange): boolean {
     change.scope === "symbol" &&
     change.visibility !== "internal" &&
     (change.category === "added" ||
+      change.category === "exposed" ||
       change.category === "removed" ||
+      change.category === "hidden" ||
       change.category === "moved" ||
       change.category === "contract-changed")
   );

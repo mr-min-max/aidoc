@@ -23,7 +23,9 @@ export type ContractFacet =
   | "modifiers";
 export type ChangeCategory =
   | "added"
+  | "exposed"
   | "removed"
+  | "hidden"
   | "moved"
   | "contract-changed"
   | "implementation-changed"
@@ -217,8 +219,10 @@ export interface ParserModuleSnapshot {
   language: ImpactLanguage;
   dependencyFingerprint: string;
   symbols: ParserSymbolSnapshot[];
-  /** Static relative re-exports. Absent for Python in this phase. */
+  /** Static relative re-exports. */
   reexports?: ReexportEdge[];
+  /** Static Python `__all__`, when it is a literal string list or tuple. */
+  dunderAll?: string[];
   /** Consumer export names mapped to parser symbol roots. */
   exports?: { exported: string; symbol: string }[];
 }

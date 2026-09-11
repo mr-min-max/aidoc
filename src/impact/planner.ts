@@ -16,9 +16,16 @@ import {
 } from "../config/planning";
 import { GitSnapshotReader, type SnapshotFileChange } from "../git/snapshot";
 import { getSnapshotParserForFile } from "../parsers/registry";
-import { resolveBoundary, type ResolvedBoundary } from "./boundary";
+import {
+  diffBoundaries,
+  resolveBoundary,
+  resolvePythonBoundary,
+  type BoundaryFlip,
+  type ResolvedBoundary,
+} from "./boundary";
 import { buildImpactContext } from "./context";
 import {
+  createChange,
   digestImpactPayload,
   compareSnapshots,
   summarizeImpact,
@@ -61,7 +68,7 @@ interface FilesystemIdentity {
   type: string;
 }
 
-interface TypeScriptBoundaryResolution {
+interface LanguageBoundaryResolution {
   report: LanguageBoundaryReport;
   base: ResolvedBoundary;
   head: ResolvedBoundary;
@@ -185,14 +192,47 @@ export async function createImpactPlan(
       !file.excluded &&
       isTypeScriptPath(file.afterPath ?? file.beforePath),
   );
+  const hasPythonChanges = sourceFiles.some(
+    (file) =>
+      file.supported &&
+      !file.excluded &&
+      isPythonPath(file.afterPath ?? file.beforePath),
+  );
   const parsed = await snapshotChangedSources(sourceFiles);
+  const boundaryFiles = sourceFiles.map((file) => ({
+    status: file.status,
+    beforePath: file.beforePath,
+    afterPath: file.afterPath,
+  }));
   sourceFiles.length = 0;
   let allChanges = compareSnapshots(parsed);
-  const resolvedBoundary = hasTypeScriptChanges
-    ? await resolveTypeScriptBoundary(reader, config.entry)
-    : undefined;
-  if (resolvedBoundary !== undefined) {
-    allChanges = tagTypeScriptVisibility(allChanges, parsed, resolvedBoundary);
+  const [typeScriptBoundary, pythonBoundary] = await Promise.all([
+    hasTypeScriptChanges
+      ? resolveTypeScriptBoundary(reader, config.entry)
+      : undefined,
+    hasPythonChanges
+      ? resolveProjectPythonBoundary(reader, config.entry)
+      : undefined,
+  ]);
+  if (typeScriptBoundary !== undefined) {
+    allChanges = await applyBoundary(
+      allChanges,
+      parsed,
+      boundaryFiles,
+      typeScriptBoundary,
+      reader,
+      "typescript",
+    );
+  }
+  if (pythonBoundary !== undefined) {
+    allChanges = await applyBoundary(
+      allChanges,
+      parsed,
+      boundaryFiles,
+      pythonBoundary,
+      reader,
+      "python",
+    );
   }
   const suppressions = options.suppressions ?? (await loadSuppressions(root));
   const suppressed: SuppressedChange[] = [];
@@ -255,9 +295,18 @@ export async function createImpactPlan(
     documentation,
     context: context.report,
     ignored: planIgnored,
-    ...(resolvedBoundary === undefined
+    ...(typeScriptBoundary === undefined && pythonBoundary === undefined
       ? {}
-      : { boundary: { typescript: resolvedBoundary.report } }),
+      : {
+          boundary: {
+            ...(typeScriptBoundary === undefined
+              ? {}
+              : { typescript: typeScriptBoundary.report }),
+            ...(pythonBoundary === undefined
+              ? {}
+              : { python: pythonBoundary.report }),
+          },
+        }),
     digest,
   };
   return { plan, providerContext: context.providerContext, suppressed };
@@ -319,7 +368,7 @@ async function snapshotSource(
 async function resolveTypeScriptBoundary(
   reader: GitSnapshotReader,
   configuredEntries: readonly string[] | undefined,
-): Promise<TypeScriptBoundaryResolution> {
+): Promise<LanguageBoundaryResolution> {
   const [baseBoundary, headBoundary] = await Promise.all(
     (["base", "head"] as const).map((revision) =>
       resolveBoundary({
@@ -330,6 +379,35 @@ async function resolveTypeScriptBoundary(
       }),
     ),
   );
+  return mergeBoundaryReports(baseBoundary, headBoundary);
+}
+
+async function resolveProjectPythonBoundary(
+  reader: GitSnapshotReader,
+  configuredEntries: readonly string[] | undefined,
+): Promise<LanguageBoundaryResolution> {
+  const pythonEntries = configuredEntries?.filter((path) =>
+    path.endsWith("__init__.py"),
+  );
+  const [baseBoundary, headBoundary] = await Promise.all(
+    (["base", "head"] as const).map((revision) =>
+      resolvePythonBoundary({
+        readFile: (path) => reader.readAt(revision, path),
+        listPackageEntries: () => reader.listPythonPackageEntries(revision),
+        snapshot: (path, source) => snapshotSource(path, source, false),
+        ...(pythonEntries === undefined || pythonEntries.length === 0
+          ? {}
+          : { configuredEntries: pythonEntries }),
+      }),
+    ),
+  );
+  return mergeBoundaryReports(baseBoundary, headBoundary);
+}
+
+function mergeBoundaryReports(
+  baseBoundary: ResolvedBoundary,
+  headBoundary: ResolvedBoundary,
+): LanguageBoundaryResolution {
   const entryMode =
     baseBoundary.report.mode === "entry" &&
     headBoundary.report.mode === "entry";
@@ -364,12 +442,17 @@ async function resolveTypeScriptBoundary(
     head: headBoundary,
   };
 }
-
-function tagTypeScriptVisibility(
+async function applyBoundary(
   changes: SymbolChange[],
   files: ParsedFileSnapshots[],
-  boundary: TypeScriptBoundaryResolution,
-): SymbolChange[] {
+  boundaryFiles: Pick<
+    ParsedFileSnapshots,
+    "status" | "beforePath" | "afterPath"
+  >[],
+  boundary: LanguageBoundaryResolution,
+  reader: GitSnapshotReader,
+  language: "typescript" | "python",
+): Promise<SymbolChange[]> {
   if (boundary.report.mode !== "entry") return changes;
   const paths = new Map<string, { beforePath?: string; afterPath?: string }>();
   for (const file of files) {
@@ -386,10 +469,10 @@ function tagTypeScriptVisibility(
       });
     }
   }
-  return changes.map((change) => {
+  const tagged = changes.map((change) => {
     if (
       change.scope !== "symbol" ||
-      change.language !== "typescript" ||
+      change.language !== language ||
       change.qualifiedName === undefined
     ) {
       return change;
@@ -398,16 +481,96 @@ function tagTypeScriptVisibility(
       .filter((id): id is string => id !== undefined)
       .map((id) => paths.get(id))
       .find((value) => value !== undefined);
-    const rootName = change.qualifiedName.split(".", 1)[0]!;
+    const name = rootName(change.qualifiedName);
+    const beforePath = endpoints?.beforePath ?? change.path;
+    const afterPath = endpoints?.afterPath ?? change.path;
+    const privatePythonPath =
+      language === "python" && isPrivatePythonPath(change.path);
     const isPublic =
-      (endpoints?.beforePath !== undefined &&
-        boundary.base.reachable.get(endpoints.beforePath)?.has(rootName) ===
-          true) ||
-      (endpoints?.afterPath !== undefined &&
-        boundary.head.reachable.get(endpoints.afterPath)?.has(rootName) ===
-          true);
-    return { ...change, visibility: isPublic ? "public" : "internal" };
+      !privatePythonPath &&
+      (boundary.base.reachable.get(beforePath)?.has(name) === true ||
+        boundary.head.reachable.get(afterPath)?.has(name) === true);
+    return {
+      ...change,
+      visibility: isPublic ? ("public" as const) : ("internal" as const),
+    };
   });
+
+  const addedOrDeletedFiles = new Set(
+    boundaryFiles
+      .filter((file) => file.status === "added" || file.status === "deleted")
+      .flatMap((file) => [file.beforePath, file.afterPath])
+      .filter((path): path is string => path !== undefined),
+  );
+  const changedSymbols = new Set(
+    tagged
+      .filter(
+        (change) =>
+          change.language === language &&
+          change.scope === "symbol" &&
+          change.qualifiedName !== undefined &&
+          (change.category === "added" ||
+            change.category === "removed" ||
+            change.category === "moved" ||
+            change.category === "contract-changed"),
+      )
+      .map((change) => `${change.path}\0${rootName(change.qualifiedName!)}`),
+  );
+  const flips = diffBoundaries(boundary.base, boundary.head).filter(
+    (flip) =>
+      !addedOrDeletedFiles.has(flip.path) &&
+      !changedSymbols.has(`${flip.path}\0${flip.localName}`),
+  );
+  const flipChanges = await snapshotBoundaryFlips(flips, reader, language);
+  return [...tagged, ...flipChanges].sort(
+    (left, right) =>
+      compareStrings(left.path, right.path) ||
+      compareStrings(left.kind, right.kind) ||
+      compareStrings(left.qualifiedName ?? "", right.qualifiedName ?? "") ||
+      compareStrings(left.category, right.category) ||
+      compareStrings(left.id, right.id),
+  );
+}
+
+async function snapshotBoundaryFlips(
+  flips: BoundaryFlip[],
+  reader: GitSnapshotReader,
+  language: "typescript" | "python",
+): Promise<SymbolChange[]> {
+  const changes: SymbolChange[] = [];
+  for (const flip of flips) {
+    const revision = flip.kind === "exposed" ? "head" : "base";
+    const source = await reader.readAt(revision, flip.path);
+    const snapshot = await snapshotSource(flip.path, source);
+    if (snapshot === undefined || snapshot.language !== language) continue;
+    for (const symbol of snapshot.symbols.filter(
+      ({ qualifiedName }) => rootName(qualifiedName) === flip.localName,
+    )) {
+      const value = {
+        scope: "symbol" as const,
+        category: flip.kind,
+        risk:
+          flip.kind === "hidden"
+            ? ("potentially-breaking" as const)
+            : ("informational" as const),
+        language: symbol.language,
+        path: flip.path,
+        kind: symbol.kind,
+        qualifiedName: symbol.qualifiedName,
+        ...(flip.kind === "exposed"
+          ? { after: symbol.signature }
+          : { before: symbol.signature }),
+        ...(symbol.arity === undefined ? {} : { arity: symbol.arity }),
+        visibility: "public" as const,
+      };
+      changes.push(createChange(value));
+    }
+  }
+  return changes;
+}
+
+function rootName(qualifiedName: string): string {
+  return qualifiedName.split(".", 1)[0]!;
 }
 
 function snapshotSymbolId(
@@ -415,6 +578,18 @@ function snapshotSymbolId(
   symbol: ParserSymbolSnapshot,
 ): string {
   return `${symbol.language}:${path ?? ""}#${symbol.kind}:${symbol.qualifiedName}`;
+}
+
+function isPrivatePythonPath(path: string): boolean {
+  return path.split("/").some((segment) => {
+    if (segment === "__init__.py" || segment === "__main__.py") return false;
+    const name = segment.endsWith(".py") ? segment.slice(0, -3) : segment;
+    return name.startsWith("_");
+  });
+}
+
+function isPythonPath(path: string | undefined): boolean {
+  return path !== undefined && path.endsWith(".py");
 }
 
 function isTypeScriptPath(path: string | undefined): boolean {

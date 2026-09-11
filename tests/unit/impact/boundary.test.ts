@@ -1,4 +1,9 @@
-import { resolveBoundary } from "../../../src/impact/boundary";
+import {
+  diffBoundaries,
+  resolveBoundary,
+  resolvePythonBoundary,
+} from "../../../src/impact/boundary";
+import { PythonParser } from "../../../src/parsers/python";
 import { TypeScriptParser } from "../../../src/parsers/typescript";
 
 const parser = new TypeScriptParser();
@@ -107,6 +112,127 @@ describe("public boundary resolution", () => {
     expect(depthLimited.report).toMatchObject({
       mode: "fallback",
       reason: "limit-exceeded",
+    });
+  });
+  it("diffs exposed and hidden names only for resolved boundaries", () => {
+    const report = {
+      mode: "entry" as const,
+      entries: ["src/index.ts"],
+      filesRead: 2,
+    };
+    const base = {
+      report,
+      reachable: new Map([["src/api.ts", new Set(["kept", "hidden"])]]),
+    };
+    const head = {
+      report,
+      reachable: new Map([["src/api.ts", new Set(["kept", "exposed"])]]),
+    };
+
+    expect(diffBoundaries(base, head)).toEqual([
+      { path: "src/api.ts", localName: "exposed", kind: "exposed" },
+      { path: "src/api.ts", localName: "hidden", kind: "hidden" },
+    ]);
+    expect(
+      diffBoundaries(
+        {
+          ...base,
+          report: {
+            mode: "fallback",
+            entries: [],
+            reason: "no-manifest",
+            filesRead: 0,
+          },
+        },
+        head,
+      ),
+    ).toEqual([]);
+  });
+
+  it("resolves Python __all__, relative imports, star imports, and private paths", async () => {
+    const pythonParser = new PythonParser();
+    const files = {
+      "pyproject.toml": '[project]\nname = "pkg"\n',
+      "pkg/__init__.py":
+        'from .core import run, helper\nfrom .sub import *\nfrom ._internal import leaked\n__all__ = ["run", "subapi"]\n',
+      "pkg/core.py": "def run():\n    pass\n\ndef helper():\n    pass\n",
+      "pkg/_internal.py": "def leaked():\n    pass\n",
+      "pkg/sub/__init__.py": "from .api import subapi\n",
+      "pkg/sub/api.py": "def subapi():\n    pass\n",
+    };
+    const result = await resolvePythonBoundary({
+      readFile: async (path) => files[path as keyof typeof files],
+      listPackageEntries: async () => ["pkg/__init__.py"],
+      snapshot: async (path, source) => pythonParser.snapshot(path, source),
+    });
+
+    expect(result.report).toMatchObject({
+      mode: "entry",
+      entries: ["pkg/__init__.py"],
+    });
+    expect([...result.reachable.get("pkg/core.py")!]).toEqual(["run"]);
+    expect([...result.reachable.get("pkg/sub/api.py")!]).toEqual(["subapi"]);
+    expect(result.reachable.has("pkg/_internal.py")).toBe(false);
+  });
+  it("does not expose unselected names from a reached subpackage initializer", async () => {
+    const pythonParser = new PythonParser();
+    const files = {
+      "pyproject.toml": '[project]\nname = "pkg"\n',
+      "pkg/__init__.py": 'from .sub import selected\n__all__ = ["selected"]\n',
+      "pkg/sub/__init__.py": "from .api import selected, unrelated\n",
+      "pkg/sub/api.py":
+        "def selected():\n    pass\n\ndef unrelated():\n    pass\n",
+    };
+    const result = await resolvePythonBoundary({
+      readFile: async (path) => files[path as keyof typeof files],
+      listPackageEntries: async () => ["pkg/__init__.py"],
+      snapshot: async (path, source) => pythonParser.snapshot(path, source),
+    });
+
+    expect([...result.reachable.get("pkg/sub/api.py")!]).toEqual(["selected"]);
+  });
+
+  it("limits Python TOML discovery to configured package roots", async () => {
+    const pythonParser = new PythonParser();
+    const files = {
+      "pyproject.toml":
+        '[project]\nname = "distribution"\n[tool.setuptools.packages.find]\nwhere = "python"\n',
+      "python/distribution/__init__.py": "def api():\n    pass\n",
+      "other/__init__.py": "def unrelated():\n    pass\n",
+    };
+    const result = await resolvePythonBoundary({
+      readFile: async (path) => files[path as keyof typeof files],
+      listPackageEntries: async () => [
+        "other/__init__.py",
+        "python/distribution/__init__.py",
+      ],
+      snapshot: async (path, source) => pythonParser.snapshot(path, source),
+    });
+
+    expect(result.report).toMatchObject({
+      mode: "entry",
+      entries: ["python/distribution/__init__.py"],
+    });
+  });
+
+  it("resolves bounded Poetry package include and from metadata", async () => {
+    const pythonParser = new PythonParser();
+    const files = {
+      "pyproject.toml":
+        '[tool.poetry]\npackages = [{ include = "pkg", from = "python" }]\n',
+      "python/pkg/__init__.py": "def api():\n    pass\n",
+      "pkg/__init__.py": "def wrong():\n    pass\n",
+    };
+    const listed: string[] = [];
+    const result = await resolvePythonBoundary({
+      readFile: async (path) => files[path as keyof typeof files],
+      listPackageEntries: async () => listed,
+      snapshot: async (path, source) => pythonParser.snapshot(path, source),
+    });
+    expect(listed).toEqual([]);
+    expect(result.report).toMatchObject({
+      mode: "entry",
+      entries: ["python/pkg/__init__.py"],
     });
   });
 });
