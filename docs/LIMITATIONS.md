@@ -16,11 +16,13 @@ Adding a symbol to a resolved entry is reported as `now exported`. Removing it i
 
 ## Languages and syntax not enumerated
 
-TypeScript and JavaScript analysis follows static relative re-exports but does not enumerate CommonJS exports. Python analysis does not enumerate module constants or dynamic exports. Generated exports and runtime registration are outside the AST snapshot.
+CommonJS modules (`module.exports`, `exports.x`) are not enumerated; they are listed as not analyzed in the report. Python analysis does not enumerate module constants or dynamic exports. Generated exports and runtime registration are outside the AST snapshot.
 
 ## Documentation discovery
 
 The planner recognizes root `README.md` and `CHANGELOG.md` names without case sensitivity. It recursively scans files with a case-insensitive `.md` extension under `docs` and under a configured output directory. Planning exclusion globs are applied while selecting candidates. After discovery, `.staledocsignore` removes documentation through case-sensitive path patterns whose literal suffix is `.md`, such as `docs/legacy/*.md`.
+
+Changelog-style files (`CHANGELOG.md`, `CHANGES.md`, `HISTORY.md`, `NEWS.md`, `RELEASES.md`) are read for recommendations only; their entries are history and are never reported as stale.
 
 ## Git requirements
 

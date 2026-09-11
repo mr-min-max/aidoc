@@ -186,6 +186,11 @@ export async function createImpactPlan(
   });
   const { root, base, head, ignored } = snapshotSet;
   const sourceFiles = snapshotSet.files;
+  const unsupportedNotAnalyzed = sourceFiles.flatMap((file) => {
+    if (file.analysis !== "unsupported") return [];
+    const path = file.afterPath ?? file.beforePath;
+    return path === undefined ? [] : [{ path, reason: "unsupported" as const }];
+  });
   const hasTypeScriptChanges = sourceFiles.some(
     (file) =>
       file.supported &&
@@ -199,6 +204,11 @@ export async function createImpactPlan(
       isPythonPath(file.afterPath ?? file.beforePath),
   );
   const parsed = await snapshotChangedSources(sourceFiles);
+  const commonJsNotAnalyzed = sourceFiles.flatMap((file) => {
+    if (file.analysis !== "commonjs") return [];
+    const path = file.afterPath ?? file.beforePath;
+    return path === undefined ? [] : [{ path, reason: "commonjs" as const }];
+  });
   const boundaryFiles = sourceFiles.map((file) => ({
     status: file.status,
     beforePath: file.beforePath,
@@ -267,9 +277,23 @@ export async function createImpactPlan(
     filteredDocumentationFiles,
   );
   const summary = summarizeImpact(changes, documentation);
+  const notAnalyzed = [...unsupportedNotAnalyzed, ...commonJsNotAnalyzed]
+    .sort(
+      (left, right) =>
+        compareStrings(left.path, right.path) ||
+        compareStrings(left.reason, right.reason),
+    )
+    .filter(
+      (item, index, values) =>
+        index === 0 ||
+        item.path !== values[index - 1]?.path ||
+        item.reason !== values[index - 1]?.reason,
+    )
+    .slice(0, 50);
   const planIgnored = {
     ...ignored,
     suppressed: suppressed.length,
+    ...(notAnalyzed.length === 0 ? {} : { notAnalyzed }),
   };
   const digest = digestImpactPayload({
     base,
@@ -333,6 +357,17 @@ async function snapshotChangedSources(files: SnapshotFileChange[]): Promise<
     if (!file.supported || file.excluded) continue;
     const before = await snapshotSource(file.beforePath, file.beforeSource);
     const after = await snapshotSource(file.afterPath, file.afterSource);
+    const commonJsPath = [
+      { path: file.beforePath, snapshot: before },
+      { path: file.afterPath, snapshot: after },
+    ].find(
+      ({ path, snapshot }) =>
+        path !== undefined &&
+        isJavaScriptPath(path) &&
+        snapshot?.moduleSystem === "commonjs" &&
+        snapshot.symbols.length === 0,
+    )?.path;
+    if (commonJsPath !== undefined) file.analysis = "commonjs";
     if (before === undefined && after === undefined) continue;
     parsed.push({
       status: file.status,
@@ -596,6 +631,10 @@ function isTypeScriptPath(path: string | undefined): boolean {
   return (
     path !== undefined && /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$/u.test(path)
   );
+}
+
+function isJavaScriptPath(path: string): boolean {
+  return /\.(?:js|jsx|mjs|cjs)$/u.test(path);
 }
 
 async function loadDocumentationFiles(

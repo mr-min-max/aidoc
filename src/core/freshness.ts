@@ -79,10 +79,27 @@ export function assessDocumentationFreshness(input: {
     }
   }
 
-  const unmappedSymbols = input.plan.documentation
-    .filter((impact) => impact.unmapped)
-    .map((impact) => symbolChanges.get(impact.changeId)?.qualifiedName)
-    .filter((name): name is string => name !== undefined);
+  const directlyMapped = new Set<string>();
+  for (const impact of input.plan.documentation) {
+    if (impact.directReferences.length === 0) continue;
+    const qualifiedName = symbolChanges.get(impact.changeId)?.qualifiedName;
+    if (qualifiedName !== undefined) directlyMapped.add(qualifiedName);
+  }
+  const unmappedSymbols: string[] = [];
+  for (const impact of input.plan.documentation) {
+    if (impact.directReferences.length > 0) continue;
+    const change = symbolChanges.get(impact.changeId);
+    if (change?.qualifiedName === undefined) continue;
+    if (
+      (change.kind === "class" || change.kind === "interface") &&
+      [...directlyMapped].some((mapped) =>
+        mapped.startsWith(`${change.qualifiedName}.`),
+      )
+    ) {
+      continue;
+    }
+    unmappedSymbols.push(change.qualifiedName);
+  }
   const sourceFiles = [
     ...new Set(
       input.plan.changes

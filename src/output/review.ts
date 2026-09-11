@@ -33,6 +33,10 @@ export interface ReviewReportDocument {
   sections: ReviewReportSection[];
 }
 
+export interface ReviewReportNotAnalyzed {
+  path: string;
+  reason: string;
+}
 export interface ReviewReport {
   schemaVersion: typeof REVIEW_SCHEMA_VERSION;
   base: SnapshotDescriptor;
@@ -50,6 +54,7 @@ export interface ReviewReport {
   documents: ReviewReportDocument[];
   unmapped: string[];
   suppressed: Array<{ symbol: string; reason?: string }>;
+  notAnalyzed?: ReviewReportNotAnalyzed[];
   boundary?: BoundaryReport;
   verdict: "clean" | "stale" | "breaking";
 }
@@ -64,7 +69,12 @@ export function renderReviewMarkdown(
     "### StaleDocs: documentation impact",
   ];
   if (report.summary.publicApiChanges === 0) {
-    lines.push("No public API changes in this pull request.");
+    const notAnalyzed = formatNotAnalyzed(report.notAnalyzed, true, 5);
+    lines.push(
+      notAnalyzed.length === 0
+        ? "No public API changes in this pull request."
+        : `No public API changes in the analyzed files. Not analyzed: ${notAnalyzed}.`,
+    );
     appendBoundary(lines, report);
     return lines.join("\n");
   }
@@ -88,8 +98,10 @@ export function renderReviewMarkdown(
   const changes = [...report.changes].sort(compareReviewChanges);
   const visibleChanges = changes.slice(0, normalizedLimit(maxSymbols));
   for (const change of visibleChanges) {
+    const duplicateSignature =
+      change.before !== undefined && change.before === change.after;
     lines.push(
-      `| \`${escapeTable(change.qualifiedName)}\` | ${changeLabel(change)} | ${signatureCell(change.before)} | ${signatureCell(change.after)} |`,
+      `| \`${escapeTable(change.qualifiedName)}\` | ${changeLabel(change)} | ${signatureCell(duplicateSignature ? undefined : change.before)} | ${signatureCell(duplicateSignature ? undefined : change.after)} |`,
     );
   }
   appendMore(lines, changes.length - visibleChanges.length);
@@ -136,6 +148,10 @@ export function renderReviewMarkdown(
     );
     appendMore(lines, unmapped.length - 20);
   }
+  const notAnalyzed = formatNotAnalyzed(report.notAnalyzed, true);
+  if (notAnalyzed.length > 0) {
+    lines.push("", `**Not analyzed:** ${notAnalyzed}`);
+  }
   appendBoundary(lines, report);
   lines.push(
     "",
@@ -151,7 +167,12 @@ export function renderReviewText(
 ): string {
   const lines: string[] = [];
   if (report.summary.publicApiChanges === 0) {
-    lines.push("No public API changes in this pull request.");
+    const notAnalyzed = formatNotAnalyzed(report.notAnalyzed, false, 5);
+    lines.push(
+      notAnalyzed.length === 0
+        ? "No public API changes in this pull request."
+        : `No public API changes in the analyzed files. Not analyzed: ${notAnalyzed}.`,
+    );
   } else {
     lines.push(
       `StaleDocs: documentation impact (${report.verdict})`,
@@ -160,8 +181,10 @@ export function renderReviewText(
     const changes = [...report.changes].sort(compareReviewChanges);
     const visibleChanges = changes.slice(0, normalizedLimit(maxSymbols));
     for (const change of visibleChanges) {
+      const duplicateSignature =
+        change.before !== undefined && change.before === change.after;
       lines.push(
-        `${change.qualifiedName}: ${changeLabel(change)}${change.before === undefined ? "" : `; before ${change.before}`} ${change.after === undefined ? "" : `after ${change.after}`}`.trim(),
+        `${change.qualifiedName}: ${changeLabel(change)}${duplicateSignature || change.before === undefined ? "" : `; before ${change.before}`}${duplicateSignature || change.after === undefined ? "" : ` after ${change.after}`}`,
       );
     }
     appendMore(lines, changes.length - visibleChanges.length);
@@ -183,6 +206,10 @@ export function renderReviewText(
         `Not mentioned: ${[...report.unmapped].sort(compareStrings).join(", ")}`,
       );
     }
+  }
+  if (report.summary.publicApiChanges > 0) {
+    const notAnalyzed = formatNotAnalyzed(report.notAnalyzed, false);
+    if (notAnalyzed.length > 0) lines.push(`Not analyzed: ${notAnalyzed}`);
   }
   appendBoundary(lines, report);
   if (report.summary.suppressed > 0) {
@@ -271,13 +298,39 @@ function changeLabel(change: ReviewReportChange): string {
   const facets = change.changedContractFacets ?? [];
   const label =
     change.category === "contract-changed" && facets.length > 0
-      ? facets.join(", ")
+      ? facets.length === 1 && facets[0] === "members"
+        ? "members changed"
+        : facets.join(", ")
       : change.category;
   return change.risk === "potentially-breaking" ? `${label} (breaking)` : label;
 }
 
 function signatureCell(signature: string | undefined): string {
   return signature === undefined ? "" : `\`${escapeSignature(signature)}\``;
+}
+
+function formatNotAnalyzed(
+  items: readonly ReviewReportNotAnalyzed[] | undefined,
+  markdown: boolean,
+  limit = Number.MAX_SAFE_INTEGER,
+): string {
+  if (items === undefined || items.length === 0) return "";
+  const sorted = [...items].sort(
+    (left, right) =>
+      compareStrings(left.path, right.path) ||
+      compareStrings(left.reason, right.reason),
+  );
+  const visible = sorted.slice(0, normalizedLimit(limit));
+  const formatted = visible.map((item) => {
+    const path = markdown ? `\`${escapeTable(item.path)}\`` : item.path;
+    const reason =
+      item.reason === "commonjs" ? "CommonJS" : "unsupported file type";
+    return `${path} (${reason})`;
+  });
+  if (sorted.length > visible.length) {
+    formatted.push(`+${sorted.length - visible.length} more`);
+  }
+  return formatted.join(", ");
 }
 
 function escapeSignature(signature: string): string {

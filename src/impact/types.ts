@@ -139,7 +139,15 @@ export interface ImpactPlan {
   changes: SymbolChange[];
   documentation: DocumentationImpact[];
   context: ContextBudgetReport;
-  ignored: { unsupported: number; excluded: number; suppressed: number };
+  ignored: {
+    unsupported: number;
+    excluded: number;
+    suppressed: number;
+    notAnalyzed?: {
+      path: string;
+      reason: "commonjs" | "unsupported";
+    }[];
+  };
   boundary?: BoundaryReport;
   digest: string;
 }
@@ -225,6 +233,8 @@ export interface ParserModuleSnapshot {
   dunderAll?: string[];
   /** Consumer export names mapped to parser symbol roots. */
   exports?: { exported: string; symbol: string }[];
+  /** JavaScript or TypeScript module syntax detected through the AST. */
+  moduleSystem?: "esm" | "commonjs" | "none";
 }
 
 export interface ParserSymbolSnapshot {

@@ -79,7 +79,11 @@ export async function createReviewReport(
     plan.changes.map((change) => [change.id, change]),
   );
   const directReferenceFiles = new Set<string>();
-  const unmapped = new Set<string>();
+  const directlyMapped = new Set<string>();
+  const reviewImpactNames = new Map<
+    string,
+    { qualifiedName: string; kind: SymbolChange["kind"] }
+  >();
   for (const impact of plan.documentation) {
     const change = changesById.get(impact.changeId);
     if (
@@ -88,12 +92,29 @@ export async function createReviewReport(
     ) {
       continue;
     }
-    if (isReviewChange(change) && impact.directReferences.length === 0) {
-      unmapped.add(change.qualifiedName);
+    if (isReviewChange(change)) {
+      reviewImpactNames.set(impact.changeId, {
+        qualifiedName: change.qualifiedName,
+        kind: change.kind,
+      });
+    }
+    if (impact.directReferences.length > 0) {
+      directlyMapped.add(change.qualifiedName);
     }
     for (const reference of impact.directReferences) {
       directReferenceFiles.add(reference.file);
     }
+  }
+  const unmapped = new Set<string>();
+  for (const { qualifiedName, kind } of reviewImpactNames.values()) {
+    if (directlyMapped.has(qualifiedName)) continue;
+    if (
+      (kind === "class" || kind === "interface") &&
+      [...directlyMapped].some((name) => name.startsWith(`${qualifiedName}.`))
+    ) {
+      continue;
+    }
+    unmapped.add(qualifiedName);
   }
 
   const documents: ReviewReportDocument[] = [];
@@ -149,6 +170,14 @@ export async function createReviewReport(
       }))
       .sort((left, right) => compareStrings(left.symbol, right.symbol)),
     ...(plan.boundary === undefined ? {} : { boundary: plan.boundary }),
+    ...(plan.ignored.notAnalyzed === undefined
+      ? {}
+      : {
+          notAnalyzed: plan.ignored.notAnalyzed.map(({ path, reason }) => ({
+            path,
+            reason,
+          })),
+        }),
     verdict: breaking > 0 ? "breaking" : staleDocuments > 0 ? "stale" : "clean",
   };
   return report;

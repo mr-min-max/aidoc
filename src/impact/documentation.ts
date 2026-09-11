@@ -39,6 +39,8 @@ const API_CATEGORIES = new Set([
   "hidden",
   "contract-changed",
 ]);
+const CHANGELOG_BASENAME =
+  /^(changelog|changes|history|news|releases?)(\.md)?$/iu;
 
 /** Indexes Markdown headings and their normalized repository-relative evidence. */
 export function indexDocumentation(
@@ -69,6 +71,7 @@ export function mapDocumentationImpact(
     const sourcePath = normalizeRepositoryPath(change.path);
 
     for (const section of sections) {
+      if (CHANGELOG_BASENAME.test(pathPosix.basename(section.file))) continue;
       if (
         qualifiedName !== undefined &&
         section.codeSpans.some((span) => containsExactName(span, qualifiedName))
@@ -515,7 +518,7 @@ function apiSectionScore(section: ScannedSection): number | undefined {
 }
 
 function changelogSectionScore(section: ScannedSection): number | undefined {
-  return pathPosix.basename(section.file).toLowerCase() === "changelog.md"
+  return CHANGELOG_BASENAME.test(pathPosix.basename(section.file))
     ? 0
     : undefined;
 }

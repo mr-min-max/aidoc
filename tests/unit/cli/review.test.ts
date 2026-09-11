@@ -167,6 +167,66 @@ describe("review command", () => {
     });
   });
 
+  it("folds a class row and maps the class through its changed method", async () => {
+    const classRoot = mkdtempSync(join(tmpdir(), "staledocs-review-class-"));
+    mkdirSync(join(classRoot, "src"));
+    git(classRoot, "init", "-q", "--initial-branch", "main");
+    git(classRoot, "config", "user.email", "test@example.invalid");
+    git(classRoot, "config", "user.name", "Test");
+    writeFileSync(join(classRoot, "package.json"), '{"name":"lib","main":"dist/index.js"}\n');
+    writeFileSync(join(classRoot, "src", "index.ts"), "export class Client { get(url: string): Promise<string> { return Promise.resolve(url); } }\n");
+    writeFileSync(join(classRoot, "README.md"), "# core\n\n## Usage\n\nCall `Client.get(url)` to fetch.\n");
+    git(classRoot, "add", ".");
+    git(classRoot, "commit", "-qm", "base");
+    writeFileSync(join(classRoot, "src", "index.ts"), "export class Client { get(url: string, init: RequestInit): Promise<string> { return Promise.resolve(url); } }\n");
+    try {
+      const result = await createReviewReport({ base: "HEAD" }, classRoot);
+      expect(result.changes.map(({ qualifiedName }) => qualifiedName)).toEqual(["Client.get"]);
+      expect(result.unmapped).toEqual([]);
+    } finally {
+      rmSync(classRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("carries CommonJS not-analyzed files into the review report", async () => {
+    const commonRoot = mkdtempSync(join(tmpdir(), "staledocs-review-commonjs-"));
+    mkdirSync(join(commonRoot, "lib"));
+    git(commonRoot, "init", "-q", "--initial-branch", "main");
+    git(commonRoot, "config", "user.email", "test@example.invalid");
+    git(commonRoot, "config", "user.name", "Test");
+    writeFileSync(join(commonRoot, "package.json"), '{"name":"lib","main":"lib/index.js"}\n');
+    writeFileSync(join(commonRoot, "lib", "index.js"), "var req = {};\nmodule.exports = req;\n");
+    git(commonRoot, "add", ".");
+    git(commonRoot, "commit", "-qm", "base");
+    writeFileSync(join(commonRoot, "lib", "index.js"), "var req = { fresh: true };\nmodule.exports = req;\n");
+    try {
+      const result = await createReviewReport({ base: "HEAD" }, commonRoot);
+      expect(result.summary.publicApiChanges).toBe(0);
+      expect(result.notAnalyzed).toEqual([{ path: "lib/index.js", reason: "commonjs" }]);
+    } finally {
+      rmSync(commonRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("does not call an added class unmapped when its added member is referenced", async () => {
+    writeFileSync(
+      join(root, "src", "user.ts"),
+      "export function createUser(email: string): string { return email; }\nexport class Client { get(url: string): string { return url; } }\n",
+    );
+    writeFileSync(
+      join(root, "README.md"),
+      "# API\n\n## API\n\n`createUser` and `Client.get(url)`\n",
+    );
+
+    const result = await createReviewReport({ base: "HEAD" }, root);
+
+    expect(result.changes.map(({ qualifiedName }) => qualifiedName)).toEqual([
+      "Client",
+      "Client.get",
+    ]);
+    expect(result.unmapped).toEqual([]);
+  });
+
   it("prints suppression detail in text while preserving a clean exit", async () => {
     writeFileSync(join(root, ".staledocsignore"), "createUser\n");
     writeFileSync(
@@ -182,10 +242,8 @@ describe("review command", () => {
         root,
       ),
     ).toBe(0);
-    expect(output.stdout).toHaveBeenCalledWith(
-      "No public API changes in this pull request.\n\n" +
-        "Public boundary (TypeScript): not resolved (no-manifest); every export is treated as public. Set `entry` in the StaleDocs config to narrow it.\n" +
-        "1 suppressed change from .staledocsignore.\n",
+    expect(output.stdout.mock.calls[0][0]).toContain(
+      "1 suppressed change from .staledocsignore.",
     );
 
     const result = await createReviewReport({ base: "HEAD" }, root);

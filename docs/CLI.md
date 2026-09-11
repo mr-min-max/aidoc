@@ -334,10 +334,14 @@ Options:
 - `--max-symbols <n>` limits the text or Markdown change list, defaulting to 30. JSON is never truncated.
 
 Markdown output starts with `<!-- staledocs-review -->`, followed by before and after
-signatures, affected documentation sections, and co-changed documents. A clean
-review has exactly the marker, heading, and `No public API changes in this pull request.`
+signatures, affected documentation sections, and co-changed documents. When no public
+API change is found but files could not be analyzed, the zero message names up to five
+of those files and says that no public API changes were found in the analyzed files.
+JSON keeps schema `aidoc.review.v1` and adds the optional `notAnalyzed` array. Each
+entry contains a repository-relative `path` and a bounded reason. Text and Markdown
+outputs include the same not-analyzed information.
 
-Review categories are `added`, `now exported`, `removed`, `no longer exported`, `moved`, and changed contract facets. `no longer exported` is potentially breaking; `now exported` is informational.
+Review categories are `added`, `now exported`, `removed`, `no longer exported`, `moved`, and changed contract facets. `members` alone is rendered as `members changed`. `no longer exported` is potentially breaking; `now exported` is informational.
 
 ### `.staledocsignore`
 

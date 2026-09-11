@@ -50,7 +50,7 @@ inputs:
     required: false
     default: "none"
   comment:
-    description: "Post or update the review comment on a pull request"
+    description: "Post or update the review comment: true, false, or on-findings"
     required: false
     default: "true"
   labels:

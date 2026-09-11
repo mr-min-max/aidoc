@@ -320,6 +320,32 @@ describe("documentation impact mapping", () => {
     }
   });
 
+  it("uses changelog-style files for recommendations but never direct references", () => {
+    const breaking = change({
+      id: "breaking-history",
+      category: "contract-changed",
+      risk: "potentially-breaking",
+      qualifiedName: "foo",
+    });
+    const [impact] = mapDocumentationImpact(
+      [breaking],
+      [
+        {
+          path: "docs/HISTORY.md",
+          content: "# History\n\n## 1.0.0\n\nAdded `foo`.",
+        },
+      ],
+    );
+
+    expect(impact.directReferences).toEqual([]);
+    expect(impact.recommendations).toEqual([
+      expect.objectContaining({
+        file: "docs/HISTORY.md",
+        reason: "changelog",
+      }),
+    ]);
+  });
+
   it("deduplicates and sorts references without exposing bodies, credentials, or absolute paths", () => {
     const credential = ["sk", "proj", "S".repeat(40)].join("-");
     const [impact] = mapDocumentationImpact(
