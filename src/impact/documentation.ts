@@ -32,7 +32,13 @@ interface MutableSection {
 }
 
 const GENERIC_HEADING_NAMES = new Set(["get", "set", "run", "main", "open"]);
-const API_CATEGORIES = new Set(["added", "removed", "contract-changed"]);
+const API_CATEGORIES = new Set([
+  "added",
+  "exposed",
+  "removed",
+  "hidden",
+  "contract-changed",
+]);
 
 /** Indexes Markdown headings and their normalized repository-relative evidence. */
 export function indexDocumentation(

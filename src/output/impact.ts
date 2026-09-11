@@ -70,7 +70,9 @@ export function formatImpactPlan(
   if (verbose) {
     for (const change of plan.changes) {
       if (change.before === undefined && change.after === undefined) continue;
-      lines.push(`Change: ${change.qualifiedName ?? change.id}`);
+      lines.push(
+        `Change: ${change.qualifiedName ?? change.id} (${change.category})`,
+      );
       if (change.before !== undefined) lines.push(`  before: ${change.before}`);
       if (change.after !== undefined) lines.push(`  after:  ${change.after}`);
     }

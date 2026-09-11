@@ -42,7 +42,9 @@ function planFor(changes: SymbolChange[], documentation: ImpactPlan["documentati
       unmapped: documentation.filter((item) => item.unmapped).length,
       byCategory: {
         added: 0,
+        exposed: 0,
         removed: 0,
+        hidden: 0,
         moved: 0,
         "contract-changed": changes.length,
         "implementation-changed": 0,

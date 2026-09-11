@@ -11,7 +11,9 @@ const digest = (character: string): string => character.repeat(64);
 
 const categories: ChangeCategory[] = [
   "added",
+  "exposed",
   "removed",
+  "hidden",
   "moved",
   "contract-changed",
   "implementation-changed",

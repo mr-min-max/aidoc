@@ -248,6 +248,41 @@ describe("review output", () => {
     );
   });
 
+  it("renders public boundary flip labels", () => {
+    const exposed = {
+      ...report().changes[0],
+      category: "exposed" as const,
+      risk: "informational" as const,
+      before: undefined,
+      after: "createUser(email: string): string",
+    };
+    const hidden = {
+      ...report().changes[0],
+      category: "hidden" as const,
+      risk: "potentially-breaking" as const,
+      before: "createUser(email: string): string",
+      after: undefined,
+    };
+
+    const markdown = renderReviewMarkdown(
+      report({
+        summary: { ...report().summary, publicApiChanges: 2 },
+        changes: [exposed, hidden],
+      }),
+    );
+    const text = renderReviewText(
+      report({
+        summary: { ...report().summary, publicApiChanges: 2 },
+        changes: [exposed, hidden],
+      }),
+    );
+
+    expect(markdown).toContain("now exported");
+    expect(markdown).toContain("no longer exported (breaking)");
+    expect(text).toContain("now exported");
+    expect(text).toContain("no longer exported (breaking)");
+  });
+
   it("renders text without a Markdown table and canonical JSON", () => {
     expect(renderReviewText(report())).not.toContain("| Symbol |");
     expect(JSON.parse(serializeReviewReport(report())).schemaVersion).toBe(

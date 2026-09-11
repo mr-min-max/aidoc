@@ -21,9 +21,11 @@ export interface ParsedFileSnapshots {
 
 const CATEGORY_ORDER: readonly ChangeCategory[] = [
   "removed",
+  "hidden",
   "contract-changed",
   "moved",
   "added",
+  "exposed",
   "dependency-changed",
   "implementation-changed",
   "documentation-changed",
@@ -35,7 +37,9 @@ const CATEGORY_PRIORITY = new Map(
 
 const ALL_CATEGORIES: readonly ChangeCategory[] = [
   "added",
+  "exposed",
   "removed",
+  "hidden",
   "moved",
   "contract-changed",
   "implementation-changed",
@@ -185,7 +189,9 @@ export function summarizeImpact(
       change.visibility === "internal" &&
       change.scope === "symbol" &&
       (change.category === "added" ||
+        change.category === "exposed" ||
         change.category === "removed" ||
+        change.category === "hidden" ||
         change.category === "contract-changed" ||
         change.category === "moved")
     ) {
@@ -195,7 +201,9 @@ export function summarizeImpact(
       change.scope === "symbol" &&
       change.visibility !== "internal" &&
       (change.category === "added" ||
+        change.category === "exposed" ||
         change.category === "removed" ||
+        change.category === "hidden" ||
         change.category === "contract-changed" ||
         change.category === "moved")
     ) {
@@ -342,7 +350,7 @@ function addOne(
   );
 }
 
-function createChange(
+export function createChange(
   value: Omit<SymbolChange, "id" | "digest"> & { id?: string },
 ): SymbolChange {
   const id =

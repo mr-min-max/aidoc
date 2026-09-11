@@ -337,6 +337,8 @@ Markdown output starts with `<!-- staledocs-review -->`, followed by before and 
 signatures, affected documentation sections, and co-changed documents. A clean
 review has exactly the marker, heading, and `No public API changes in this pull request.`
 
+Review categories are `added`, `now exported`, `removed`, `no longer exported`, `moved`, and changed contract facets. `no longer exported` is potentially breaking; `now exported` is informational.
+
 ### `.staledocsignore`
 
 Add deliberate suppressions at the repository root, one per line. Blank lines and

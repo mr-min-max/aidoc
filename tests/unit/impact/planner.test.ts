@@ -829,6 +829,94 @@ describe("createImpactPlan", () => {
     ]);
   });
 
+  test("reports a public flip when only the TypeScript entry changes", async () => {
+    const root = repository();
+    mkdirSync(join(root, "src"));
+    writeFileSync(join(root, "package.json"), '{"main":"dist/index.js"}\n');
+    writeFileSync(
+      join(root, "src", "index.ts"),
+      "export const VERSION = '1';\n",
+    );
+    writeFileSync(
+      join(root, "src", "foo.ts"),
+      "export function foo(value: string): string { return value; }\n",
+    );
+    writeFileSync(join(root, "README.md"), "# API\n\n## API\n\nUse `foo()`.\n");
+    commit(root, "base");
+    writeFileSync(
+      join(root, "src", "index.ts"),
+      "export const VERSION = '1';\nexport { foo } from './foo';\n",
+    );
+
+    const result = await createImpactPlan({ cwd: root, base: "HEAD" });
+
+    expect(result.plan.changes).toEqual([
+      expect.objectContaining({
+        category: "exposed",
+        path: "src/foo.ts",
+        qualifiedName: "foo",
+        visibility: "public",
+        after: "foo(value: string): string",
+      }),
+      expect.objectContaining({
+        category: "dependency-changed",
+        path: "src/index.ts",
+      }),
+    ]);
+    expect(result.plan.summary).toMatchObject({
+      publicApiChanges: 1,
+      potentiallyBreaking: 0,
+    });
+  });
+
+  test("classifies Python __all__ exports and hidden module paths", async () => {
+    const root = repository();
+    mkdirSync(join(root, "pkg"));
+    writeFileSync(join(root, "pyproject.toml"), '[project]\nname = "pkg"\n');
+    writeFileSync(
+      join(root, "pkg", "__init__.py"),
+      'from .core import run, helper\n__all__ = ["run"]\n',
+    );
+    writeFileSync(
+      join(root, "pkg", "core.py"),
+      "def run(a):\n    return a\n\ndef helper(a):\n    return a\n",
+    );
+    writeFileSync(
+      join(root, "pkg", "_internal.py"),
+      "def leaked(a):\n    return a\n",
+    );
+    commit(root, "base");
+    writeFileSync(
+      join(root, "pkg", "core.py"),
+      "def run(a, b):\n    return a\n\ndef helper(a, b):\n    return a\n",
+    );
+    writeFileSync(
+      join(root, "pkg", "_internal.py"),
+      "def leaked(a, b):\n    return a\n",
+    );
+
+    const result = await createImpactPlan({ cwd: root, base: "HEAD" });
+
+    expect(result.plan.boundary?.python).toMatchObject({
+      mode: "entry",
+      entries: ["pkg/__init__.py"],
+    });
+    expect(
+      result.plan.changes.map(({ qualifiedName, visibility }) => ({
+        qualifiedName,
+        visibility,
+      })),
+    ).toEqual([
+      { qualifiedName: "leaked", visibility: "internal" },
+      { qualifiedName: "helper", visibility: "internal" },
+      { qualifiedName: "run", visibility: "public" },
+    ]);
+    expect(result.plan.summary).toMatchObject({
+      publicApiChanges: 1,
+      internalChanges: 2,
+    });
+  });
+
   test("leaves visibility absent when entry discovery falls back", async () => {
     const root = repository();
     writeFileSync(

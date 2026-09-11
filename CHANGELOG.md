@@ -7,6 +7,9 @@ All notable changes to this project are documented in this file.
 - Resolve the TypeScript and JavaScript public boundary from package entries and bounded static relative re-exports, with loud fallback when no entry is available.
 - Add the optional `entry` configuration override and support `.mts`, `.cts`, `.mjs`, and `.cjs` module files.
 - Add optional `boundary`, symbol `visibility`, and `summary.internalChanges` fields without changing the v1 plan, context, or review schema versions.
+- Detect symbols that become exposed or hidden through resolved TypeScript and JavaScript package entries even when their declaration file does not change.
+- Resolve Python public boundaries from bounded package entries, literal `__all__`, static relative imports, and the private underscore-path rule.
+- Add optional `exposed` and `hidden` change categories and summary keys without changing the v1 plan, context, or review schema versions.
 
 ## [0.3.0-beta.1] - 2026-09-10
 

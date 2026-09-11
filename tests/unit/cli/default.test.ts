@@ -47,7 +47,9 @@ function planningResult(impact: boolean): ImpactPlanningResult {
     unmapped: 0,
     byCategory: {
       added: 0,
+      exposed: 0,
       removed: 0,
+      hidden: 0,
       moved: 0,
       "contract-changed": impact ? 1 : 0,
       "implementation-changed": 0,

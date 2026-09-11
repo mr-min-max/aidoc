@@ -6,6 +6,7 @@ import type { LanguageBoundaryReport, ParserModuleSnapshot } from "./types";
 const DEFAULT_MAX_FILES = 200;
 const DEFAULT_MAX_DEPTH = 12;
 const MAX_PACKAGE_MANIFESTS = 50;
+const MAX_PYTHON_PACKAGE_ENTRIES = 20;
 const SUPPORTED_EXTENSIONS = [
   ".d.ts",
   ".ts",
@@ -53,9 +54,57 @@ export interface BoundaryInput {
   limits?: { maxFiles?: number; maxDepth?: number };
 }
 
+export interface PythonBoundaryInput {
+  readFile(path: string): Promise<string | undefined>;
+  listPackageEntries(): Promise<string[]>;
+  snapshot(
+    path: string,
+    source: string,
+  ): Promise<ParserModuleSnapshot | undefined>;
+  configuredEntries?: readonly string[];
+  limits?: { maxFiles?: number; maxDepth?: number };
+}
+
 export interface ResolvedBoundary {
   report: LanguageBoundaryReport;
   reachable: Map<string, Set<string>>;
+}
+
+export interface BoundaryFlip {
+  path: string;
+  localName: string;
+  kind: "exposed" | "hidden";
+}
+
+/** Diffs two fully resolved public surfaces in stable declaration order. */
+export function diffBoundaries(
+  base: ResolvedBoundary,
+  head: ResolvedBoundary,
+): BoundaryFlip[] {
+  if (base.report.mode !== "entry" || head.report.mode !== "entry") return [];
+  const flips: BoundaryFlip[] = [];
+  for (const [path, names] of head.reachable) {
+    const previous = base.reachable.get(path);
+    for (const localName of names) {
+      if (previous?.has(localName) !== true) {
+        flips.push({ path, localName, kind: "exposed" });
+      }
+    }
+  }
+  for (const [path, names] of base.reachable) {
+    const current = head.reachable.get(path);
+    for (const localName of names) {
+      if (current?.has(localName) !== true) {
+        flips.push({ path, localName, kind: "hidden" });
+      }
+    }
+  }
+  return flips.sort(
+    (left, right) =>
+      compareStrings(left.path, right.path) ||
+      compareStrings(left.localName, right.localName) ||
+      compareStrings(left.kind, right.kind),
+  );
 }
 
 type BoundaryReason = NonNullable<LanguageBoundaryReport["reason"]>;
@@ -220,6 +269,427 @@ export async function resolveBoundary(
     }
     throw error;
   }
+}
+
+/** Resolves Python reachability from root package initializers. */
+export async function resolvePythonBoundary(
+  input: PythonBoundaryInput,
+): Promise<ResolvedBoundary> {
+  const maxFiles = positiveLimit(input.limits?.maxFiles, DEFAULT_MAX_FILES);
+  const maxDepth = Math.min(positiveLimit(input.limits?.maxDepth, 1), 1);
+  const sourceCache = new Map<string, string | undefined>();
+  let filesRead = 0;
+  const readFile = async (path: string): Promise<string | undefined> => {
+    const normalized = normalizeRepositoryPath(path);
+    if (normalized === undefined) return undefined;
+    if (sourceCache.has(normalized)) return sourceCache.get(normalized);
+    if (filesRead >= maxFiles) throw new BoundaryLimitExceeded();
+    filesRead += 1;
+    const source = await input.readFile(normalized);
+    sourceCache.set(normalized, source);
+    return source;
+  };
+
+  try {
+    const entries = await discoverPythonEntries(input, readFile);
+    if (entries.reason !== undefined)
+      return fallback(entries.reason, filesRead);
+    const sortedEntries = [...new Set(entries.paths)].sort(compareStrings);
+    const reachable = new Map<string, Set<string>>();
+    const visited = new Set<string>();
+    for (const path of sortedEntries) {
+      await resolvePythonInitializer(
+        path,
+        0,
+        maxDepth,
+        undefined,
+        readFile,
+        input.snapshot,
+        reachable,
+        visited,
+      );
+    }
+    return {
+      report: { mode: "entry", entries: sortedEntries, filesRead },
+      reachable,
+    };
+  } catch (error) {
+    if (error instanceof BoundaryLimitExceeded) {
+      return fallback("limit-exceeded", filesRead);
+    }
+    throw error;
+  }
+}
+
+async function discoverPythonEntries(
+  input: PythonBoundaryInput,
+  readFile: (path: string) => Promise<string | undefined>,
+): Promise<{ paths: string[]; reason?: BoundaryReason }> {
+  if ((input.configuredEntries?.length ?? 0) > 0) {
+    const paths: string[] = [];
+    for (const configured of input.configuredEntries ?? []) {
+      const path = normalizeRepositoryPath(configured);
+      if (
+        path === undefined ||
+        posix.basename(path) !== "__init__.py" ||
+        (await readFile(path)) === undefined
+      ) {
+        return { paths: [], reason: "entry-not-found" };
+      }
+      paths.push(path);
+    }
+    return { paths };
+  }
+
+  const [pyproject, setupPy, setupCfg] = await Promise.all([
+    readFile("pyproject.toml"),
+    readFile("setup.py"),
+    readFile("setup.cfg"),
+  ]);
+  const manifestPresent =
+    pyproject !== undefined || setupPy !== undefined || setupCfg !== undefined;
+  const configuration =
+    pyproject === undefined
+      ? { names: [], sourceRoots: ["", "src"] }
+      : parsePythonProjectConfiguration(pyproject);
+  const configuredPaths = configuration.names.flatMap((name) =>
+    configuration.sourceRoots.map((root) =>
+      root.length === 0 ? `${name}/__init__.py` : `${root}/${name}/__init__.py`,
+    ),
+  );
+  if (configuredPaths.length > MAX_PYTHON_PACKAGE_ENTRIES) {
+    throw new BoundaryLimitExceeded();
+  }
+  const resolvedConfigured: string[] = [];
+  for (const path of configuredPaths) {
+    if ((await readFile(path)) !== undefined) resolvedConfigured.push(path);
+  }
+  if (resolvedConfigured.length > 0) {
+    return { paths: [...new Set(resolvedConfigured)].sort(compareStrings) };
+  }
+
+  const listed = await input.listPackageEntries();
+  if (listed.length > MAX_PYTHON_PACKAGE_ENTRIES) {
+    throw new BoundaryLimitExceeded();
+  }
+  const publicEntries = listed
+    .map(normalizeRepositoryPath)
+    .filter((path): path is string => path !== undefined)
+    .filter((path) => !isPrivatePythonPath(path))
+    .sort(compareStrings);
+  const paths = publicEntries.filter((path) =>
+    configuration.names.length === 0
+      ? configuration.sourceRoots.some((root) =>
+          root.length === 0
+            ? path.split("/").length === 2
+            : path.startsWith(`${root}/`) && path.split("/").length === 3,
+        )
+      : false,
+  );
+  if (paths.length > 0) return { paths };
+  return {
+    paths: [],
+    reason: manifestPresent ? "entry-not-found" : "no-manifest",
+  };
+}
+
+interface PythonProjectConfiguration {
+  names: string[];
+  sourceRoots: string[];
+}
+
+function parsePythonProjectConfiguration(
+  source: string,
+): PythonProjectConfiguration {
+  if (Buffer.byteLength(source, "utf8") > 256 * 1024) {
+    return { names: [], sourceRoots: ["", "src"] };
+  }
+  const names = new Set<string>();
+  const sourceRoots = new Set<string>();
+  let packageDirectoryConfigured = false;
+  let section = "";
+  let poetryPackage = false;
+  for (const rawLine of source.split("\n").slice(0, 4000)) {
+    const line = rawLine.trim();
+    if (line.length === 0 || line.startsWith("#")) continue;
+    if (line.startsWith("[[") && line.endsWith("]]")) {
+      section = line;
+      poetryPackage = section === "[[tool.poetry.packages]]";
+      if (poetryPackage) packageDirectoryConfigured = true;
+      continue;
+    }
+    if (line.startsWith("[") && line.endsWith("]")) {
+      section = line;
+      poetryPackage = false;
+      continue;
+    }
+    const keyValue = tomlKeyValue(line);
+    if (keyValue === undefined) continue;
+    const [key, value] = keyValue;
+    if (section === "[project]" && key === "name") {
+      const name = tomlString(value);
+      if (name !== undefined) names.add(normalizePythonPackageName(name));
+    } else if (section === "[tool.setuptools]" && key === "package-dir") {
+      packageDirectoryConfigured = true;
+      for (const root of tomlPackageDirectories(value)) sourceRoots.add(root);
+    } else if (
+      section === "[tool.setuptools.packages.find]" &&
+      key === "where"
+    ) {
+      packageDirectoryConfigured = true;
+      for (const root of tomlStringArray(value)) sourceRoots.add(root);
+    } else if (section === "[tool.poetry]" && key === "packages") {
+      packageDirectoryConfigured = true;
+      for (const item of tomlPoetryPackages(value)) {
+        names.add(normalizePythonPackageName(item.include));
+        sourceRoots.add(item.from ?? "");
+      }
+    } else if (poetryPackage && key === "include") {
+      const name = tomlString(value);
+      if (name !== undefined) names.add(normalizePythonPackageName(name));
+    } else if (poetryPackage && key === "from") {
+      const root = tomlString(value);
+      if (root !== undefined) sourceRoots.add(root);
+    }
+  }
+  const roots = packageDirectoryConfigured ? [...sourceRoots] : ["", "src"];
+  return {
+    names: [...names].filter((name) => name.length > 0).sort(compareStrings),
+    sourceRoots: roots
+      .map((root) => root.replace(/^\.\//u, "").replace(/\/$/u, ""))
+      .filter(
+        (root) => root.length === 0 || normalizeRepositoryPath(root) === root,
+      )
+      .sort(compareStrings),
+  };
+}
+
+function tomlKeyValue(line: string): [string, string] | undefined {
+  const separator = line.indexOf("=");
+  if (separator < 0) return undefined;
+  const key = line.slice(0, separator).trim();
+  const rawValue = line.slice(separator + 1).trim();
+  return rawValue.length === 0 ? undefined : [key, rawValue];
+}
+
+function tomlString(value: string): string | undefined {
+  const quote = value[0];
+  if (
+    value.length < 2 ||
+    (quote !== '"' && quote !== "'") ||
+    value[value.length - 1] !== quote
+  ) {
+    return undefined;
+  }
+  return value.slice(1, -1);
+}
+
+function tomlStringArray(value: string): string[] {
+  const direct = tomlString(value);
+  if (direct !== undefined) return [direct];
+  if (!value.startsWith("[") || !value.endsWith("]")) return [];
+  return value
+    .slice(1, -1)
+    .split(",")
+    .map((item) => tomlString(item.trim()))
+    .filter((item): item is string => item !== undefined);
+}
+
+function tomlPackageDirectories(value: string): string[] {
+  const direct = tomlString(value);
+  if (direct !== undefined) return [direct];
+  if (!value.startsWith("{") || !value.endsWith("}")) return [];
+  return value
+    .slice(1, -1)
+    .split(",")
+    .map((item) => tomlKeyValue(item.trim()))
+    .filter((item): item is [string, string] => item !== undefined)
+    .map(([, rawValue]) => tomlString(rawValue))
+    .filter((item): item is string => item !== undefined);
+}
+
+function tomlPoetryPackages(
+  value: string,
+): Array<{ include: string; from?: string }> {
+  if (!value.startsWith("[") || !value.endsWith("]")) return [];
+  const result: Array<{ include: string; from?: string }> = [];
+  for (const table of tomlInlineTables(value.slice(1, -1))) {
+    let include: string | undefined;
+    let from: string | undefined;
+    for (const field of table.split(",")) {
+      const keyValue = tomlKeyValue(field.trim());
+      if (keyValue === undefined) continue;
+      const [key, rawValue] = keyValue;
+      const parsed = tomlString(rawValue);
+      if (key === "include") include = parsed;
+      else if (key === "from") from = parsed;
+    }
+    if (include !== undefined) {
+      result.push({ include, ...(from === undefined ? {} : { from }) });
+    }
+  }
+  return result;
+}
+
+function tomlInlineTables(value: string): string[] {
+  const tables: string[] = [];
+  let start = -1;
+  let quote = "";
+  let depth = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index]!;
+    if (quote.length > 0) {
+      if (character === quote && value[index - 1] !== "\\") quote = "";
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === "{") {
+      if (depth === 0) start = index + 1;
+      depth += 1;
+    } else if (character === "}") {
+      depth -= 1;
+      if (depth === 0 && start >= 0) {
+        tables.push(value.slice(start, index));
+        start = -1;
+      }
+    }
+  }
+  return depth === 0 && quote.length === 0 ? tables : [];
+}
+
+function normalizePythonPackageName(value: string): string {
+  return value.replaceAll("-", "_").split(".", 1)[0] ?? "";
+}
+
+async function resolvePythonInitializer(
+  path: string,
+  depth: number,
+  maxDepth: number,
+  requestedNames: ReadonlySet<string> | undefined,
+  readFile: (path: string) => Promise<string | undefined>,
+  snapshotSource: (
+    path: string,
+    source: string,
+  ) => Promise<ParserModuleSnapshot | undefined>,
+  reachable: Map<string, Set<string>>,
+  visited: Set<string>,
+): Promise<void> {
+  const visitKey = `${path}\0${
+    requestedNames === undefined
+      ? "all"
+      : [...requestedNames].sort(compareStrings).join("\0")
+  }`;
+  if (visited.has(visitKey) || isPrivatePythonPath(path)) return;
+  visited.add(visitKey);
+  const source = await readFile(path);
+  if (source === undefined) return;
+  const snapshot = await snapshotSource(path, source);
+  if (snapshot === undefined || snapshot.language !== "python") return;
+  const localNames = new Set(
+    snapshot.symbols.map(({ qualifiedName }) => rootName(qualifiedName)),
+  );
+  const selected =
+    requestedNames ??
+    (snapshot.dunderAll === undefined
+      ? new Set([...localNames].filter((name) => !name.startsWith("_")))
+      : new Set(snapshot.dunderAll));
+  const localVisible = reachable.get(path) ?? new Set<string>();
+  for (const name of selected) {
+    if (localNames.has(name)) localVisible.add(name);
+  }
+  if (localVisible.size > 0) reachable.set(path, localVisible);
+
+  for (const edge of snapshot.reexports ?? []) {
+    const target = await resolvePythonReexport(path, edge.specifier, readFile);
+    if (target === undefined || isPrivatePythonPath(target)) continue;
+    const importedNames = new Set<string>();
+    if (edge.names === undefined) {
+      if (requestedNames !== undefined || snapshot.dunderAll !== undefined) {
+        for (const name of selected) {
+          if (!localNames.has(name)) importedNames.add(name);
+        }
+      }
+    } else {
+      for (const name of edge.names) {
+        if (
+          requestedNames === undefined && snapshot.dunderAll === undefined
+            ? !name.exported.startsWith("_")
+            : selected.has(name.exported)
+        ) {
+          importedNames.add(name.local);
+        }
+      }
+    }
+    if (
+      importedNames.size > 0 &&
+      depth < maxDepth &&
+      target.endsWith("/__init__.py")
+    ) {
+      await resolvePythonInitializer(
+        target,
+        depth + 1,
+        maxDepth,
+        importedNames,
+        readFile,
+        snapshotSource,
+        reachable,
+        visited,
+      );
+      continue;
+    }
+    const targetSource = await readFile(target);
+    if (targetSource === undefined) continue;
+    const targetSnapshot = await snapshotSource(target, targetSource);
+    if (targetSnapshot === undefined || targetSnapshot.language !== "python") {
+      continue;
+    }
+    const targetNames = new Set(
+      targetSnapshot.symbols.map(({ qualifiedName }) =>
+        rootName(qualifiedName),
+      ),
+    );
+    const targetVisible = reachable.get(target) ?? new Set<string>();
+    const names =
+      edge.names === undefined && importedNames.size === 0
+        ? [...targetNames].filter((name) => !name.startsWith("_"))
+        : [...importedNames].filter((name) => targetNames.has(name));
+    for (const name of names) targetVisible.add(name);
+    if (targetVisible.size > 0) reachable.set(target, targetVisible);
+  }
+}
+
+async function resolvePythonReexport(
+  fromPath: string,
+  specifier: string,
+  readFile: (path: string) => Promise<string | undefined>,
+): Promise<string | undefined> {
+  let level = 0;
+  while (specifier[level] === ".") level += 1;
+  if (level === 0) return undefined;
+  let directory = posix.dirname(fromPath);
+  for (let index = 1; index < level; index += 1) {
+    directory = posix.dirname(directory);
+  }
+  const modulePath = specifier.slice(level).replaceAll(".", "/");
+  const base = normalizeRepositoryPath(
+    modulePath.length === 0 ? directory : posix.join(directory, modulePath),
+  );
+  if (base === undefined) return undefined;
+  for (const candidate of [`${base}.py`, `${base}/__init__.py`]) {
+    if ((await readFile(candidate)) !== undefined) return candidate;
+  }
+  return undefined;
+}
+
+function isPrivatePythonPath(path: string): boolean {
+  return path.split("/").some((segment) => {
+    if (segment === "__init__.py" || segment === "__main__.py") return false;
+    const name = segment.endsWith(".py") ? segment.slice(0, -3) : segment;
+    return name.startsWith("_");
+  });
 }
 
 async function discoverEntries(

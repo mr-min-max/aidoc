@@ -18,7 +18,9 @@ function plan(overrides: Partial<ImpactPlan> = {}): ImpactPlan {
       unmapped: 1,
       byCategory: {
         added: 0,
+        exposed: 0,
         removed: 0,
+        hidden: 0,
         moved: 0,
         "contract-changed": 1,
         "implementation-changed": 1,
@@ -147,6 +149,7 @@ describe("impact-plan output", () => {
 
     expect(formatImpactPlan(withChange)).not.toContain("before:");
     const verbose = formatImpactPlan(withChange, true);
+    expect(verbose).toContain("Change: transform (contract-changed)");
     expect(verbose).toContain("  before: transform(value: string): string");
     expect(verbose).toContain(
       "  after:  transform(value: string, count: number): string",

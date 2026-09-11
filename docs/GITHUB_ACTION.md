@@ -46,6 +46,7 @@ sections, and whether each section changed in the pull request:
 | Symbol | Change | Before | After |
 | --- | --- | --- | --- |
 | `createUser` | parameters | `createUser(email: string): string` | `createUser(email: string, role: string): string` |
+| `helperExport` | now exported |  | `helperExport(): void` |
 
 **Needs a documentation update**
 - `README.md` > API: `createUser`
