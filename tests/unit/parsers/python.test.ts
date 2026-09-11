@@ -329,6 +329,17 @@ __all__ = ["execute", "visible"]
     expect(snapshot.dunderAll).toEqual(["execute", "visible"]);
   });
 
+  it("deduplicates repeated literal dunder all names", async () => {
+    const snapshot = await parser.snapshot(
+      "pkg/__init__.py",
+      `from .core import run
+__all__ = ["run", "run"]
+`,
+    );
+
+    expect(snapshot.dunderAll).toEqual(["run"]);
+  });
+
   it("treats dynamic dunder all as absent", async () => {
     const snapshot = await parser.snapshot(
       "pkg/__init__.py",

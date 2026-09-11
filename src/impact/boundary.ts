@@ -602,12 +602,14 @@ async function resolvePythonInitializer(
   }
   if (localVisible.size > 0) reachable.set(path, localVisible);
 
+  const unconstrained =
+    requestedNames === undefined && snapshot.dunderAll === undefined;
   for (const edge of snapshot.reexports ?? []) {
     const target = await resolvePythonReexport(path, edge.specifier, readFile);
     if (target === undefined || isPrivatePythonPath(target)) continue;
     const importedNames = new Set<string>();
     if (edge.names === undefined) {
-      if (requestedNames !== undefined || snapshot.dunderAll !== undefined) {
+      if (!unconstrained) {
         for (const name of selected) {
           if (!localNames.has(name)) importedNames.add(name);
         }
@@ -615,7 +617,7 @@ async function resolvePythonInitializer(
     } else {
       for (const name of edge.names) {
         if (
-          requestedNames === undefined && snapshot.dunderAll === undefined
+          unconstrained
             ? !name.exported.startsWith("_")
             : selected.has(name.exported)
         ) {
@@ -623,6 +625,8 @@ async function resolvePythonInitializer(
         }
       }
     }
+    const starsAllPublic = edge.names === undefined && unconstrained;
+    if (!starsAllPublic && importedNames.size === 0) continue;
     if (
       importedNames.size > 0 &&
       depth < maxDepth &&
@@ -652,10 +656,9 @@ async function resolvePythonInitializer(
       ),
     );
     const targetVisible = reachable.get(target) ?? new Set<string>();
-    const names =
-      edge.names === undefined && importedNames.size === 0
-        ? [...targetNames].filter((name) => !name.startsWith("_"))
-        : [...importedNames].filter((name) => targetNames.has(name));
+    const names = starsAllPublic
+      ? [...targetNames].filter((name) => !name.startsWith("_"))
+      : [...importedNames].filter((name) => targetNames.has(name));
     for (const name of names) targetVisible.add(name);
     if (targetVisible.size > 0) reachable.set(target, targetVisible);
   }
