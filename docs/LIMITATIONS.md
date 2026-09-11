@@ -11,6 +11,7 @@ A public symbol is one that a consumer can import from the package entry. StaleD
 ## Languages and syntax not enumerated
 
 TypeScript and JavaScript analysis follows static relative re-exports but does not enumerate CommonJS exports. Python analysis does not enumerate module constants or dynamic exports. Generated exports and runtime registration are outside the AST snapshot.
+
 ## Documentation discovery
 
 The planner recognizes root `README.md` and `CHANGELOG.md` names without case sensitivity. It recursively scans files with a case-insensitive `.md` extension under `docs` and under a configured output directory. Planning exclusion globs are applied while selecting candidates. After discovery, `.staledocsignore` removes documentation through case-sensitive path patterns whose literal suffix is `.md`, such as `docs/legacy/*.md`.
