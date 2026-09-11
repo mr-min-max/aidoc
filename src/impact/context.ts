@@ -272,6 +272,7 @@ function compareContextChanges(
 function projectChangeCandidate(
   change: SymbolChange,
 ): ProjectedChangeCandidate | undefined {
+  if (change.visibility === "internal") return undefined;
   try {
     if (typeof change !== "object" || change === null) return undefined;
 
@@ -385,6 +386,9 @@ function projectSummary(summary: ImpactSummary): ImpactSummary {
       informational: requireCount(summary.informational),
       unmapped: requireCount(summary.unmapped),
       byCategory,
+      ...(summary.internalChanges === undefined
+        ? {}
+        : { internalChanges: requireCount(summary.internalChanges) }),
     };
   } catch (error) {
     if (PlanFailure.read(error) !== undefined) throw error;

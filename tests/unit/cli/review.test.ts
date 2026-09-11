@@ -139,6 +139,34 @@ describe("review command", () => {
     expect(result.verdict).toBe("stale");
   });
 
+  it("hides internal changes from review counts and document findings", async () => {
+    writeFileSync(join(root, "package.json"), '{"main":"dist/index.js"}\n');
+    writeFileSync(
+      join(root, "src", "index.ts"),
+      'export { createUser } from "./user";\n',
+    );
+    git(root, "add", ".");
+    git(root, "commit", "-qm", "entry");
+    writeFileSync(join(root, "src", "internal.ts"), "export function hidden(value: string): string { return value; }\n");
+    git(root, "add", ".");
+    git(root, "commit", "-qm", "internal base");
+    writeFileSync(join(root, "src", "internal.ts"), "export function hidden(value: number): number { return value; }\n");
+
+    const result = await createReviewReport({ base: "HEAD" }, root);
+
+    expect(result.summary).toMatchObject({
+      publicApiChanges: 0,
+      internalChanges: 1,
+      staleDocuments: 0,
+    });
+    expect(result.changes).toEqual([]);
+    expect(result.documents).toEqual([]);
+    expect(result.boundary?.typescript).toMatchObject({
+      mode: "entry",
+      entries: ["src/index.ts"],
+    });
+  });
+
   it("prints suppression detail in text while preserving a clean exit", async () => {
     writeFileSync(join(root, ".staledocsignore"), "createUser\n");
     writeFileSync(
@@ -155,7 +183,8 @@ describe("review command", () => {
       ),
     ).toBe(0);
     expect(output.stdout).toHaveBeenCalledWith(
-      "No public API changes in this pull request.\n" +
+      "No public API changes in this pull request.\n\n" +
+        "Public boundary (TypeScript): not resolved (no-manifest); every export is treated as public. Set `entry` in the StaleDocs config to narrow it.\n" +
         "1 suppressed change from .staledocsignore.\n",
     );
 

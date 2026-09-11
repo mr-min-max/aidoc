@@ -167,10 +167,10 @@ Options:
 
 Creates a deterministic AST-backed documentation-impact plan from Git changes.
 It does not construct a provider, call a model, or write a file. Human output
-is intended for review. Public symbols are exported functions (including
-`export const f = () => ...` and `export default`), classes and their public
-methods, interfaces, type aliases, enums, and exported constants. JSON output
-is a versioned `aidoc.impact-plan.v1` success or error envelope.
+is intended for review. TypeScript and JavaScript symbols are public when they
+are reachable from a discovered or configured package entry. JSON output is a
+versioned `aidoc.impact-plan.v1` success or error envelope with optional
+`boundary`, `visibility`, and `summary.internalChanges` fields.
 
 ```bash
 staledocs plan
@@ -196,15 +196,16 @@ Options:
   `total` parameter counts for the head signature, or the base signature when the
   symbol was removed. A contract change is marked `potentially-breaking` when
   required arity increases or total arity decreases; otherwise it remains
-  `review-required`.
+  `review-required`. Set `entry` to an array of repository-relative package entry
+  files to override `package.json` discovery.
 
 The first commit is compared with Git's empty tree. A shallow repository must
 contain the selected base. A supported source file that cannot be parsed stops
 the plan before provider construction or a document write.
 
-Limitations: Python module-level constants are not enumerated. Re-exports from
-other modules (`export * from`, `export { x } from`) and CommonJS
-`module.exports` are not enumerated.
+Limitations: Python module-level constants and CommonJS `module.exports` are not
+enumerated. Static relative `export ... from` declarations are followed within
+the bounded public boundary described in [LIMITATIONS.md](./LIMITATIONS.md).
 
 ### `staledocs update`
 

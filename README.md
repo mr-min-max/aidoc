@@ -57,7 +57,7 @@ See the [Codex guide](./docs/integrations/codex.md) and [Claude guide](./docs/in
 
 ## Languages
 
-TypeScript, JavaScript, and Python are supported. A public symbol is an exported function, class, type, method, or constant that can be referenced by another module.
+TypeScript, JavaScript, and Python are supported. A public symbol is one reachable from the package entry; see [LIMITATIONS.md](./docs/LIMITATIONS.md).
 
 See [LIMITATIONS.md](./docs/LIMITATIONS.md) for syntax and discovery caveats.
 

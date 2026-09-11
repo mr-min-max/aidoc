@@ -1,7 +1,9 @@
 import { canonicalStringify } from "../impact/canonical";
 import type {
+  BoundaryReport,
   ChangeCategory,
   ChangeRisk,
+  LanguageBoundaryReport,
   SnapshotDescriptor,
 } from "../impact/types";
 
@@ -42,11 +44,13 @@ export interface ReviewReport {
     coChangedDocuments: number;
     unmappedSymbols: number;
     suppressed: number;
+    internalChanges?: number;
   };
   changes: ReviewReportChange[];
   documents: ReviewReportDocument[];
   unmapped: string[];
   suppressed: Array<{ symbol: string; reason?: string }>;
+  boundary?: BoundaryReport;
   verdict: "clean" | "stale" | "breaking";
 }
 
@@ -55,9 +59,13 @@ export function renderReviewMarkdown(
   report: ReviewReport,
   maxSymbols = 30,
 ): string {
-  const lines = ["<!-- staledocs-review -->", "### StaleDocs: documentation impact"];
+  const lines = [
+    "<!-- staledocs-review -->",
+    "### StaleDocs: documentation impact",
+  ];
   if (report.summary.publicApiChanges === 0) {
     lines.push("No public API changes in this pull request.");
+    appendBoundary(lines, report);
     return lines.join("\n");
   }
 
@@ -87,18 +95,22 @@ export function renderReviewMarkdown(
   appendMore(lines, changes.length - visibleChanges.length);
 
   const staleRows = staleDocuments.flatMap((document) =>
-    [...document.sections]
-      .sort(compareReviewSections)
-      .map(
-        (section) =>
-          `- \`${escapeTable(document.path)}\` > ${section.section}: ${[...section.symbols]
-            .sort(compareStrings)
-            .map((symbol) => `\`${escapeTable(symbol)}\``)
-            .join(", ")}`,
-      ),
+    [...document.sections].sort(compareReviewSections).map(
+      (section) =>
+        `- \`${escapeTable(document.path)}\` > ${section.section}: ${[
+          ...section.symbols,
+        ]
+          .sort(compareStrings)
+          .map((symbol) => `\`${escapeTable(symbol)}\``)
+          .join(", ")}`,
+    ),
   );
   if (staleRows.length > 0) {
-    lines.push("", "**Needs a documentation update**", ...staleRows.slice(0, 20));
+    lines.push(
+      "",
+      "**Needs a documentation update**",
+      ...staleRows.slice(0, 20),
+    );
     appendMore(lines, staleRows.length - 20);
   }
 
@@ -124,6 +136,7 @@ export function renderReviewMarkdown(
     );
     appendMore(lines, unmapped.length - 20);
   }
+  appendBoundary(lines, report);
   lines.push(
     "",
     `<sub>Deterministic AST analysis; no model was used. Suppress a symbol with \`.staledocsignore\`. <a href="https://github.com/mr-min-max/staledocs">StaleDocs</a></sub>`,
@@ -154,7 +167,9 @@ export function renderReviewText(
     appendMore(lines, changes.length - visibleChanges.length);
     for (const document of sortedDocuments(report.documents)) {
       lines.push(
-        `${document.status === "stale" ? "Needs update" : "Updated"}: ${document.path} > ${[...document.sections]
+        `${document.status === "stale" ? "Needs update" : "Updated"}: ${document.path} > ${[
+          ...document.sections,
+        ]
           .sort(compareReviewSections)
           .map(
             (section) =>
@@ -164,9 +179,12 @@ export function renderReviewText(
       );
     }
     if (report.unmapped.length > 0) {
-      lines.push(`Not mentioned: ${[...report.unmapped].sort(compareStrings).join(", ")}`);
+      lines.push(
+        `Not mentioned: ${[...report.unmapped].sort(compareStrings).join(", ")}`,
+      );
     }
   }
+  appendBoundary(lines, report);
   if (report.summary.suppressed > 0) {
     lines.push(
       `${report.summary.suppressed} suppressed ${plural(report.summary.suppressed, "change", "changes")} from .staledocsignore.`,
@@ -180,6 +198,35 @@ export function serializeReviewReport(report: ReviewReport): string {
   return canonicalStringify(report);
 }
 
+function appendBoundary(lines: string[], report: ReviewReport): void {
+  for (const [label, boundary] of [
+    ["TypeScript", report.boundary?.typescript],
+    ["Python", report.boundary?.python],
+  ] as const) {
+    if (boundary === undefined) continue;
+    lines.push(
+      "",
+      formatBoundary(label, boundary, report.summary.internalChanges),
+    );
+  }
+}
+
+function formatBoundary(
+  label: string,
+  boundary: LanguageBoundaryReport,
+  internalChanges: number | undefined,
+): string {
+  if (boundary.mode === "entry") {
+    const entries = boundary.entries.map((entry) => `\`${entry}\``).join(", ");
+    const internal = internalChanges ?? 0;
+    return `Public boundary (${label}): ${entries}.${
+      internal > 0
+        ? ` ${internal} internal ${plural(internal, "change", "changes")} not shown.`
+        : ""
+    }`;
+  }
+  return `Public boundary (${label}): not resolved (${boundary.reason}); every export is treated as public. Set \`entry\` in the StaleDocs config to narrow it.`;
+}
 function sortedDocuments(
   documents: readonly ReviewReportDocument[],
   status?: ReviewReportDocument["status"],
@@ -218,7 +265,10 @@ function appendMore(lines: string[], count: number): void {
 
 function changeLabel(change: ReviewReportChange): string {
   const facets = change.changedContractFacets ?? [];
-  const label = change.category === "contract-changed" && facets.length > 0 ? facets.join(", ") : change.category;
+  const label =
+    change.category === "contract-changed" && facets.length > 0
+      ? facets.join(", ")
+      : change.category;
   return change.risk === "potentially-breaking" ? `${label} (breaking)` : label;
 }
 

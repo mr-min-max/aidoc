@@ -37,17 +37,18 @@ const REASON_ORDER: readonly DocumentationTargetReason[] = [
 
 /** Returns whether a plan contains a documentation update worth preparing. */
 export function hasDocumentationImpact(plan: ImpactPlan): boolean {
-  const publicChangeIds = new Set(
+  const internalChangeIds = new Set(
     plan.changes
-      .filter((change) => change.scope === "symbol")
+      .filter((change) => change.visibility === "internal")
       .map((change) => change.id),
   );
 
   return plan.documentation.some(
     (impact) =>
-      impact.directReferences.length > 0 ||
-      impact.recommendations.length > 0 ||
-      (impact.unmapped && publicChangeIds.has(impact.changeId)),
+      !internalChangeIds.has(impact.changeId) &&
+      (impact.directReferences.length > 0 ||
+        impact.recommendations.length > 0 ||
+        impact.unmapped),
   );
 }
 
@@ -65,7 +66,16 @@ export async function resolveDocumentationTargets(input: {
     return prepareExplicitTargets(input.scope, explicitTargets);
   }
 
-  const mapped = collectMappedCandidates(input.plan.documentation);
+  const internalChangeIds = new Set(
+    input.plan.changes
+      .filter((change) => change.visibility === "internal")
+      .map((change) => change.id),
+  );
+  const mapped = collectMappedCandidates(
+    input.plan.documentation.filter(
+      (impact) => !internalChangeIds.has(impact.changeId),
+    ),
+  );
   if (mapped.size > 0) {
     const resolved = await prepareMappedTargets(input.scope, mapped);
     if (resolved.length > 0 || !hasUnmappedPublicChange(input.plan)) {
@@ -234,7 +244,9 @@ async function prepareExplicitTargets(
 async function prepareReadmeFallback(
   scope: RepositoryWriteScope,
 ): Promise<ResolvedDocumentationTarget[]> {
-  const prepared = await scope.prepare(await discoverReadme(scope.root) ?? "README.md");
+  const prepared = await scope.prepare(
+    (await discoverReadme(scope.root)) ?? "README.md",
+  );
   if (prepared.existingText === null) return [];
   assertMarkdownTarget(prepared.displayPath);
   return [
@@ -283,7 +295,10 @@ function projectDocumentationImpact(
 function hasUnmappedPublicChange(plan: ImpactPlan): boolean {
   const publicChangeIds = new Set(
     plan.changes
-      .filter((change) => change.scope === "symbol")
+      .filter(
+        (change) =>
+          change.scope === "symbol" && change.visibility !== "internal",
+      )
       .map((change) => change.id),
   );
   return plan.documentation.some(

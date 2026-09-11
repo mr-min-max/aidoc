@@ -50,7 +50,10 @@ export function assessDocumentationFreshness(input: {
   const targetChanged = changedFiles.includes(target);
   const symbolChanges = new Map(
     input.plan.changes
-      .filter((change) => change.scope === "symbol")
+      .filter(
+        (change) =>
+          change.scope === "symbol" && change.visibility !== "internal",
+      )
       .map((change) => [change.id, change]),
   );
   const referencesBySection = new Map<
@@ -83,7 +86,10 @@ export function assessDocumentationFreshness(input: {
   const sourceFiles = [
     ...new Set(
       input.plan.changes
-        .filter((change) => change.scope === "symbol")
+        .filter(
+          (change) =>
+            change.scope === "symbol" && change.visibility !== "internal",
+        )
         .map((change) => normalizeDocPath(change.path)),
     ),
   ].sort(compareStrings);
@@ -168,10 +174,14 @@ export async function checkDocumentationFreshness(
       base: since,
       head: to === "HEAD" ? undefined : to,
     });
-    const discovered = target === undefined ? await discoverReadme(root) : undefined;
-    const requestedTarget = target === undefined ? discovered ?? "README.md" : target;
+    const discovered =
+      target === undefined ? await discoverReadme(root) : undefined;
+    const requestedTarget =
+      target === undefined ? (discovered ?? "README.md") : target;
     const absoluteTarget = path.resolve(root, requestedTarget);
-    const relativeTarget = normalizeDocPath(path.relative(root, absoluteTarget));
+    const relativeTarget = normalizeDocPath(
+      path.relative(root, absoluteTarget),
+    );
     const changedFiles = await getChangedFiles(
       since,
       to === "HEAD" ? undefined : to,
@@ -197,7 +207,6 @@ export async function checkDocumentationFreshness(
     };
   }
 }
-
 
 function compareStrings(left: string, right: string): number {
   if (left === right) return 0;

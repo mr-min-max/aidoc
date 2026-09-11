@@ -50,6 +50,8 @@ sections, and whether each section changed in the pull request:
 **Needs a documentation update**
 - `README.md` > API: `createUser`
 
+Public boundary (TypeScript): `src/index.ts`. 2 internal changes not shown.
+
 <sub>Deterministic AST analysis; no model was used. Suppress a symbol with `.staledocsignore`. <a href="https://github.com/mr-min-max/staledocs">StaleDocs</a></sub>
 ```
 
@@ -59,8 +61,9 @@ planner needs the pull request base commit. A fork pull request can have a
 read-only token. In that case the Action emits a notice and writes the Markdown
 report to the job summary without failing because of posting.
 
-The review mode wording is intentional: review mode reports only the drift this
-pull request introduces; pre-existing stale documentation is not reported.
+The review mode wording is intentional: review mode reports only the public drift
+this pull request introduces; the footer names the resolved boundary and reports
+hidden internal changes. Pre-existing stale documentation is not reported.
 
 ### Review inputs
 

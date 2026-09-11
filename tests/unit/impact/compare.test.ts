@@ -379,6 +379,60 @@ describe("impact snapshot comparison", () => {
     });
   });
 
+  it("counts internal visibility without changing fallback behavior", () => {
+    const changes = compareSnapshots([
+      file(
+        "added",
+        undefined,
+        module("src/api.ts", [symbol("publicApi"), symbol("internalApi")]),
+        undefined,
+        "src/api.ts",
+      ),
+    ]);
+    changes[0].visibility = "internal";
+    changes[1].visibility = "public";
+    const documentation: DocumentationImpact[] = changes.map((change) => ({
+      changeId: change.id,
+      directReferences: [],
+      recommendations: [],
+      unmapped: true,
+    }));
+
+    expect(summarizeImpact(changes, documentation)).toMatchObject({
+      publicApiChanges: 1,
+      internalChanges: 1,
+      unmapped: 1,
+    });
+    for (const change of changes) delete change.visibility;
+    expect(summarizeImpact(changes, documentation)).toMatchObject({
+      publicApiChanges: 2,
+      unmapped: 2,
+    });
+    expect(
+      summarizeImpact(changes, documentation).internalChanges,
+    ).toBeUndefined();
+  });
+
+  it("does not count informational internal records in the hidden headline", () => {
+    const change = compareSnapshots([
+      file(
+        "modified",
+        module("src/api.ts", [symbol("internal")]),
+        module("src/api.ts", [
+          symbol("internal", { implementationFingerprint: hash("1") }),
+        ]),
+        "src/api.ts",
+        "src/api.ts",
+      ),
+    ])[0];
+    change.visibility = "internal";
+
+    expect(summarizeImpact([change])).toMatchObject({
+      publicApiChanges: 0,
+      internalChanges: 0,
+    });
+  });
+
   it("excludes implementation and documentation changes from public API totals", () => {
     const implementation = compareSnapshots([
       file(

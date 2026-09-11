@@ -342,6 +342,25 @@ describe("impact-plan output", () => {
     expect(noSafeTarget).not.toContain("Next: staledocs update");
   });
 
+  it("renders public boundary details only in verbose output", () => {
+    const boundaryPlan = plan({
+      boundary: {
+        typescript: {
+          mode: "entry",
+          entries: ["src/index.ts"],
+          filesRead: 12,
+        },
+      },
+    });
+
+    expect(formatImpactPlan(boundaryPlan)).not.toContain(
+      "Boundary (TypeScript)",
+    );
+    expect(formatImpactPlan(boundaryPlan, true)).toContain(
+      "Boundary (TypeScript): entry src/index.ts (12 files read)",
+    );
+  });
+
   // Break caught: JSON output gains whitespace/log framing or relies on object
   // insertion order instead of canonical command-result serialization.
   it("serializes one canonical JSON command-result object", () => {

@@ -6,6 +6,7 @@ import {
 import type {
   DocumentationReference,
   ImpactPlan,
+  LanguageBoundaryReport,
   PlanCommandResult,
   SnapshotDescriptor,
 } from "../impact/types";
@@ -57,10 +58,15 @@ export function formatImpactPlan(
     }
   }
 
-  lines.push(`Context: ${plan.context.usedBytes} / ${plan.context.maxBytes} bytes`);
+  lines.push(
+    `Context: ${plan.context.usedBytes} / ${plan.context.maxBytes} bytes`,
+  );
   if (plan.ignored.suppressed > 0) {
-    lines.push(`${plan.ignored.suppressed} changes suppressed by .staledocsignore`);
+    lines.push(
+      `${plan.ignored.suppressed} changes suppressed by .staledocsignore`,
+    );
   }
+  if (verbose) appendBoundaries(lines, plan);
   if (verbose) {
     for (const change of plan.changes) {
       if (change.before === undefined && change.after === undefined) continue;
@@ -80,6 +86,25 @@ export function serializePlanCommandResult(result: PlanCommandResult): string {
   return canonicalStringify(result);
 }
 
+function appendBoundaries(lines: string[], plan: ImpactPlan): void {
+  for (const [label, boundary] of [
+    ["TypeScript", plan.boundary?.typescript],
+    ["Python", plan.boundary?.python],
+  ] as const) {
+    if (boundary === undefined) continue;
+    lines.push(formatBoundary(label, boundary));
+  }
+}
+
+function formatBoundary(
+  label: string,
+  boundary: LanguageBoundaryReport,
+): string {
+  if (boundary.mode === "entry") {
+    return `Boundary (${label}): entry ${boundary.entries.join(", ")} (${boundary.filesRead} files read)`;
+  }
+  return `Boundary (${label}): not resolved (${boundary.reason}); every export is treated as public. Set entry in the StaleDocs config to narrow it.`;
+}
 function appendReferences(
   lines: string[],
   heading: string,
