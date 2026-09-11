@@ -575,7 +575,7 @@ export class GitSnapshotReader {
       return await this.run(["show", `${commit}:${path}`, "--"]);
     } catch {
       try {
-        await this.run(["cat-file", "-e", `${commit}^{commit}`]);
+        await this.run(["cat-file", "-e", `${commit}^{tree}`]);
         return undefined;
       } catch {
         throw new PlanFailure(

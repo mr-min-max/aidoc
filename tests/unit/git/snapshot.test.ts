@@ -845,6 +845,20 @@ exec "${realGit}" "$@"
     ]);
   });
 
+  // Break caught: the missing-file probe dereferences the empty-tree sentinel as a
+  // commit, so a first-commit repository fails planning instead of reporting absence.
+  test("treats files as absent at the empty-tree base of a first commit", async () => {
+    const root = repo();
+    writeFileSync(root + "/only.ts", "export const only = 1;\n");
+    commit(root, "initial");
+
+    const reader = new GitSnapshotReader(root);
+    await reader.read({ include: ["**/*"], exclude: [] });
+
+    await expect(reader.readAt("base", "only.ts")).resolves.toBeUndefined();
+    await expect(reader.listPackageManifests("base")).resolves.toEqual([]);
+  });
+
   test("reads untracked head files and manifests in working-tree mode", async () => {
     const root = repo();
     writeFileSync(join(root, "base.ts"), "export const base = 1;\n");
