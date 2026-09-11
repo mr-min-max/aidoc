@@ -110,6 +110,46 @@ describe("TypeScriptParser", () => {
     expect(parser.supportedExtensions).toContain(".cjs");
   });
 
+  it("detects ESM, CommonJS, and script module systems through the AST", async () => {
+    const commonjs = await parser.snapshot(
+      "lib/request.js",
+      "var req = {}; module.exports = req;",
+    );
+    const nestedCommonjs = await parser.snapshot(
+      "lib/nested.cjs",
+      "(() => { Object.defineProperty(module.exports, 'name', { value: true }); })();",
+    );
+    const propertyCommonjs = await parser.snapshot(
+      "lib/property.js",
+      "module.exports.request = request; exports.response = response;",
+    );
+    const esm = await parser.snapshot(
+      "src/index.js",
+      "export const api = true;",
+    );
+    const typesOnly = await parser.snapshot(
+      "src/types.ts",
+      "export interface Client { id: string; }",
+    );
+    const script = await parser.snapshot(
+      "scripts/build.js",
+      "const value = 1;",
+    );
+
+    expect(commonjs).toMatchObject({ moduleSystem: "commonjs", symbols: [] });
+    expect(nestedCommonjs).toMatchObject({
+      moduleSystem: "commonjs",
+      symbols: [],
+    });
+    expect(propertyCommonjs).toMatchObject({
+      moduleSystem: "commonjs",
+      symbols: [],
+    });
+    expect(esm.moduleSystem).toBe("esm");
+    expect(typesOnly.moduleSystem).toBe("esm");
+    expect(script.moduleSystem).toBe("none");
+  });
+
   it("reuses a single Project instance across parses (performance)", async () => {
     // The Project is a module-level singleton: once constructed, it must not
     // be re-created on subsequent parse() calls, no matter how many files.

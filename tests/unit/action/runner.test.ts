@@ -28,6 +28,8 @@ if [ "$1" = "review" ]; then
       review_exit="\${STALEDOCS_FAKE_REVIEW_JSON_EXIT:-\${STALEDOCS_FAKE_EXIT:-0}}"
       if [ "\${STALEDOCS_FAKE_REVIEW_ZERO:-false}" = "true" ]; then
         printf '%s\n' '{"schemaVersion":"aidoc.review.v1","base":{"type":"git","label":"base","commit":"base"},"head":{"type":"working-tree","label":"working tree"},"summary":{"publicApiChanges":0,"breaking":0,"staleDocuments":0,"coChangedDocuments":0,"unmappedSymbols":0,"suppressed":0},"changes":[],"documents":[],"unmapped":[],"suppressed":[],"verdict":"clean"}'
+      elif [ "\${STALEDOCS_FAKE_REVIEW_CLEAN:-false}" = "true" ]; then
+        printf '%s\n' '{"schemaVersion":"aidoc.review.v1","base":{"type":"git","label":"base","commit":"base"},"head":{"type":"working-tree","label":"working tree"},"summary":{"publicApiChanges":1,"breaking":0,"staleDocuments":0,"coChangedDocuments":1,"unmappedSymbols":0,"suppressed":0},"changes":[{"id":"x","qualifiedName":"createUser","kind":"function","category":"contract-changed","risk":"review-required","path":"src/user.ts","before":"createUser(email: string): string","after":"createUser(email: string, role: string): string"}],"documents":[{"path":"README.md","status":"co-changed","sections":[{"section":"API","slug":"api","symbols":["createUser"]}]}],"unmapped":[],"suppressed":[],"verdict":"clean"}'
       else
         printf '%s\n' '{"schemaVersion":"aidoc.review.v1","base":{"type":"git","label":"base","commit":"base"},"head":{"type":"working-tree","label":"working tree"},"summary":{"publicApiChanges":1,"breaking":0,"staleDocuments":1,"coChangedDocuments":0,"unmappedSymbols":0,"suppressed":0},"changes":[{"id":"x","qualifiedName":"createUser","kind":"function","category":"contract-changed","risk":"review-required","path":"src/user.ts","before":"createUser(email: string): string","after":"createUser(email: string, role: string): string"}],"documents":[{"path":"README.md","status":"stale","sections":[{"section":"API","slug":"api","symbols":["createUser"]}]}],"unmapped":[],"suppressed":[],"verdict":"stale"}'
       fi
@@ -394,6 +396,52 @@ describe("action/run.sh", () => {
     expect(result.status).toBe(0);
     expect(result.ghLog).toContain("api -X DELETE repos/owner/repo/issues/comments/42");
     expect(result.ghLog).not.toContain("api -X PATCH repos/owner/repo/issues/comments/42");
+  });
+
+  it("deletes a marked comment for a clean on-findings report", () => {
+    const result = runRunner({
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_PR_BASE_SHA: "HEAD",
+      STALEDOCS_PR_HEAD_SHA: "HEAD",
+      STALEDOCS_REPOSITORY: "owner/repo",
+      STALEDOCS_PR_NUMBER: "7",
+      STALEDOCS_INPUT_GITHUB_TOKEN: "token",
+      STALEDOCS_INPUT_COMMENT: "on-findings",
+      STALEDOCS_FAKE_REVIEW_CLEAN: "true",
+      STALEDOCS_GH_COMMENTS: '[{"id":42,"body":"<!-- staledocs-review -->\\nold","user":{"login":"github-actions[bot]"}}]',
+    });
+    expect(result.status).toBe(0);
+    expect(result.ghLog).toContain("api -X DELETE repos/owner/repo/issues/comments/42");
+    expect(result.ghLog).not.toContain("api -X POST");
+    expect(result.ghLog).not.toContain("api -X PATCH");
+    expect(result.summary).toContain("<!-- staledocs-review -->");
+  });
+
+  it("posts or updates stale reports when comment is on-findings", () => {
+    const posted = runRunner({
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_PR_BASE_SHA: "HEAD",
+      STALEDOCS_PR_HEAD_SHA: "HEAD",
+      STALEDOCS_REPOSITORY: "owner/repo",
+      STALEDOCS_PR_NUMBER: "7",
+      STALEDOCS_INPUT_GITHUB_TOKEN: "token",
+      STALEDOCS_INPUT_COMMENT: "on-findings",
+      STALEDOCS_GH_COMMENTS: "[]",
+    });
+    const updated = runRunner({
+      STALEDOCS_INPUT_MODE: "review",
+      STALEDOCS_PR_BASE_SHA: "HEAD",
+      STALEDOCS_PR_HEAD_SHA: "HEAD",
+      STALEDOCS_REPOSITORY: "owner/repo",
+      STALEDOCS_PR_NUMBER: "7",
+      STALEDOCS_INPUT_GITHUB_TOKEN: "token",
+      STALEDOCS_INPUT_COMMENT: "on-findings",
+      STALEDOCS_GH_COMMENTS: '[{"id":42,"body":"<!-- staledocs-review -->\\nold","user":{"login":"github-actions[bot]"}}]',
+    });
+    expect(posted.status).toBe(0);
+    expect(posted.ghLog).toContain("api -X POST repos/owner/repo/issues/7/comments --input");
+    expect(updated.status).toBe(0);
+    expect(updated.ghLog).toContain("api -X PATCH repos/owner/repo/issues/comments/42 --input");
   });
 
   it("uses the locked label colors and descriptions", () => {

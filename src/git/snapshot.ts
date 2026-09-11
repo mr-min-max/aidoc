@@ -119,6 +119,7 @@ export interface SnapshotFileChange {
   afterSource?: string;
   supported: boolean;
   excluded: boolean;
+  analysis?: "commonjs" | "unsupported";
 }
 export interface GitSnapshotSet {
   root: string;
@@ -215,6 +216,9 @@ export class GitSnapshotReader {
             excluded:
               (before.supported && !before.inScope) ||
               (after.supported && !after.inScope),
+            ...(!before.supported && !after.supported
+              ? { analysis: "unsupported" as const }
+              : {}),
           });
           continue;
         }
@@ -227,6 +231,7 @@ export class GitSnapshotReader {
             ...effectiveChange,
             supported: endpoint.supported,
             excluded: endpoint.supported,
+            ...(endpoint.supported ? {} : { analysis: "unsupported" as const }),
           });
           continue;
         }
@@ -566,7 +571,7 @@ export class GitSnapshotReader {
   ): Promise<
     Omit<
       SnapshotFileChange,
-      "supported" | "excluded" | "beforeSource" | "afterSource"
+      "supported" | "excluded" | "analysis" | "beforeSource" | "afterSource"
     >[]
   > {
     try {
@@ -594,7 +599,7 @@ export class GitSnapshotReader {
   ): Promise<
     Omit<
       SnapshotFileChange,
-      "supported" | "excluded" | "beforeSource" | "afterSource"
+      "supported" | "excluded" | "analysis" | "beforeSource" | "afterSource"
     >[]
   > {
     try {
@@ -765,12 +770,12 @@ function parseStatus(
   output: string,
 ): Omit<
   SnapshotFileChange,
-  "supported" | "excluded" | "beforeSource" | "afterSource"
+  "supported" | "excluded" | "analysis" | "beforeSource" | "afterSource"
 >[] {
   const tokens = parseNulTokens(output);
   const result: Omit<
     SnapshotFileChange,
-    "supported" | "excluded" | "beforeSource" | "afterSource"
+    "supported" | "excluded" | "analysis" | "beforeSource" | "afterSource"
   >[] = [];
   for (let i = 0; i < tokens.length; ) {
     const token = tokens[i++];

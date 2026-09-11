@@ -27,7 +27,7 @@ if [ "$mode" = "review" ]; then
     *) echo "Unsupported staledocs fail-on input" >&2; exit 2 ;;
   esac
   case "$comment" in
-    true|false) ;;
+    true|false|on-findings) ;;
     *) echo "Unsupported staledocs comment input" >&2; exit 2 ;;
   esac
   case "$labels" in
@@ -104,6 +104,9 @@ if [ "$mode" = "review" ]; then
     fi
     echo "STALEDOCS_SUMMARY_EOF"
   } >> "$GITHUB_OUTPUT"
+  if [ "$in_pr" = "true" ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -s "$markdown" ]; then
+    cat "$markdown" >> "$GITHUB_STEP_SUMMARY"
+  fi
 
   permission_notice_sent="false"
   operation_failure=0
@@ -113,9 +116,6 @@ if [ "$mode" = "review" ]; then
   posting_notice() {
     if [ "$permission_notice_sent" = "false" ]; then
       echo "::notice::StaleDocs could not post a comment (read-only token); see the job summary"
-      if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f "$markdown" ]; then
-        cat "$markdown" >> "$GITHUB_STEP_SUMMARY"
-      fi
       permission_notice_sent="true"
     fi
   }
@@ -133,7 +133,7 @@ if [ "$mode" = "review" ]; then
     comments_stderr="$runner_temp/staledocs-review-comments.err"
     comments_status=0
     comment_id=""
-    if [ "$comment" = "true" ]; then
+    if [ "$comment" = "true" ] || [ "$comment" = "on-findings" ]; then
       GH_TOKEN="$github_token" gh api "repos/$repo/issues/$pr_number/comments" --paginate > "$comments" 2> "$comments_stderr" || comments_status=$?
       if [ "$comments_status" -eq 0 ] && [ -s "$comments" ]; then
         # The default GITHUB_TOKEN is a GitHub App installation access token and
@@ -154,7 +154,7 @@ if [ "$mode" = "review" ]; then
       fi
 
       if [ "$comments_status" -eq 0 ]; then
-        if [ "$public_api_changes" = "0" ] || [ -z "$public_api_changes" ]; then
+        if [ "$public_api_changes" = "0" ] || [ -z "$public_api_changes" ] || { [ "$comment" = "on-findings" ] && [ "$verdict" = "clean" ]; }; then
           if [ -n "$comment_id" ]; then
             delete_status=0
             delete_output="$(GH_TOKEN="$github_token" gh api -X DELETE "repos/$repo/issues/comments/$comment_id" 2>&1)" || delete_status=$?

@@ -199,6 +199,21 @@ describe("assessDocumentationFreshness", () => {
     expect(report.status).toBe("clean");
   });
 
+  it("maps a class through its directly referenced changed member only", () => {
+    const classChange = change({ id: "class-change", kind: "class", qualifiedName: "Client" });
+    const methodChange = change({ id: "method-change", kind: "method", qualifiedName: "Client.get" });
+    const mapped = assessDocumentationFreshness({
+      plan: mappedPlan([classChange, methodChange], "# Demo\n\n## Usage\n\nCall `Client.get(url)`."),
+      changedFiles: ["src/user.ts"], target: "README.md", targetExists: true,
+    });
+    const classOnly = assessDocumentationFreshness({
+      plan: mappedPlan([methodChange], "# Demo\n\n## Usage\n\nCreate a `Client`."),
+      changedFiles: ["src/user.ts"], target: "README.md", targetExists: true,
+    });
+    expect(mapped.unmappedSymbols).toEqual([]);
+    expect(classOnly.unmappedSymbols).toEqual(["Client.get"]);
+  });
+
   it("reports a missing target", () => {
     const report = assessDocumentationFreshness({
       plan: mappedPlan([change()], "# Demo\n\n## API\n\n`createUser`.\n"),

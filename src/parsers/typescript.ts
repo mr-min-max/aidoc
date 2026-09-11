@@ -126,6 +126,7 @@ export class TypeScriptParser implements LanguageParser {
     const sourceFile = project.createSourceFile(filePath, source, {
       scriptKind: /\.(?:mjs|cjs)$/iu.test(filePath) ? ScriptKind.JS : undefined,
     });
+    const moduleSystem = detectModuleSystem(sourceFile);
     const diagnostics = project
       .getProgram()
       .getSyntacticDiagnostics(sourceFile);
@@ -149,9 +150,16 @@ export class TypeScriptParser implements LanguageParser {
             .map((specifier) => normalizeAst(specifier)),
         ]),
       ),
-      symbols: extractSnapshotSymbols(sourceFile),
+      symbols:
+        moduleSystem === "commonjs" && isJavaScriptModulePath(filePath)
+          ? []
+          : extractSnapshotSymbols(sourceFile),
       reexports: extractReexports(sourceFile),
-      exports: extractExportNames(sourceFile),
+      exports:
+        moduleSystem === "commonjs" && isJavaScriptModulePath(filePath)
+          ? []
+          : extractExportNames(sourceFile),
+      moduleSystem,
     };
   }
 
@@ -371,7 +379,105 @@ export class TypeScriptParser implements LanguageParser {
     }));
   }
 }
+function detectModuleSystem(
+  sourceFile: SourceFile,
+): NonNullable<ParserModuleSnapshot["moduleSystem"]> {
+  if (
+    sourceFile.getImportDeclarations().length > 0 ||
+    sourceFile.getExportDeclarations().length > 0 ||
+    sourceFile.getExportAssignments().length > 0 ||
+    sourceFile.getExportedDeclarations().size > 0
+  ) {
+    return "esm";
+  }
+  for (const statement of sourceFile.getStatements()) {
+    if (!Node.isExpressionStatement(statement)) continue;
+    if (isCommonJsExpression(statement.getExpression())) return "commonjs";
+    const expression = unwrapParentheses(statement.getExpression());
+    if (!Node.isCallExpression(expression)) continue;
+    const callee = unwrapParentheses(expression.getExpression());
+    if (!Node.isArrowFunction(callee) && !Node.isFunctionExpression(callee)) {
+      continue;
+    }
+    const body = callee.getBody();
+    if (!Node.isBlock(body)) continue;
+    if (
+      body
+        .getStatements()
+        .some(
+          (nested) =>
+            Node.isExpressionStatement(nested) &&
+            isCommonJsExpression(nested.getExpression()),
+        )
+    ) {
+      return "commonjs";
+    }
+  }
+  return "none";
+}
 
+function isCommonJsExpression(expression: Node): boolean {
+  const candidate = unwrapParentheses(expression);
+  if (Node.isBinaryExpression(candidate)) {
+    return (
+      candidate.getOperatorToken().getKind() === SyntaxKind.EqualsToken &&
+      isCommonJsAssignmentTarget(candidate.getLeft())
+    );
+  }
+  if (!Node.isCallExpression(candidate)) return false;
+  const callee = unwrapParentheses(candidate.getExpression());
+  if (
+    !Node.isPropertyAccessExpression(callee) ||
+    callee.getName() !== "defineProperty" ||
+    !Node.isIdentifier(callee.getExpression()) ||
+    callee.getExpression().getText() !== "Object"
+  ) {
+    return false;
+  }
+  const target = candidate.getArguments()[0];
+  return target !== undefined && isCommonJsExportObject(target);
+}
+
+function isCommonJsAssignmentTarget(expression: Node): boolean {
+  const candidate = unwrapParentheses(expression);
+  if (!Node.isPropertyAccessExpression(candidate)) return false;
+  const owner = candidate.getExpression();
+  return (
+    (Node.isIdentifier(owner) && owner.getText() === "exports") ||
+    isModuleExports(owner) ||
+    isModuleExports(candidate)
+  );
+}
+
+function isCommonJsExportObject(expression: Node): boolean {
+  const candidate = unwrapParentheses(expression);
+  return (
+    (Node.isIdentifier(candidate) && candidate.getText() === "exports") ||
+    isModuleExports(candidate)
+  );
+}
+
+function isModuleExports(expression: Node): boolean {
+  const candidate = unwrapParentheses(expression);
+  return (
+    Node.isPropertyAccessExpression(candidate) &&
+    candidate.getName() === "exports" &&
+    Node.isIdentifier(candidate.getExpression()) &&
+    candidate.getExpression().getText() === "module"
+  );
+}
+
+function unwrapParentheses(node: Node): Node {
+  let current = node;
+  while (Node.isParenthesizedExpression(current)) {
+    current = current.getExpression();
+  }
+  return current;
+}
+
+function isJavaScriptModulePath(filePath: string): boolean {
+  return /\.(?:js|jsx|mjs|cjs)$/iu.test(filePath);
+}
 type AstTuple = [kind: number, text: string | null, children: AstTuple[]];
 type CallableDeclaration =
   | FunctionDeclaration

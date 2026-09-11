@@ -677,6 +677,58 @@ describe("createImpactPlan", () => {
     );
   });
 
+  test("reports changed non-enumerable CommonJS files as not analyzed", async () => {
+    const root = repository();
+    mkdirSync(join(root, "lib"));
+    writeFileSync(join(root, "package.json"), '{"main":"lib/index.js"}\n');
+    writeFileSync(
+      join(root, "lib", "index.js"),
+      "var api = {};\nmodule.exports = api;\n",
+    );
+    commit(root, "initial");
+    writeFileSync(join(root, "marker.txt"), "baseline\n");
+    commit(root, "baseline");
+    writeFileSync(
+      join(root, "lib", "index.js"),
+      "var api = { fresh: true };\nmodule.exports = api;\n",
+    );
+
+    const result = await createImpactPlan({ cwd: root });
+
+    expect(result.plan.changes).toEqual([]);
+    expect(result.plan.ignored.notAnalyzed).toEqual([
+      { path: "lib/index.js", reason: "commonjs" },
+    ]);
+  });
+
+  test("sorts and caps unsupported not-analyzed files at fifty", async () => {
+    const root = repository();
+    mkdirSync(join(root, "unsupported"));
+    for (let index = 51; index >= 0; index -= 1) {
+      writeFileSync(
+        join(root, "unsupported", `${String(index).padStart(2, "0")}.txt`),
+        "before\n",
+      );
+    }
+    commit(root, "initial");
+    for (let index = 51; index >= 0; index -= 1) {
+      writeFileSync(
+        join(root, "unsupported", `${String(index).padStart(2, "0")}.txt`),
+        "after\n",
+      );
+    }
+
+    const result = await createImpactPlan({ cwd: root });
+
+    expect(result.plan.ignored.notAnalyzed).toHaveLength(50);
+    expect(result.plan.ignored.notAnalyzed?.[0]?.path).toBe(
+      "unsupported/00.txt",
+    );
+    expect(result.plan.ignored.notAnalyzed?.[49]?.path).toBe(
+      "unsupported/49.txt",
+    );
+  });
+
   test("does not import provider, command-context, template, or dotenv modules", async () => {
     const root = repository();
     writeFileSync(

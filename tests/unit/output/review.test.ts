@@ -145,6 +145,73 @@ describe("review output", () => {
     );
   });
 
+  it("renders bounded not-analyzed details in every report format", () => {
+    const notAnalyzed = [
+      { path: "lib/request.js", reason: "commonjs" },
+      { path: "tools/check.rb", reason: "unsupported" },
+    ];
+    const zero = renderReviewMarkdown(
+      report({
+        summary: { ...report().summary, publicApiChanges: 0, breaking: 0 },
+        changes: [],
+        documents: [],
+        notAnalyzed,
+        verdict: "clean",
+      }),
+    );
+    const changed = renderReviewMarkdown(report({ notAnalyzed }));
+    const text = renderReviewText(report({ notAnalyzed }));
+    const truncated = renderReviewMarkdown(
+      report({
+        summary: { ...report().summary, publicApiChanges: 0, breaking: 0 },
+        changes: [],
+        documents: [],
+        notAnalyzed: Array.from({ length: 6 }, (_, index) => ({
+          path: `unsupported/${index}.txt`,
+          reason: "unsupported",
+        })),
+        verdict: "clean",
+      }),
+    );
+
+    expect(zero).toContain(
+      "No public API changes in the analyzed files. Not analyzed: `lib/request.js` (CommonJS), `tools/check.rb` (unsupported file type).",
+    );
+    expect(changed).toContain(
+      "**Not analyzed:** `lib/request.js` (CommonJS), `tools/check.rb` (unsupported file type)",
+    );
+    expect(text).toContain(
+      "Not analyzed: lib/request.js (CommonJS), tools/check.rb (unsupported file type)",
+    );
+    expect(truncated).toContain(
+      "`unsupported/4.txt` (unsupported file type), +1 more.",
+    );
+    expect(truncated).not.toContain("unsupported/5.txt");
+    expect(
+      JSON.parse(serializeReviewReport(report({ notAnalyzed }))).notAnalyzed,
+    ).toEqual(notAnalyzed);
+  });
+
+  it("renders a kept members-only row without duplicate signatures", () => {
+    const rendered = renderReviewMarkdown(
+      report({
+        changes: [
+          {
+            ...report().changes[0],
+            qualifiedName: "Client",
+            kind: "class",
+            risk: "review-required",
+            before: "class Client",
+            after: "class Client",
+            changedContractFacets: ["members"],
+          },
+        ],
+      }),
+    );
+
+    expect(rendered).toContain("| `Client` | members changed |  |  |");
+  });
+
   it("escapes pipes, sorts changes, and truncates the changes table", () => {
     const changes = ["zeta", "alpha", "middle"].map((qualifiedName, index) => ({
       ...report().changes[0],

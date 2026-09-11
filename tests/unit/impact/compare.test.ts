@@ -213,6 +213,51 @@ describe("impact snapshot comparison", () => {
     });
   });
 
+  it("folds a class members row when a public method changes", async () => {
+    const parser = new TypeScriptParser();
+    const before = await parser.snapshot(
+      "src/client.ts",
+      "export class Client { get(url: string): string { return url; } }",
+    );
+    const after = await parser.snapshot(
+      "src/client.ts",
+      "export class Client { get(url: string, init: RequestInit): string { return url; } }",
+    );
+
+    const changes = compareSnapshots([
+      file("modified", before, after, "src/client.ts", "src/client.ts"),
+    ]);
+
+    expect(changes.map(({ qualifiedName }) => qualifiedName)).toEqual([
+      "Client.get",
+    ]);
+  });
+
+  it("keeps a class members row when no public method changes", async () => {
+    const parser = new TypeScriptParser();
+    const before = await parser.snapshot(
+      "src/client.ts",
+      "export class Client {}",
+    );
+    const after = await parser.snapshot(
+      "src/client.ts",
+      "export class Client { value = 1; }",
+    );
+
+    const changes = compareSnapshots([
+      file("modified", before, after, "src/client.ts", "src/client.ts"),
+    ]);
+
+    expect(changes).toEqual([
+      expect.objectContaining({
+        qualifiedName: "Client",
+        kind: "class",
+        category: "contract-changed",
+        changedContractFacets: ["members"],
+      }),
+    ]);
+  });
+
   it("propagates signatures and callable arity by change category", () => {
     const beforeContract = symbol("contract", {
       signature: "contract(value?: string): void",

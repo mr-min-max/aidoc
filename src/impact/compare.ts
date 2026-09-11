@@ -5,6 +5,7 @@ import type {
   ContractFacet,
   DocumentationImpact,
   ImpactSummary,
+  ImpactPlan,
   ParserModuleSnapshot,
   ParserSymbolSnapshot,
   SnapshotDescriptor,
@@ -158,7 +159,37 @@ export function compareSnapshots(files: ParsedFileSnapshots[]): SymbolChange[] {
       );
     }
   }
-  return changes.sort(compareImpactChanges);
+  return foldRedundantMemberChanges(changes).sort(compareImpactChanges);
+}
+
+function foldRedundantMemberChanges(changes: SymbolChange[]): SymbolChange[] {
+  const rootsWithMethodChanges = new Set(
+    changes.flatMap((change) => {
+      if (
+        change.scope !== "symbol" ||
+        change.kind !== "method" ||
+        change.qualifiedName === undefined
+      ) {
+        return [];
+      }
+      const separator = change.qualifiedName.indexOf(".");
+      return separator < 0
+        ? []
+        : [`${change.path}\0${change.qualifiedName.slice(0, separator)}`];
+    }),
+  );
+  return changes.filter(
+    (change) =>
+      !(
+        change.scope === "symbol" &&
+        (change.kind === "class" || change.kind === "interface") &&
+        change.category === "contract-changed" &&
+        change.changedContractFacets?.length === 1 &&
+        change.changedContractFacets[0] === "members" &&
+        change.qualifiedName !== undefined &&
+        rootsWithMethodChanges.has(`${change.path}\0${change.qualifiedName}`)
+      ),
+  );
 }
 
 /**
@@ -240,7 +271,7 @@ export function digestImpactPayload(input: {
   summary: ImpactSummary;
   changes: SymbolChange[];
   documentation: DocumentationImpact[];
-  ignored: { unsupported: number; excluded: number; suppressed: number };
+  ignored: ImpactPlan["ignored"];
 }): string {
   return sha256Hex(
     canonicalStringify({

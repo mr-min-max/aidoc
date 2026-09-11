@@ -93,9 +93,10 @@ describe("GitSnapshotReader", () => {
       exclude: [],
     });
     expect(tree.ignored.unsupported).toBeGreaterThanOrEqual(1);
-    expect(tree.files.find((f) => f.afterPath === "note.txt")?.supported).toBe(
-      false,
-    );
+    expect(tree.files.find((f) => f.afterPath === "note.txt")).toMatchObject({
+      supported: false,
+      analysis: "unsupported",
+    });
   });
 
   test("rejects a leading option marker as a fixed invalid ref", async () => {
@@ -754,7 +755,13 @@ exec "${realGit}" "$@"
     ).toEqual(expect.objectContaining({ supported: true, excluded: true }));
     expect(
       result.files.find((file) => file.afterPath === "src/note.txt"),
-    ).toEqual(expect.objectContaining({ supported: false, excluded: false }));
+    ).toEqual(
+      expect.objectContaining({
+        supported: false,
+        excluded: false,
+        analysis: "unsupported",
+      }),
+    );
     expect(result.ignored).toEqual({ unsupported: 1, excluded: 1 });
   });
 
