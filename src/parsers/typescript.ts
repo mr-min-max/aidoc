@@ -18,6 +18,7 @@ import {
   ParameterDeclaration,
   FileSystemRefreshResult,
   SyntaxKind,
+  ScriptKind,
   TypeAliasDeclaration,
   VariableDeclaration,
 } from "ts-morph";
@@ -25,6 +26,7 @@ import { sha256Hex } from "../impact/canonical";
 import {
   ContractFacet,
   ParserModuleSnapshot,
+  ReexportEdge,
   ParserSymbolSnapshot,
   SymbolKind,
 } from "../impact/types";
@@ -48,7 +50,16 @@ let sharedProject: Project | null = null;
 /** Parses TypeScript and JavaScript files using ts-morph AST metadata. */
 export class TypeScriptParser implements LanguageParser {
   readonly name = "typescript";
-  readonly supportedExtensions = [".ts", ".tsx", ".js", ".jsx"];
+  readonly supportedExtensions = [
+    ".ts",
+    ".tsx",
+    ".mts",
+    ".cts",
+    ".js",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+  ];
 
   /** Visible for tests: how many times the Project has been constructed. */
   static sharedProjectCount = 0;
@@ -94,7 +105,9 @@ export class TypeScriptParser implements LanguageParser {
       skipAddingFilesFromTsConfig: true,
       compilerOptions: { allowJs: true, allowNonTsExtensions: true },
     });
-    const sourceFile = project.createSourceFile(filePath, source);
+    const sourceFile = project.createSourceFile(filePath, source, {
+      scriptKind: /\.(?:mjs|cjs)$/iu.test(filePath) ? ScriptKind.JS : undefined,
+    });
     this.assertNoSyntacticDiagnostics(project, sourceFile);
 
     return this.extractParsedModule(filePath, sourceFile);
@@ -110,7 +123,9 @@ export class TypeScriptParser implements LanguageParser {
       skipAddingFilesFromTsConfig: true,
       compilerOptions: { allowJs: true, allowNonTsExtensions: true },
     });
-    const sourceFile = project.createSourceFile(filePath, source);
+    const sourceFile = project.createSourceFile(filePath, source, {
+      scriptKind: /\.(?:mjs|cjs)$/iu.test(filePath) ? ScriptKind.JS : undefined,
+    });
     const diagnostics = project
       .getProgram()
       .getSyntacticDiagnostics(sourceFile);
@@ -135,6 +150,8 @@ export class TypeScriptParser implements LanguageParser {
         ]),
       ),
       symbols: extractSnapshotSymbols(sourceFile),
+      reexports: extractReexports(sourceFile),
+      exports: extractExportNames(sourceFile),
     };
   }
 
@@ -367,6 +384,7 @@ interface ExportedBinding {
   declaration: Node;
   statement: Node;
   callable: boolean;
+  exportName: string;
 }
 function enumerateExports(sourceFile: SourceFile): ExportedBinding[] {
   const bindings: ExportedBinding[] = [];
@@ -407,6 +425,7 @@ function enumerateExports(sourceFile: SourceFile): ExportedBinding[] {
           ? (declaration.getName() ?? exportedName)
           : exportedName;
       bindings.push({
+        exportName: exportedName,
         exportedName: publicName,
         declaration:
           initializer !== undefined &&
@@ -422,6 +441,75 @@ function enumerateExports(sourceFile: SourceFile): ExportedBinding[] {
   return bindings.sort((left, right) =>
     compareText(left.exportedName, right.exportedName),
   );
+}
+
+function extractExportNames(
+  sourceFile: SourceFile,
+): { exported: string; symbol: string }[] {
+  return enumerateExports(sourceFile)
+    .map(({ exportName, exportedName }) => ({
+      exported: exportName,
+      symbol: exportedName,
+    }))
+    .filter(
+      (value, index, values) =>
+        index ===
+        values.findIndex(
+          (candidate) =>
+            candidate.exported === value.exported &&
+            candidate.symbol === value.symbol,
+        ),
+    )
+    .sort(
+      (left, right) =>
+        compareText(left.exported, right.exported) ||
+        compareText(left.symbol, right.symbol),
+    );
+}
+
+function extractReexports(sourceFile: SourceFile): ReexportEdge[] {
+  return sourceFile
+    .getExportDeclarations()
+    .flatMap((declaration): ReexportEdge[] => {
+      const specifier = declaration.getModuleSpecifierValue();
+      if (
+        specifier === undefined ||
+        (!specifier.startsWith("./") && !specifier.startsWith("../"))
+      ) {
+        return [];
+      }
+      const namespace = declaration.getNamespaceExport();
+      if (namespace !== undefined) {
+        return [
+          {
+            specifier,
+            names: [{ exported: namespace.getName(), local: "*" }],
+          },
+        ];
+      }
+      const named = declaration.getNamedExports();
+      if (named.length === 0) return [{ specifier }];
+      return [
+        {
+          specifier,
+          names: named
+            .map((element) => ({
+              exported: element.getAliasNode()?.getText() ?? element.getName(),
+              local: element.getName(),
+            }))
+            .sort(
+              (left, right) =>
+                compareText(left.exported, right.exported) ||
+                compareText(left.local, right.local),
+            ),
+        },
+      ];
+    })
+    .sort(
+      (left, right) =>
+        compareText(left.specifier, right.specifier) ||
+        compareText(JSON.stringify(left.names), JSON.stringify(right.names)),
+    );
 }
 function getDocDescription(node: Node): string | undefined {
   if (!Node.isJSDocable(node)) return undefined;

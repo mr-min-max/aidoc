@@ -50,7 +50,7 @@ export async function createReviewReport(
     plan.base.commit ?? plan.base.label,
     plan.head.type === "working-tree"
       ? undefined
-      : plan.head.commit ?? plan.head.label,
+      : (plan.head.commit ?? plan.head.label),
     cwd,
   );
   const publicChanges = plan.changes
@@ -75,12 +75,19 @@ export async function createReviewReport(
       }),
     );
 
-  const changesById = new Map(plan.changes.map((change) => [change.id, change]));
+  const changesById = new Map(
+    plan.changes.map((change) => [change.id, change]),
+  );
   const directReferenceFiles = new Set<string>();
   const unmapped = new Set<string>();
   for (const impact of plan.documentation) {
     const change = changesById.get(impact.changeId);
-    if (change?.qualifiedName === undefined) continue;
+    if (
+      change?.qualifiedName === undefined ||
+      change.visibility === "internal"
+    ) {
+      continue;
+    }
     if (isReviewChange(change) && impact.directReferences.length === 0) {
       unmapped.add(change.qualifiedName);
     }
@@ -107,9 +114,15 @@ export async function createReviewReport(
     });
   }
 
-  const breaking = publicChanges.filter((change) => change.risk === "potentially-breaking").length;
-  const staleDocuments = documents.filter((document) => document.status === "stale").length;
-  const coChangedDocuments = documents.filter((document) => document.status === "co-changed").length;
+  const breaking = publicChanges.filter(
+    (change) => change.risk === "potentially-breaking",
+  ).length;
+  const staleDocuments = documents.filter(
+    (document) => document.status === "stale",
+  ).length;
+  const coChangedDocuments = documents.filter(
+    (document) => document.status === "co-changed",
+  ).length;
   const suppressed = planning.suppressed;
   const report: ReviewReport = {
     schemaVersion: REVIEW_SCHEMA_VERSION,
@@ -122,6 +135,9 @@ export async function createReviewReport(
       coChangedDocuments,
       unmappedSymbols: unmapped.size,
       suppressed: plan.ignored.suppressed,
+      ...(plan.summary.internalChanges === undefined
+        ? {}
+        : { internalChanges: plan.summary.internalChanges }),
     },
     changes: publicChanges,
     documents,
@@ -132,6 +148,7 @@ export async function createReviewReport(
         ...(reason === undefined ? {} : { reason }),
       }))
       .sort((left, right) => compareStrings(left.symbol, right.symbol)),
+    ...(plan.boundary === undefined ? {} : { boundary: plan.boundary }),
     verdict: breaking > 0 ? "breaking" : staleDocuments > 0 ? "stale" : "clean",
   };
   return report;
@@ -168,7 +185,11 @@ export async function executeReviewCommand(
         : renderReviewText(report, maxSymbols);
   io.stdout(`${output}\n`);
   if (failOn === "breaking" && report.verdict === "breaking") return 1;
-  if (failOn === "stale" && (report.verdict === "stale" || report.verdict === "breaking")) return 1;
+  if (
+    failOn === "stale" &&
+    (report.verdict === "stale" || report.verdict === "breaking")
+  )
+    return 1;
   return 0;
 }
 
@@ -178,7 +199,11 @@ export const reviewCommand = new Command("review")
   .option("--head <ref>", "Comparison head")
   .option("--format <format>", "Output format: text, markdown, or json", "text")
   .option("--fail-on <verdict>", "Fail on none, stale, or breaking", "none")
-  .option("--max-symbols <count>", "Maximum symbols in text or Markdown output", "30")
+  .option(
+    "--max-symbols <count>",
+    "Maximum symbols in text or Markdown output",
+    "30",
+  )
   .action(async (options: ReviewCommandOptions) => {
     process.exitCode = await executeReviewCommand(options);
   });
@@ -200,6 +225,7 @@ function isReviewFailOn(value: unknown): value is ReviewFailOn {
 function isReviewChange(change: SymbolChange): boolean {
   return (
     change.scope === "symbol" &&
+    change.visibility !== "internal" &&
     (change.category === "added" ||
       change.category === "removed" ||
       change.category === "moved" ||

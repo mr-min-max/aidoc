@@ -16,11 +16,13 @@ import {
 } from "../config/planning";
 import { GitSnapshotReader, type SnapshotFileChange } from "../git/snapshot";
 import { getSnapshotParserForFile } from "../parsers/registry";
+import { resolveBoundary, type ResolvedBoundary } from "./boundary";
 import { buildImpactContext } from "./context";
 import {
   digestImpactPayload,
   compareSnapshots,
   summarizeImpact,
+  type ParsedFileSnapshots,
 } from "./compare";
 import {
   mapDocumentationImpact,
@@ -31,7 +33,10 @@ import {
   PlanFailure,
   type ImpactPlan,
   type ImpactPlanningResult,
+  type LanguageBoundaryReport,
   type ParserModuleSnapshot,
+  type ParserSymbolSnapshot,
+  type SymbolChange,
 } from "./types";
 
 export interface ImpactPlanOptions {
@@ -54,6 +59,12 @@ interface FilesystemIdentity {
   dev: string;
   ino: string;
   type: string;
+}
+
+interface TypeScriptBoundaryResolution {
+  report: LanguageBoundaryReport;
+  base: ResolvedBoundary;
+  head: ResolvedBoundary;
 }
 
 const execFile = promisify(execFileCallback);
@@ -159,7 +170,8 @@ export async function createImpactPlan(
     );
   }
 
-  const snapshotSet = await new GitSnapshotReader(cwd).read({
+  const reader = new GitSnapshotReader(cwd);
+  const snapshotSet = await reader.read({
     base: options.base,
     head: options.head,
     include: config.include,
@@ -167,10 +179,21 @@ export async function createImpactPlan(
   });
   const { root, base, head, ignored } = snapshotSet;
   const sourceFiles = snapshotSet.files;
-  const parsed = await snapshotChangedSources(sourceFiles).finally(() => {
-    sourceFiles.length = 0;
-  });
-  const allChanges = compareSnapshots(parsed);
+  const hasTypeScriptChanges = sourceFiles.some(
+    (file) =>
+      file.supported &&
+      !file.excluded &&
+      isTypeScriptPath(file.afterPath ?? file.beforePath),
+  );
+  const parsed = await snapshotChangedSources(sourceFiles);
+  sourceFiles.length = 0;
+  let allChanges = compareSnapshots(parsed);
+  const resolvedBoundary = hasTypeScriptChanges
+    ? await resolveTypeScriptBoundary(reader, config.entry)
+    : undefined;
+  if (resolvedBoundary !== undefined) {
+    allChanges = tagTypeScriptVisibility(allChanges, parsed, resolvedBoundary);
+  }
   const suppressions = options.suppressions ?? (await loadSuppressions(root));
   const suppressed: SuppressedChange[] = [];
   const changes = allChanges.filter((change) => {
@@ -196,7 +219,8 @@ export async function createImpactPlan(
     config.exclude,
   );
   const filteredDocumentationFiles = documentationFiles.filter(
-    (file) => matchingSuppression(file.path, suppressions.docPaths) === undefined,
+    (file) =>
+      matchingSuppression(file.path, suppressions.docPaths) === undefined,
   );
   const documentation = mapDocumentationImpact(
     changes,
@@ -231,6 +255,9 @@ export async function createImpactPlan(
     documentation,
     context: context.report,
     ignored: planIgnored,
+    ...(resolvedBoundary === undefined
+      ? {}
+      : { boundary: { typescript: resolvedBoundary.report } }),
     digest,
   };
   return { plan, providerContext: context.providerContext, suppressed };
@@ -272,6 +299,7 @@ async function snapshotChangedSources(files: SnapshotFileChange[]): Promise<
 async function snapshotSource(
   filePath: string | undefined,
   source: string | undefined,
+  strict = true,
 ): Promise<ParserModuleSnapshot | undefined> {
   if (filePath === undefined || source === undefined) return undefined;
   const parser = getSnapshotParserForFile(filePath);
@@ -279,12 +307,120 @@ async function snapshotSource(
   try {
     return await parser.snapshot(filePath, source);
   } catch {
+    if (!strict) return undefined;
     throw new PlanFailure(
       "PLAN_PARSE_FAILED",
       "Unable to parse changed source.",
       filePath,
     );
   }
+}
+
+async function resolveTypeScriptBoundary(
+  reader: GitSnapshotReader,
+  configuredEntries: readonly string[] | undefined,
+): Promise<TypeScriptBoundaryResolution> {
+  const [baseBoundary, headBoundary] = await Promise.all(
+    (["base", "head"] as const).map((revision) =>
+      resolveBoundary({
+        readFile: (path) => reader.readAt(revision, path),
+        listPackageJson: () => reader.listPackageManifests(revision),
+        snapshot: (path, source) => snapshotSource(path, source, false),
+        ...(configuredEntries === undefined ? {} : { configuredEntries }),
+      }),
+    ),
+  );
+  const entryMode =
+    baseBoundary.report.mode === "entry" &&
+    headBoundary.report.mode === "entry";
+  const fallbackReport =
+    baseBoundary.report.mode === "fallback"
+      ? baseBoundary.report
+      : headBoundary.report;
+  return {
+    report: entryMode
+      ? {
+          mode: "entry",
+          entries: [
+            ...new Set([
+              ...baseBoundary.report.entries,
+              ...headBoundary.report.entries,
+            ]),
+          ].sort(compareStrings),
+          filesRead:
+            baseBoundary.report.filesRead + headBoundary.report.filesRead,
+        }
+      : {
+          mode: "fallback",
+          entries: [],
+          reason:
+            fallbackReport.mode === "fallback"
+              ? fallbackReport.reason
+              : "entry-not-found",
+          filesRead:
+            baseBoundary.report.filesRead + headBoundary.report.filesRead,
+        },
+    base: baseBoundary,
+    head: headBoundary,
+  };
+}
+
+function tagTypeScriptVisibility(
+  changes: SymbolChange[],
+  files: ParsedFileSnapshots[],
+  boundary: TypeScriptBoundaryResolution,
+): SymbolChange[] {
+  if (boundary.report.mode !== "entry") return changes;
+  const paths = new Map<string, { beforePath?: string; afterPath?: string }>();
+  for (const file of files) {
+    for (const symbol of file.before?.symbols ?? []) {
+      paths.set(snapshotSymbolId(file.beforePath, symbol), {
+        beforePath: file.beforePath,
+        afterPath: file.afterPath,
+      });
+    }
+    for (const symbol of file.after?.symbols ?? []) {
+      paths.set(snapshotSymbolId(file.afterPath, symbol), {
+        beforePath: file.beforePath,
+        afterPath: file.afterPath,
+      });
+    }
+  }
+  return changes.map((change) => {
+    if (
+      change.scope !== "symbol" ||
+      change.language !== "typescript" ||
+      change.qualifiedName === undefined
+    ) {
+      return change;
+    }
+    const endpoints = [change.beforeId, change.afterId, change.id]
+      .filter((id): id is string => id !== undefined)
+      .map((id) => paths.get(id))
+      .find((value) => value !== undefined);
+    const rootName = change.qualifiedName.split(".", 1)[0]!;
+    const isPublic =
+      (endpoints?.beforePath !== undefined &&
+        boundary.base.reachable.get(endpoints.beforePath)?.has(rootName) ===
+          true) ||
+      (endpoints?.afterPath !== undefined &&
+        boundary.head.reachable.get(endpoints.afterPath)?.has(rootName) ===
+          true);
+    return { ...change, visibility: isPublic ? "public" : "internal" };
+  });
+}
+
+function snapshotSymbolId(
+  path: string | undefined,
+  symbol: ParserSymbolSnapshot,
+): string {
+  return `${symbol.language}:${path ?? ""}#${symbol.kind}:${symbol.qualifiedName}`;
+}
+
+function isTypeScriptPath(path: string | undefined): boolean {
+  return (
+    path !== undefined && /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$/u.test(path)
+  );
 }
 
 async function loadDocumentationFiles(
@@ -310,7 +446,9 @@ async function loadDocumentationFiles(
 }
 
 /** Returns the repository-relative README path as it exists on disk, if any. */
-export async function discoverReadme(root: string): Promise<string | undefined> {
+export async function discoverReadme(
+  root: string,
+): Promise<string | undefined> {
   const files = await rootMarkdownFiles(root);
   return files.find((file) => file.toLowerCase() === "readme.md");
 }

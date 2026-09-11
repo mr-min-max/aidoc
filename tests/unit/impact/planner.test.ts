@@ -277,7 +277,9 @@ describe("createImpactPlan", () => {
 
   test("skips configured documentation reached through an intermediate external symlink", async () => {
     const root = repository();
-    const externalRoot = mkdtempSync(join(tmpdir(), "staledocs-external-docs-"));
+    const externalRoot = mkdtempSync(
+      join(tmpdir(), "staledocs-external-docs-"),
+    );
     mkdirSync(join(externalRoot, "sub"));
     writeFileSync(
       join(externalRoot, "sub", "API.md"),
@@ -311,7 +313,9 @@ describe("createImpactPlan", () => {
     const root = repository();
     const docs = join(root, "docs");
     const parkedDocs = join(root, "docs-before-swap");
-    const externalDocs = mkdtempSync(join(tmpdir(), "staledocs-external-swap-"));
+    const externalDocs = mkdtempSync(
+      join(tmpdir(), "staledocs-external-swap-"),
+    );
     const documentationPath = join(docs, "API.md");
     mkdirSync(docs);
     writeFileSync(documentationPath, "# Internal notes\nNo public API here.\n");
@@ -371,7 +375,9 @@ describe("createImpactPlan", () => {
     const root = repository();
     const docs = join(root, "docs");
     const parkedDocs = join(root, "docs-inside-repository");
-    const externalDocs = mkdtempSync(join(tmpdir(), "staledocs-coordinated-docs-"));
+    const externalDocs = mkdtempSync(
+      join(tmpdir(), "staledocs-coordinated-docs-"),
+    );
     const documentationPath = join(docs, "API.md");
     mkdirSync(docs);
     writeFileSync(documentationPath, "# Internal notes\nNo public API here.\n");
@@ -471,6 +477,9 @@ describe("createImpactPlan", () => {
     const readSpy = jest
       .spyOn(GitSnapshotReader.prototype, "read")
       .mockResolvedValue(snapshotSet);
+    const manifestsSpy = jest
+      .spyOn(GitSnapshotReader.prototype, "listPackageManifests")
+      .mockResolvedValue([]);
     const originalLstat = fs.lstat.bind(fs);
     const observedLengths: number[] = [];
     const lstatSpy = jest.spyOn(fs, "lstat").mockImplementation(((
@@ -489,6 +498,7 @@ describe("createImpactPlan", () => {
     } finally {
       lstatSpy.mockRestore();
       readSpy.mockRestore();
+      manifestsSpy.mockRestore();
     }
   });
 
@@ -764,6 +774,84 @@ describe("createImpactPlan", () => {
       expect.objectContaining({ type: "git", commit: head }),
     );
   });
+  test("classifies only entry-reachable TypeScript symbols as public", async () => {
+    const root = repository();
+    mkdirSync(join(root, "src"));
+    mkdirSync(join(root, "src", "internal"));
+    writeFileSync(join(root, "package.json"), '{"main":"dist/index.js"}\n');
+    writeFileSync(
+      join(root, "src", "index.ts"),
+      'export { visible } from "./visible";\n',
+    );
+    writeFileSync(
+      join(root, "src", "visible.ts"),
+      "export function visible(value: string): string { return value; }\n",
+    );
+    writeFileSync(
+      join(root, "src", "internal", "hidden.ts"),
+      "export function hidden(value: string): string { return value; }\n",
+    );
+    writeFileSync(join(root, "README.md"), "# API\n\n`visible` and `hidden`\n");
+    commit(root, "initial");
+    writeFileSync(join(root, "marker.txt"), "baseline\n");
+    commit(root, "baseline");
+    writeFileSync(
+      join(root, "src", "visible.ts"),
+      "export function visible(value: number): number { return value; }\n",
+    );
+    writeFileSync(
+      join(root, "src", "internal", "hidden.ts"),
+      "export function hidden(value: number): number { return value; }\n",
+    );
+
+    const result = await createImpactPlan({ cwd: root });
+
+    expect(result.plan.boundary?.typescript).toMatchObject({
+      mode: "entry",
+      entries: ["src/index.ts"],
+    });
+    expect(
+      result.plan.changes.map(({ qualifiedName, visibility }) => ({
+        qualifiedName,
+        visibility,
+      })),
+    ).toEqual([
+      { qualifiedName: "hidden", visibility: "internal" },
+      { qualifiedName: "visible", visibility: "public" },
+    ]);
+    expect(result.plan.summary).toMatchObject({
+      publicApiChanges: 1,
+      internalChanges: 1,
+      unmapped: 0,
+    });
+    expect(result.providerContext.changes).toEqual([
+      expect.objectContaining({ qualifiedName: "visible" }),
+    ]);
+  });
+
+  test("leaves visibility absent when entry discovery falls back", async () => {
+    const root = repository();
+    writeFileSync(
+      join(root, "api.mts"),
+      "export function api(value: string): string { return value; }\n",
+    );
+    commit(root, "initial");
+    writeFileSync(
+      join(root, "api.mts"),
+      "export function api(value: number): number { return value; }\n",
+    );
+
+    const result = await createImpactPlan({ cwd: root });
+
+    expect(result.plan.boundary?.typescript).toMatchObject({
+      mode: "fallback",
+      reason: "no-manifest",
+    });
+    expect(result.plan.changes[0]?.visibility).toBeUndefined();
+    expect(result.plan.summary.publicApiChanges).toBe(1);
+    expect(result.plan.summary.internalChanges).toBeUndefined();
+  });
+
   test("applies symbol, source-path, and independently observable doc suppressions", async () => {
     const root = repository();
     mkdirSync(join(root, "src"));

@@ -5,13 +5,18 @@ export interface PlanningConfig {
   exclude: string[];
   outputDir: string;
   maxContextBytes: number;
+  entry?: string[];
 }
 
 const DEFAULT_INCLUDE = [
   "**/*.ts",
   "**/*.tsx",
+  "**/*.mts",
+  "**/*.cts",
   "**/*.js",
   "**/*.jsx",
+  "**/*.mjs",
+  "**/*.cjs",
   "**/*.py",
 ];
 const DEFAULT_EXCLUDE = [
@@ -64,6 +69,7 @@ export function parsePlanningConfig(value: unknown): PlanningConfig {
     throw new Error("invalid planning config");
   }
 
+  const entry = safeOwnValue(value, "entry");
   const include = safeOwnValue(value, "include");
   const exclude = safeOwnValue(value, "exclude");
   const outputDir = safeOwnValue(value, "outputDir");
@@ -92,6 +98,22 @@ export function parsePlanningConfig(value: unknown): PlanningConfig {
       throw new Error("invalid planning config");
     }
     result.outputDir = outputDir;
+  }
+  if (entry !== undefined) {
+    if (
+      !Array.isArray(entry) ||
+      entry.length === 0 ||
+      !entry.every(
+        (item) =>
+          typeof item === "string" &&
+          item.length > 0 &&
+          !item.startsWith("/") &&
+          !item.split(/[\\/]/u).includes(".."),
+      )
+    ) {
+      throw new Error("invalid planning config");
+    }
+    result.entry = [...entry];
   }
   if (budget !== undefined) result.maxContextBytes = parseContextBudget(budget);
   return result;

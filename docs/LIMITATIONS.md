@@ -4,10 +4,13 @@
 
 StaleDocs maps changed public symbols to documentation sections. It does not prove that prose is correct, complete, or appropriate for readers.
 
+## Public boundary
+
+A public symbol is one that a consumer can import from the package entry. StaleDocs discovers entries from `package.json` (`exports`, then `types`, `module`, `main`; build paths such as `dist/index.js` are mapped to `src/index.ts` when that file exists) for the root package and one level of workspace packages, then follows static `export ... from` statements with relative specifiers. `export * as ns from` is followed one level. Bare specifiers, `require()`, dynamic `import()`, `tsconfig` path aliases, and CommonJS are not followed. Set `entry` in the configuration to override discovery. When no entry can be resolved, every export in a changed file is treated as public and the report says so.
+
 ## Languages and syntax not enumerated
 
-TypeScript and JavaScript analysis does not infer every re-export or CommonJS export. Python analysis does not enumerate module constants or dynamic exports. Generated exports and runtime registration are outside the AST snapshot.
-
+TypeScript and JavaScript analysis follows static relative re-exports but does not enumerate CommonJS exports. Python analysis does not enumerate module constants or dynamic exports. Generated exports and runtime registration are outside the AST snapshot.
 ## Documentation discovery
 
 The planner recognizes root `README.md` and `CHANGELOG.md` names without case sensitivity. It recursively scans files with a case-insensitive `.md` extension under `docs` and under a configured output directory. Planning exclusion globs are applied while selecting candidates. After discovery, `.staledocsignore` removes documentation through case-sensitive path patterns whose literal suffix is `.md`, such as `docs/legacy/*.md`.

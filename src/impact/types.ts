@@ -33,6 +33,14 @@ export type ChangeRisk =
   | "potentially-breaking"
   | "review-required"
   | "informational";
+export type SymbolVisibility = "public" | "internal";
+
+export interface ReexportEdge {
+  /** Module specifier as written, relative specifiers only. */
+  specifier: string;
+  /** Undefined means `export * from`; otherwise consumer-visible and local names. */
+  names?: { exported: string; local: string }[];
+}
 
 export interface SnapshotDescriptor {
   type: "git" | "working-tree";
@@ -58,6 +66,8 @@ export interface SymbolChange {
   after?: string;
   /** Callable arity at the head revision, or at the base revision when removed. */
   arity?: { required: number; total: number };
+  /** Reachability through the package boundary, when one was resolved. */
+  visibility?: SymbolVisibility;
   digest: string;
 }
 
@@ -90,6 +100,8 @@ export interface ImpactSummary {
   informational: number;
   unmapped: number;
   byCategory: Record<ChangeCategory, number>;
+  /** Changes hidden because they are unreachable from a resolved entry. */
+  internalChanges?: number;
 }
 
 export interface ContextBudgetReport {
@@ -99,6 +111,22 @@ export interface ContextBudgetReport {
   includedRecords: number;
   omittedRecords: number;
   impactDigest: string;
+}
+export interface LanguageBoundaryReport {
+  mode: "entry" | "fallback";
+  entries: string[];
+  reason?:
+    | "no-manifest"
+    | "no-entry-field"
+    | "entry-not-found"
+    | "unsupported-entry"
+    | "limit-exceeded";
+  filesRead: number;
+}
+
+export interface BoundaryReport {
+  typescript?: LanguageBoundaryReport;
+  python?: LanguageBoundaryReport;
 }
 
 export interface ImpactPlan {
@@ -110,6 +138,7 @@ export interface ImpactPlan {
   documentation: DocumentationImpact[];
   context: ContextBudgetReport;
   ignored: { unsupported: number; excluded: number; suppressed: number };
+  boundary?: BoundaryReport;
   digest: string;
 }
 
@@ -188,6 +217,10 @@ export interface ParserModuleSnapshot {
   language: ImpactLanguage;
   dependencyFingerprint: string;
   symbols: ParserSymbolSnapshot[];
+  /** Static relative re-exports. Absent for Python in this phase. */
+  reexports?: ReexportEdge[];
+  /** Consumer export names mapped to parser symbol roots. */
+  exports?: { exported: string; symbol: string }[];
 }
 
 export interface ParserSymbolSnapshot {
@@ -202,6 +235,8 @@ export interface ParserSymbolSnapshot {
   contractFingerprint: string;
   implementationFingerprint: string;
   documentationFingerprint: string | null;
+  /** Set by the planner after boundary resolution; parsers leave it undefined. */
+  visibility?: SymbolVisibility;
 }
 
 const PLAN_FAILURE_PAYLOADS = new WeakMap<object, Readonly<PlanError>>();

@@ -175,16 +175,33 @@ export function summarizeImpact(
   let reviewRequired = 0;
   let informational = 0;
   let publicApiChanges = 0;
+  let internalChanges = 0;
+  let hasVisibility = false;
+  const publicChangeIds = new Set<string>();
   for (const change of changes) {
     byCategory[change.category] += 1;
+    if (change.visibility !== undefined) hasVisibility = true;
     if (
+      change.visibility === "internal" &&
       change.scope === "symbol" &&
       (change.category === "added" ||
         change.category === "removed" ||
         change.category === "contract-changed" ||
         change.category === "moved")
-    )
+    ) {
+      internalChanges += 1;
+    }
+    if (
+      change.scope === "symbol" &&
+      change.visibility !== "internal" &&
+      (change.category === "added" ||
+        change.category === "removed" ||
+        change.category === "contract-changed" ||
+        change.category === "moved")
+    ) {
       publicApiChanges += 1;
+    }
+    if (change.visibility !== "internal") publicChangeIds.add(change.id);
     if (change.risk === "potentially-breaking") potentiallyBreaking += 1;
     else if (change.risk === "review-required") reviewRequired += 1;
     else informational += 1;
@@ -195,8 +212,11 @@ export function summarizeImpact(
     potentiallyBreaking,
     reviewRequired,
     informational,
-    unmapped: documentation.filter((impact) => impact.unmapped).length,
+    unmapped: documentation.filter(
+      (impact) => impact.unmapped && publicChangeIds.has(impact.changeId),
+    ).length,
     byCategory,
+    ...(hasVisibility ? { internalChanges } : {}),
   };
 }
 

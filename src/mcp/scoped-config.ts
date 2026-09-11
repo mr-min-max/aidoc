@@ -275,6 +275,9 @@ function freezePlanningConfig(value: PlanningConfig): Readonly<PlanningConfig> {
     ...value,
     include: Object.freeze([...value.include]),
     exclude: Object.freeze([...value.exclude]),
+    ...(value.entry === undefined
+      ? {}
+      : { entry: Object.freeze([...value.entry]) }),
   }) as unknown as Readonly<PlanningConfig>;
 }
 
