@@ -909,7 +909,7 @@ def dunder_all(tree):
                     for element in value.elts
                 )
             ):
-                return sorted(element.value for element in value.elts)
+                return sorted({element.value for element in value.elts})
             return None
     return None
 

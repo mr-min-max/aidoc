@@ -191,6 +191,23 @@ describe("public boundary resolution", () => {
 
     expect([...result.reachable.get("pkg/sub/api.py")!]).toEqual(["selected"]);
   });
+  it("keeps star-imported names internal when __all__ omits them", async () => {
+    const pythonParser = new PythonParser();
+    const files = {
+      "pyproject.toml": '[project]\nname = "pkg"\n',
+      "pkg/__init__.py":
+        'from .extra import *\n\ndef run():\n    pass\n\n__all__ = ["run"]\n',
+      "pkg/extra.py": "def leaked():\n    pass\n\ndef other():\n    pass\n",
+    };
+    const result = await resolvePythonBoundary({
+      readFile: async (path) => files[path as keyof typeof files],
+      listPackageEntries: async () => ["pkg/__init__.py"],
+      snapshot: async (path, source) => pythonParser.snapshot(path, source),
+    });
+
+    expect([...result.reachable.get("pkg/__init__.py")!]).toEqual(["run"]);
+    expect(result.reachable.has("pkg/extra.py")).toBe(false);
+  });
 
   it("limits Python TOML discovery to configured package roots", async () => {
     const pythonParser = new PythonParser();
