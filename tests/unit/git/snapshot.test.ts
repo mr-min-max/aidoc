@@ -824,6 +824,8 @@ exec "${realGit}" "$@"
     mkdirSync(join(root, "packages", "one"), { recursive: true });
     mkdirSync(join(root, "packages", "two"), { recursive: true });
     mkdirSync(join(root, "node_modules", "ignored"), { recursive: true });
+    mkdirSync(join(root, "dist", "generated"), { recursive: true });
+    mkdirSync(join(root, "build", "generated"), { recursive: true });
     writeFileSync(join(root, "package.json"), '{"main":"src/index.ts"}\n');
     writeFileSync(join(root, "packages", "one", "package.json"), "{}\n");
     writeFileSync(join(root, "packages", "two", "package.json"), "{}\n");
@@ -831,6 +833,8 @@ exec "${realGit}" "$@"
       join(root, "node_modules", "ignored", "package.json"),
       "{}\n",
     );
+    writeFileSync(join(root, "dist", "generated", "package.json"), "{}\n");
+    writeFileSync(join(root, "build", "generated", "package.json"), "{}\n");
     writeFileSync(join(root, "entry.mts"), "export const value = 1;\n");
     commit(root, "initial");
 

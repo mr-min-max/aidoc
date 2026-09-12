@@ -24,7 +24,7 @@ describe("planning configuration", () => {
   it("selects safe fields from a config without evaluating provider getters", async () => {
     await fs.writeFile(
       path.join(root, ".staledocsrc.cjs"),
-      `module.exports = { include: ["src/**"], exclude: ["src/vendor/**"], entry: ["src/index.mts"], outputDir: "./api", maxContextBytes: 1024,
+      `module.exports = { include: ["src/**"], exclude: ["src/vendor/**"], entry: ["src/index.mts"], docs: ["handbook", "MIGRATION.md"], outputDir: "./api", maxContextBytes: 1024,
         get provider() { throw new Error("credential sentinel"); },
         get apiKey() { throw new Error("credential sentinel"); },
         get model() { throw new Error("credential sentinel"); },
@@ -37,6 +37,7 @@ describe("planning configuration", () => {
       include: ["src/**"],
       exclude: ["src/vendor/**"],
       entry: ["src/index.mts"],
+      docs: ["handbook", "MIGRATION.md"],
       outputDir: "./api",
       maxContextBytes: 1024,
     });
@@ -148,6 +149,32 @@ describe("planning configuration", () => {
         "invalid planning config",
       );
     }
+  });
+
+  it("copies safe docs paths and rejects repository escapes", () => {
+    const source = ["handbook", "MIGRATION.md"];
+    const config = parsePlanningConfig({ docs: source });
+    source.push("guides");
+
+    expect(config.docs).toEqual(["handbook", "MIGRATION.md"]);
+    expect(ConfigSchema.parse({ docs: ["handbook"] }).docs).toEqual([
+      "handbook",
+    ]);
+    for (const docs of [[], [""], ["../handbook"], ["/handbook"]]) {
+      expect(() => parsePlanningConfig({ docs })).toThrow(
+        "invalid planning config",
+      );
+      expect(() => ConfigSchema.parse({ docs })).toThrow();
+    }
+  });
+
+  it("bounds configured documentation lookups", () => {
+    const docs = Array.from({ length: 101 }, (_, index) => `docs/${index}`);
+
+    expect(() => parsePlanningConfig({ docs })).toThrow(
+      "invalid planning config",
+    );
+    expect(() => ConfigSchema.parse({ docs })).toThrow();
   });
 
   it("does not evaluate accessors in pure planning input", () => {

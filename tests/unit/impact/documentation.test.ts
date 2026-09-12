@@ -311,13 +311,80 @@ describe("documentation impact mapping", () => {
     expect(impacts.get("dependency")?.recommendations).toEqual([
       expect.objectContaining({
         reason: "architecture",
-        file: "docs/architecture.md",
+        file: "README.md",
       }),
     ]);
     for (const impact of impacts.values()) {
       expect(impact.directReferences).toEqual([]);
       expect(impact.unmapped).toBe(false);
     }
+  });
+
+  it("prefers the README nearest to entrypoint and architecture changes", () => {
+    const entrypoint = change({
+      id: "package-entrypoint",
+      category: "contract-changed",
+      path: "packages/core/src/index.ts",
+      qualifiedName: "createCore",
+    });
+    const dependency = change({
+      id: "package-dependency",
+      scope: "module",
+      category: "dependency-changed",
+      path: "packages/core/src/runtime.ts",
+      kind: "module",
+      qualifiedName: undefined,
+    });
+    const impacts = new Map(
+      mapDocumentationImpact([entrypoint, dependency], [
+        { path: "README.md", content: "# Root\n" },
+        { path: "packages/README.md", content: "# Packages\n" },
+        { path: "packages/core/README.md", content: "# Core\n" },
+        {
+          path: "packages/core/examples/README.md",
+          content: "# Examples\n",
+        },
+        {
+          path: "docs/architecture.md",
+          content: "# Architecture\n",
+        },
+      ]).map((impact) => [impact.changeId, impact]),
+    );
+
+    expect(impacts.get("package-entrypoint")?.recommendations).toEqual([
+      expect.objectContaining({
+        file: "packages/core/README.md",
+        reason: "entrypoint",
+      }),
+    ]);
+    expect(impacts.get("package-dependency")?.recommendations).toEqual([
+      expect.objectContaining({
+        file: "packages/core/README.md",
+        reason: "architecture",
+      }),
+    ]);
+  });
+
+  it("falls back deterministically to the root README", () => {
+    const [impact] = mapDocumentationImpact(
+      [
+        change({
+          id: "unmatched-entrypoint",
+          category: "contract-changed",
+          path: "src/index.ts",
+          qualifiedName: "createClient",
+        }),
+      ],
+      [
+        { path: "z/README.md", content: "# Z\n" },
+        { path: "README.md", content: "# Root\n" },
+        { path: "a/README.md", content: "# A\n" },
+      ],
+    );
+
+    expect(impact.recommendations).toEqual([
+      expect.objectContaining({ file: "README.md", reason: "entrypoint" }),
+    ]);
   });
 
   it("uses changelog-style files for recommendations but never direct references", () => {

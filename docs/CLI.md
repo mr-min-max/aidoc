@@ -170,7 +170,8 @@ It does not construct a provider, call a model, or write a file. Human output
 is intended for review. TypeScript and JavaScript symbols are public when they
 are reachable from a discovered or configured package entry. JSON output is a
 versioned `aidoc.impact-plan.v1` success or error envelope with optional
-`boundary`, `visibility`, and `summary.internalChanges` fields.
+`boundary`, `visibility`, `summary.internalChanges`, and
+`ignored.documentationLimitReached` fields.
 
 ```bash
 staledocs plan
@@ -197,7 +198,9 @@ Options:
   symbol was removed. A contract change is marked `potentially-breaking` when
   required arity increases or total arity decreases; otherwise it remains
   `review-required`. Set `entry` to an array of repository-relative package entry
-  files to override `package.json` discovery.
+  files to override `package.json` discovery. Set `docs` to an array of additional
+  repository-relative Markdown files or directories to include in documentation
+  discovery. Neither field accepts an absolute path or `..` traversal.
 
 The first commit is compared with Git's empty tree. A shallow repository must
 contain the selected base. A supported source file that cannot be parsed stops

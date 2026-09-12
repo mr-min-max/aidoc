@@ -352,11 +352,15 @@ export class GitSnapshotReader {
       return [...new Set(parseNulPaths(output))]
         .map(normalizePath)
         .filter((candidate): candidate is string => candidate !== undefined)
-        .filter(
-          (candidate) =>
+        .filter((candidate) => {
+          const parts = candidate.split("/");
+          return (
             posix.basename(candidate) === "package.json" &&
-            !candidate.split("/").includes("node_modules"),
-        )
+            !parts.some((part) =>
+              ["node_modules", "dist", "build"].includes(part),
+            )
+          );
+        })
         .sort()
         .slice(0, limit);
     } catch {

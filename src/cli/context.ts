@@ -105,6 +105,8 @@ function sanitizedProviderBoundaryConfig(config: AidocConfig): AidocConfig {
     ...config,
     include: [...config.include],
     exclude: [...config.exclude],
+    ...(config.entry === undefined ? {} : { entry: [...config.entry] }),
+    ...(config.docs === undefined ? {} : { docs: [...config.docs] }),
     readme: { ...config.readme },
   } as AidocConfig & { apiKey?: string; providerBaseUrl?: string };
   delete sanitized.apiKey;

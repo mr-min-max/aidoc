@@ -15,6 +15,9 @@ All notable changes to this project are documented in this file.
 - Treat changelog-style files as recommendation-only history rather than stale direct-reference targets.
 - Detect JavaScript module systems through the TypeScript AST and list unsupported or non-enumerable CommonJS files in the optional bounded `ignored.notAnalyzed` report field.
 - Add `comment: on-findings` for pull request comments only when the review verdict is stale or breaking, while preserving `true` as the default.
+- Discover root Markdown, common documentation directories, package-local Markdown, and safely configured `docs` paths with deterministic 30-file and 2000-file caps.
+- Prefer the README nearest to a changed entrypoint or architecture source, falling back to the root README.
+- Add the optional `ignored.documentationLimitReached` field without changing the v1 plan schema version.
 
 ## [0.3.0-beta.1] - 2026-09-10
 
