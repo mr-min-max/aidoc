@@ -920,7 +920,7 @@ export function deriveOutcome(result, expected = result.expected) {
   if (expected === undefined) return { observed, match: null };
   if (expected.label === "INTERNAL") {
     const legacy =
-      result.package === "staledocs@0.3.0-beta.1" &&
+      result.package !== DEFAULT_PACKAGE_SPEC &&
       result.internalChanges === undefined;
     return {
       observed: legacy ? "n/a" : observed,
@@ -1030,8 +1030,11 @@ export function renderMarkdown(
     const oldByTarget = new Map(
       oldResults.map((result) => [targetEvidenceName(result), result]),
     );
+    const oldPackage = oldResults[0]?.package;
+    if (oldPackage === undefined || !PACKAGE_PATTERN.test(oldPackage))
+      throw new Error("Comparison evidence has no old package identity.");
     lines.push(
-      "| Repository | PR | Language | Expected | 0.3.0-beta.1 | 0.4.0-beta.1 | Match |",
+      `| Repository | PR | Language | Expected | ${escapeTable(oldPackage, 64)} | ${escapeTable(packageSpec, 64)} | Match |`,
       "| --- | --- | --- | --- | --- | --- | --- |",
     );
     for (const result of sorted) {
@@ -1147,18 +1150,23 @@ async function readBoundedJson(file, message) {
 
 export async function readComparisonEvidence(root, targets) {
   const results = [];
+  let baseline;
   for (const target of targets) {
     const result = await readBoundedJson(
       path.join(root, targetEvidenceName(target), "metadata.json"),
       "Comparison evidence is missing, oversized, or invalid.",
     );
+    baseline ??= result?.package;
     if (
       !isObject(result) ||
       result.repo !== target.repo ||
       result.pr !== target.pr ||
       result.base !== target.base ||
       result.head !== target.head ||
-      result.package !== "staledocs@0.3.0-beta.1" ||
+      typeof result.package !== "string" ||
+      !PACKAGE_PATTERN.test(result.package) ||
+      result.package === DEFAULT_PACKAGE_SPEC ||
+      result.package !== baseline ||
       !["OK", "ERROR"].includes(result.status) ||
       (result.status === "OK" &&
         !["publicApiChanges", "staleDocuments", "coChangedDocuments"].every(
@@ -1289,13 +1297,13 @@ async function main() {
       : await assertEvidenceOutsideWorktree(comparePath, worktreeRoot);
   if (
     compareRoot !== undefined &&
-    (packageSpec !== "staledocs@0.4.0-beta.1" ||
+    (packageSpec !== DEFAULT_PACKAGE_SPEC ||
       targets.some(
         (target) => target.expected === undefined || target.base === undefined,
       ))
   ) {
     fail(
-      "Comparison requires labeled immutable targets and staledocs@0.4.0-beta.1.",
+      `Comparison requires labeled immutable targets and ${DEFAULT_PACKAGE_SPEC}.`,
     );
   }
   let evidenceRoot;

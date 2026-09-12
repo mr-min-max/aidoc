@@ -110,6 +110,7 @@ repository. It uses the host's model for the bounded candidate, not a legacy
 provider-backed MCP generation call and not a subscription-to-API bridge.
 
 A live fix-path check on 2026-09-12 with Codex CLI 0.149.0-alpha.4.1 produced a correct README candidate for a changed public TypeScript API. The first validation using the exact signed output of its preparation accepted that candidate with no warnings, and no repository file was written without permission. Two preliminary manual-transcription attempts failed closed and are tracked in issue #49.
+
 ## Trust boundary
 
 StaleDocs Trust Gate inspects StaleDocs's prepared input and validated output for

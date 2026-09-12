@@ -169,6 +169,10 @@ test("renders sorted comparison matches independently of timings or cached obser
       [...old].reverse(),
     ),
   );
+  assert.match(
+    output,
+    /\| Expected \| staledocs@0\.3\.0-beta\.1 \| staledocs@0\.4\.0-beta\.1 \| Match \|/u,
+  );
   assert.match(output, /Matched expectation: old 0\/2, new 1\/2/u);
   assert.ok(output.indexOf("pull/1)") < output.indexOf("pull/2)"));
 });
@@ -192,16 +196,46 @@ test("stops a label-class regression even when another class improves", () => {
   );
 });
 
-test("rejects old evidence for different SHAs or an oversized metadata file", async () => {
+test("rejects old evidence for a different SHA, package, or an oversized metadata file", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "staledocs-compare-test-"));
   const dir = path.join(root, "owner-library-pr-1");
+  const second = { ...target, pr: 2, head: "c".repeat(40) };
+  const secondDir = path.join(root, "owner-library-pr-2");
   try {
     await mkdir(dir);
+    await mkdir(secondDir);
     const old = result({ package: "staledocs@0.3.0-beta.1" });
     await writeFile(path.join(dir, "metadata.json"), JSON.stringify(old));
-    assert.equal(
-      (await readComparisonEvidence(root, [target]))[0].base,
-      target.base,
+    await writeFile(
+      path.join(secondDir, "metadata.json"),
+      JSON.stringify({ ...old, pr: 2, head: second.head }),
+    );
+    assert.deepEqual(
+      (await readComparisonEvidence(root, [target, second])).map(
+        (entry) => entry.package,
+      ),
+      ["staledocs@0.3.0-beta.1", "staledocs@0.3.0-beta.1"],
+    );
+    await writeFile(
+      path.join(secondDir, "metadata.json"),
+      JSON.stringify({
+        ...old,
+        pr: 2,
+        head: second.head,
+        package: "staledocs@0.2.0-beta.6",
+      }),
+    );
+    await assert.rejects(
+      readComparisonEvidence(root, [target, second]),
+      /immutable target and package/u,
+    );
+    await writeFile(
+      path.join(dir, "metadata.json"),
+      JSON.stringify({ ...old, package: "staledocs@0.4.0-beta.1" }),
+    );
+    await assert.rejects(
+      readComparisonEvidence(root, [target]),
+      /immutable target and package/u,
     );
     await writeFile(
       path.join(dir, "metadata.json"),
