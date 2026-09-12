@@ -189,7 +189,10 @@ export async function createImpactPlan(
   const unsupportedNotAnalyzed = sourceFiles.flatMap((file) => {
     if (file.analysis !== "unsupported") return [];
     const path = file.afterPath ?? file.beforePath;
-    return path === undefined ? [] : [{ path, reason: "unsupported" as const }];
+    // Markdown is read as documentation, so naming it "not analyzed" would
+    // contradict the documentation rows in the same report.
+    if (path === undefined || /\.md$/iu.test(path)) return [];
+    return [{ path, reason: "unsupported" as const }];
   });
   const hasTypeScriptChanges = sourceFiles.some(
     (file) =>

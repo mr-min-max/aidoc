@@ -80,6 +80,7 @@ export async function createReviewReport(
   );
   const directReferenceFiles = new Set<string>();
   const directlyMapped = new Set<string>();
+  const mappedMemberRoots = new Set<string>();
   const reviewImpactNames = new Map<
     string,
     { qualifiedName: string; kind: SymbolChange["kind"] }
@@ -100,6 +101,10 @@ export async function createReviewReport(
     }
     if (impact.directReferences.length > 0) {
       directlyMapped.add(change.qualifiedName);
+      const separator = change.qualifiedName.indexOf(".");
+      if (separator > 0) {
+        mappedMemberRoots.add(change.qualifiedName.slice(0, separator));
+      }
     }
     for (const reference of impact.directReferences) {
       directReferenceFiles.add(reference.file);
@@ -110,7 +115,7 @@ export async function createReviewReport(
     if (directlyMapped.has(qualifiedName)) continue;
     if (
       (kind === "class" || kind === "interface") &&
-      [...directlyMapped].some((name) => name.startsWith(`${qualifiedName}.`))
+      mappedMemberRoots.has(qualifiedName)
     ) {
       continue;
     }
