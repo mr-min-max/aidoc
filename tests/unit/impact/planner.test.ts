@@ -246,7 +246,10 @@ describe("createImpactPlan", () => {
       join(root, "packages", "core", "nested", "ignored.md"),
       "# Nested\n\n`coreApi`\n",
     );
-    writeFileSync(join(root, "pyproject.toml"), '[project]\nname = "python-pkg"\n');
+    writeFileSync(
+      join(root, "pyproject.toml"),
+      '[project]\nname = "python-pkg"\n',
+    );
     writeFileSync(
       join(root, "python_pkg", "__init__.py"),
       "from .core import python_api\n",
@@ -292,6 +295,49 @@ describe("createImpactPlan", () => {
     );
   });
 
+  test("still recurses into a package directory scanned beside a manifest", async () => {
+    const root = repository();
+    mkdirSync(join(root, "packages", "core", "src"), { recursive: true });
+    mkdirSync(join(root, "packages", "core", "guide"), { recursive: true });
+    writeFileSync(
+      join(root, "package.json"),
+      JSON.stringify({ private: true, workspaces: ["packages/*"] }),
+    );
+    writeFileSync(
+      join(root, "packages", "core", "package.json"),
+      JSON.stringify({ name: "@x/core", main: "dist/index.js" }),
+    );
+    writeFileSync(
+      join(root, ".staledocsrc.json"),
+      JSON.stringify({ docs: ["packages"] }),
+    );
+    writeFileSync(
+      join(root, "packages", "core", "src", "index.ts"),
+      "export function nestedApi(value: string) { return value; }\n",
+    );
+    writeFileSync(
+      join(root, "packages", "core", "README.md"),
+      "# Core\n\n`nestedApi`\n",
+    );
+    writeFileSync(
+      join(root, "packages", "core", "guide", "usage.md"),
+      "# Usage\n\n`nestedApi`\n",
+    );
+    commit(root, "initial");
+    writeFileSync(
+      join(root, "packages", "core", "src", "index.ts"),
+      "export function nestedApi(value: number) { return value; }\n",
+    );
+
+    const result = await createImpactPlan({ cwd: root });
+
+    expect(
+      result.plan.documentation.flatMap((impact) =>
+        impact.directReferences.map((reference) => reference.file),
+      ),
+    ).toEqual(["packages/core/README.md", "packages/core/guide/usage.md"]);
+  });
+
   test("discovers safe configured documentation files and directories", async () => {
     const root = repository();
     mkdirSync(join(root, "handbook"));
@@ -306,8 +352,14 @@ describe("createImpactPlan", () => {
       join(root, "api.ts"),
       "export function configuredApi(value: string) { return value; }\n",
     );
-    writeFileSync(join(root, "MIGRATION.md"), "# Migration\n\n`configuredApi`\n");
-    writeFileSync(join(root, "handbook", "API.md"), "# API\n\n`configuredApi`\n");
+    writeFileSync(
+      join(root, "MIGRATION.md"),
+      "# Migration\n\n`configuredApi`\n",
+    );
+    writeFileSync(
+      join(root, "handbook", "API.md"),
+      "# API\n\n`configuredApi`\n",
+    );
     writeFileSync(
       join(root, "handbook", "private.md"),
       "# Private\n\n`configuredApi`\nPRIVATE_SENTINEL\n",

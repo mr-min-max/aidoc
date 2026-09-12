@@ -63,7 +63,11 @@ export const ConfigSchema = z.object({
       "**/yarn.lock",
     ]),
   entry: z.array(z.string().refine(isSafePlanningPath)).min(1).optional(),
-  docs: z.array(z.string().refine(isSafePlanningPath)).min(1).max(100).optional(),
+  docs: z
+    .array(z.string().refine(isSafePlanningPath))
+    .min(1)
+    .max(100)
+    .optional(),
   language: z.string().default("en"),
   outputDir: z.string().default("./docs"),
   maxContextBytes: z.number().int().min(1024).max(1048576).default(12000),

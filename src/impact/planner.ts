@@ -83,7 +83,7 @@ interface DocumentationDiscovery {
 interface DocumentationCandidateBudget {
   paths: Set<string>;
   files: Set<string>;
-  directories: Set<string>;
+  directories: Map<string, "shallow" | "deep">;
   walkedEntries: number;
   limitReached: boolean;
 }
@@ -700,7 +700,7 @@ async function loadDocumentationFiles(
   const budget: DocumentationCandidateBudget = {
     paths: new Set<string>(),
     files: new Set<string>(),
-    directories: new Set<string>(),
+    directories: new Map<string, "shallow" | "deep">(),
     walkedEntries: 0,
     limitReached: false,
   };
@@ -868,12 +868,7 @@ async function markdownFilesUnder(
   }
   const walk = async (current: string): Promise<void> => {
     const currentRelative = relative(root, current).split(sep).join("/");
-    if (budget.directories.has(currentRelative)) return;
-    if (budget.directories.size >= DOCUMENTATION_DISCOVERY_LIMIT) {
-      budget.limitReached = true;
-      return;
-    }
-    budget.directories.add(currentRelative);
+    if (!claimDirectory(currentRelative, "deep", budget)) return;
     let entries;
     try {
       entries = await fs.readdir(current, { withFileTypes: true });
@@ -891,7 +886,8 @@ async function markdownFilesUnder(
       if (budget.limitReached) return;
       const child = resolve(current, entry.name);
       const childRelative = relative(root, child).split(sep).join("/");
-      if (!isSafeRelativePath(childRelative) || entry.isSymbolicLink()) continue;
+      if (!isSafeRelativePath(childRelative) || entry.isSymbolicLink())
+        continue;
       if (entry.isDirectory()) {
         await walk(child);
       } else if (
@@ -923,12 +919,7 @@ async function markdownFilesBeside(
   const directoryRelative = relative(root, validated.absolute)
     .split(sep)
     .join("/");
-  if (budget.directories.has(directoryRelative)) return;
-  if (budget.directories.size >= DOCUMENTATION_DISCOVERY_LIMIT) {
-    budget.limitReached = true;
-    return;
-  }
-  budget.directories.add(directoryRelative);
+  if (!claimDirectory(directoryRelative, "shallow", budget)) return;
   let entries;
   try {
     entries = await fs.readdir(validated.absolute, { withFileTypes: true });
@@ -954,6 +945,26 @@ async function markdownFilesBeside(
       addDocumentationCandidate(path, exclude, budget);
     }
   }
+}
+
+function claimDirectory(
+  path: string,
+  depth: "shallow" | "deep",
+  budget: DocumentationCandidateBudget,
+): boolean {
+  const visited = budget.directories.get(path);
+  // A shallow package scan must not stop a later recursive scan of the same
+  // directory; a deep scan already covered everything a shallow one would read.
+  if (visited === depth || visited === "deep") return false;
+  if (
+    visited === undefined &&
+    budget.directories.size >= DOCUMENTATION_DISCOVERY_LIMIT
+  ) {
+    budget.limitReached = true;
+    return false;
+  }
+  budget.directories.set(path, depth);
+  return true;
 }
 
 function recordDocumentationFile(
