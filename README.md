@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with: {fetch-depth: 0}
-      - uses: mr-min-max/staledocs@v0.3.0-beta.1
+      - uses: mr-min-max/staledocs@v0.4.0-beta.1
         with:
           mode: review
 ```
@@ -67,7 +67,7 @@ See [LIMITATIONS.md](./docs/LIMITATIONS.md) for syntax and discovery caveats.
 
 ## Status and links
 
-Public beta `0.3.0-beta.1`.
+Release candidate `0.4.0-beta.1` is not published yet. The npm beta badge and install channel below still refer to the published `0.3.0-beta.1` until the owner publishes the candidate.
 
 [![npm](https://img.shields.io/npm/v/staledocs/beta?label=npm%20beta)](https://www.npmjs.com/package/staledocs)
 [![CI](https://github.com/mr-min-max/staledocs/actions/workflows/ci.yml/badge.svg)](https://github.com/mr-min-max/staledocs/actions/workflows/ci.yml)

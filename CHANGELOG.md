@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented in this file.
 
-## [Unreleased]
+## [0.4.0-beta.1] - 2026-09-12
 
 - Resolve the TypeScript and JavaScript public boundary from package entries and bounded static relative re-exports, with loud fallback when no entry is available.
 - Add the optional `entry` configuration override and support `.mts`, `.cts`, `.mjs`, and `.cjs` module files.
@@ -18,6 +18,8 @@ All notable changes to this project are documented in this file.
 - Discover root Markdown, common documentation directories, package-local Markdown, and safely configured `docs` paths with deterministic 30-file and 2000-file caps.
 - Prefer the README nearest to a changed entrypoint or architecture source, falling back to the root README.
 - Add the optional `ignored.documentationLimitReached` field without changing the v1 plan schema version.
+- Add pre-labeled external PR evaluations, exact published-package selection with `--package`, and deterministic before/after expectation counts with `--compare`.
+- Keep observed outcomes derived from review JSON counts, preserve error rows, and stop comparison when any label class matches fewer expectations.
 
 ## [0.3.0-beta.1] - 2026-09-10
 

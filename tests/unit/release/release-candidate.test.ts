@@ -34,7 +34,7 @@ function runVerifier(
     "--candidate-ref",
     "HEAD",
     "--tag",
-    options.tag ?? "v0.3.0-beta.1",
+    options.tag ?? "v0.4.0-beta.1",
   ];
   if (options.expectedSha) {
     args.push("--expected-sha", options.expectedSha);
@@ -52,7 +52,7 @@ describe("release candidate verifier", () => {
       path.join(repository, "package.json"),
       JSON.stringify({
         name: "staledocs",
-        version: "0.3.0-beta.1",
+        version: "0.4.0-beta.1",
       }),
     );
     git(repository, "add", "package.json");
@@ -100,7 +100,10 @@ describe("release candidate verifier", () => {
   it("rejects the superseded unscoped package name", () => {
     fs.writeFileSync(
       path.join(repository, "package.json"),
-      JSON.stringify({ name: "@mr-min-max/aidoc-gen", version: "0.3.0-beta.1" }),
+      JSON.stringify({
+        name: "@mr-min-max/aidoc-gen",
+        version: "0.4.0-beta.1",
+      }),
     );
 
     const result = runVerifier(repository);
@@ -122,7 +125,7 @@ describe("release candidate verifier", () => {
       "bash",
       [
         "-c",
-        '"$1" "$2" --main-ref refs/heads/main --candidate-ref HEAD --tag v0.3.0-beta.1 --expected-sha "$3" && git tag -a v0.3.0-beta.1 "$3" -m v0.3.0-beta.1',
+        '"$1" "$2" --main-ref refs/heads/main --candidate-ref HEAD --tag v0.4.0-beta.1 --expected-sha "$3" && git tag -a v0.4.0-beta.1 "$3" -m v0.4.0-beta.1',
         "release-chain",
         process.execPath,
         verifier,
@@ -136,6 +139,6 @@ describe("release candidate verifier", () => {
     expect(result.stderr).toBe(
       "Release candidate does not match the previously verified commit.\n",
     );
-    expect(git(repository, "tag", "--list", "v0.3.0-beta.1")).toBe("");
+    expect(git(repository, "tag", "--list", "v0.4.0-beta.1")).toBe("");
   });
 });

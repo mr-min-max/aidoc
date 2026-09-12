@@ -1,6 +1,6 @@
 {
   "name": "staledocs",
-  "version": "0.3.0-beta.1",
+  "version": "0.4.0-beta.1",
   "description": "Finds documentation that no longer matches your code. Deterministic AST check for pull requests; no API key. TypeScript, JavaScript, Python.",
   "main": "dist/cli/index.js",
   "bin": {
@@ -13,6 +13,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:action": "jest tests/unit/action/runner.test.ts --runInBand",
+    "test:evaluations": "node --test tests/e2e/evaluate-external.test.mjs",
     "lint": "eslint src/ tests/ --ext .ts",
     "lint:fix": "eslint src/ tests/ --ext .ts --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
@@ -32,7 +33,7 @@
     "test:check": "npm run build && node tests/e2e/check-cli-smoke.mjs",
     "test:public-beta": "node --test tests/e2e/public-beta-preflight.test.mjs && npm run test:npm-published && jest tests/unit/release/public-beta-config.test.ts --runInBand",
     "verify:public-beta": "npm run verify:release && npm run test:public-beta && node scripts/public-beta-preflight.mjs --json --candidate-ref HEAD",
-    "verify:release": "npm run lint && npm test -- --runInBand && npm run test:provider-contracts && npm run build && npm run test:impact-demo && npm run test:check && npm run test:package && npm run test:action && npm run test:mcp && npm run test:codex-plugin && npm run test:hybrid-beta && npm run test:storefront",
+    "verify:release": "npm run lint && npm test -- --runInBand && npm run test:evaluations && npm run test:provider-contracts && npm run build && npm run test:impact-demo && npm run test:check && npm run test:package && npm run test:action && npm run test:mcp && npm run test:codex-plugin && npm run test:hybrid-beta && npm run test:storefront",
     "prepack": "npm run build",
     "prepublishOnly": "npm run lint && npm test -- --runInBand"
   },

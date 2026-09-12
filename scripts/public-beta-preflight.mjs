@@ -33,6 +33,7 @@ const BETA_SOURCE_ARTIFACTS = Object.freeze({
     "docs/releases/v0.2.0-beta.4.md",
     "docs/releases/v0.2.0-beta.5.md",
     "docs/releases/v0.3.0-beta.1.md",
+    "docs/releases/v0.4.0-beta.1.md",
   ]),
   storefrontDocumentation: Object.freeze([
     "docs/CLI.md",
