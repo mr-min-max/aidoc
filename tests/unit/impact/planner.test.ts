@@ -729,6 +729,57 @@ describe("createImpactPlan", () => {
     );
   });
 
+  // Break caught: changed Markdown documentation is analyzed for documentation
+  // impact, so naming it "not analyzed" contradicts the same report.
+  test("never reports changed Markdown documentation as not analyzed", async () => {
+    const root = mkdtempSync(join(tmpdir(), "staledocs-planner-md-"));
+    const snapshotSet: GitSnapshotSet = {
+      root,
+      base: { type: "git", label: "base", commit: "a".repeat(40) },
+      head: { type: "working-tree", label: "HEAD" },
+      files: [
+        {
+          status: "modified",
+          beforePath: "README.md",
+          afterPath: "README.md",
+          supported: false,
+          excluded: false,
+          analysis: "unsupported",
+        },
+        {
+          status: "modified",
+          beforePath: "docs/CLI.md",
+          afterPath: "docs/CLI.md",
+          supported: false,
+          excluded: false,
+          analysis: "unsupported",
+        },
+        {
+          status: "modified",
+          beforePath: "tool.rb",
+          afterPath: "tool.rb",
+          supported: false,
+          excluded: false,
+          analysis: "unsupported",
+        },
+      ],
+      ignored: { unsupported: 3, excluded: 0 },
+    };
+    const readSpy = jest
+      .spyOn(GitSnapshotReader.prototype, "read")
+      .mockResolvedValue(snapshotSet);
+    try {
+      const result = await createImpactPlan({ cwd: root });
+
+      expect(result.plan.ignored.notAnalyzed).toEqual([
+        { path: "tool.rb", reason: "unsupported" },
+      ]);
+      expect(result.plan.ignored.unsupported).toBe(3);
+    } finally {
+      readSpy.mockRestore();
+    }
+  });
+
   test("does not import provider, command-context, template, or dotenv modules", async () => {
     const root = repository();
     writeFileSync(

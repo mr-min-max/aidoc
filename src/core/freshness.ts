@@ -79,11 +79,13 @@ export function assessDocumentationFreshness(input: {
     }
   }
 
-  const directlyMapped = new Set<string>();
+  const mappedMemberRoots = new Set<string>();
   for (const impact of input.plan.documentation) {
     if (impact.directReferences.length === 0) continue;
     const qualifiedName = symbolChanges.get(impact.changeId)?.qualifiedName;
-    if (qualifiedName !== undefined) directlyMapped.add(qualifiedName);
+    if (qualifiedName === undefined) continue;
+    const separator = qualifiedName.indexOf(".");
+    if (separator > 0) mappedMemberRoots.add(qualifiedName.slice(0, separator));
   }
   const unmappedSymbols: string[] = [];
   for (const impact of input.plan.documentation) {
@@ -92,9 +94,7 @@ export function assessDocumentationFreshness(input: {
     if (change?.qualifiedName === undefined) continue;
     if (
       (change.kind === "class" || change.kind === "interface") &&
-      [...directlyMapped].some((mapped) =>
-        mapped.startsWith(`${change.qualifiedName}.`),
-      )
+      mappedMemberRoots.has(change.qualifiedName)
     ) {
       continue;
     }
