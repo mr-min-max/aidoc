@@ -2,32 +2,126 @@
   "version": 1,
   "targets": [
     {
+      "repo": "vitest-dev/vitest",
+      "language": "typescript",
+      "pr": 7137,
+      "base": "847d322119290541debc5769099eaf0069b46d35",
+      "head": "339ca5e7764f9d544465cb9175c71ebcd69e713a",
+      "expected": {
+        "label": "DOCS-UPDATED",
+        "symbol": "Locator",
+        "document": "docs/guide/browser/locators.md",
+        "reason": "The public Locator class gains nth, first, and last. Its base Markdown reference already names Locator in fenced signatures, and the PR updates that reference with the new methods."
+      }
+    },
+    {
+      "repo": "vitest-dev/vitest",
+      "language": "typescript",
+      "pr": 11087,
+      "base": "130f79b8b7e9aa3c9af9ff7b81fc1c76cec01729",
+      "head": "58a16a5fe84a798624637a930be21d221961d9bb",
+      "expected": {
+        "label": "DOCS-UPDATED",
+        "symbol": "Vitest.experimental_parseSpecifications",
+        "document": "docs/api/advanced/vitest.md",
+        "reason": "The public experimental_parseSpecifications method becomes a deprecated forwarding method while parseSpecifications is added. Its existing base reference is updated in the PR."
+      }
+    },
+    {
+      "repo": "honojs/hono",
+      "language": "typescript",
+      "pr": 5141,
+      "base": "1f707c56378a4497bc0a6a44fef5f5a8517fdf6b",
+      "head": "30277aee0ddd96b643a4958d6102abe6e54d9a29",
+      "expected": {
+        "label": "UNDOCUMENTED",
+        "symbol": "jwt",
+        "reason": "The public hono/jwt and hono/jwk subpath exports gain an optional realm argument. No discovered base Markdown document mentions jwt or jwk; their usage documentation is on an external website."
+      }
+    },
+    {
+      "repo": "honojs/hono",
+      "language": "typescript",
+      "pr": 3786,
+      "base": "b4f1d454b1ce170c9e715b3b462eebbd86b220e9",
+      "head": "e4767af5b4c8cf3bdb21cb5bc3396a30142f20bc",
+      "expected": {
+        "label": "UNDOCUMENTED",
+        "symbol": "createFactory",
+        "reason": "The public hono/factory export gains defaultAppOptions and Factory.createApp gains an options argument. No discovered base Markdown document mentions these symbols."
+      }
+    },
+    {
+      "repo": "colinhacks/zod",
+      "language": "typescript",
+      "pr": 5705,
+      "base": "3cd45ebcbcf06a3f16e702a010074dfceca3ea50",
+      "head": "3d164ef3a3c05c681d5d6f5618dbbac8656c7181",
+      "expected": {
+        "label": "NO-PUBLIC-CHANGE",
+        "reason": "The immutable PR head changes only packages/docs/content/v4/changelog.mdx. Production source and the public package entry are unchanged; this is a documentation-only control."
+      }
+    },
+    {
+      "repo": "vitejs/vite",
+      "language": "typescript",
+      "pr": 18730,
+      "base": "ef7a6a35e6827b92445e5a0c2c0022616efc80dd",
+      "head": "8d2d100e19ae239d34090ffca09d46dda9aa4df5",
+      "expected": {
+        "label": "UNDOCUMENTED",
+        "symbol": "createServerModuleRunnerTransport",
+        "reason": "The immutable PR head adds a named re-export from the public Vite entry for an existing transport function. No discovered base Markdown document mentions that symbol."
+      }
+    },
+    {
+      "repo": "fastapi/fastapi",
+      "language": "python",
+      "pr": 12997,
+      "base": "1e5e8b44cb042f774a8637f27bce93b4ceb68f7d",
+      "head": "cb3e71c2892b4b229e2c23b0494b4b764d08aaa5",
+      "expected": {
+        "label": "DOCS-STALE",
+        "symbol": "HTTPException",
+        "document": "docs/en/docs/tutorial/handling-errors.md",
+        "reason": "HTTPException is re-exported by the fastapi package root. Its constructor headers annotation changes from dict to Mapping; the base Markdown guide mentions HTTPException and is unchanged in the PR."
+      }
+    },
+    {
       "repo": "sindresorhus/ky",
       "language": "typescript",
       "pr": 874,
       "base": "06375efbacfc1bdc96f7a4de7560684b765e1274",
-      "head": "3419113b48e034fdcf8fa6bd3be3da7b3d0d758f"
-    },
-    {
-      "repo": "expressjs/express",
-      "language": "javascript",
-      "pr": 7366,
-      "base": "ba006766fb964571723138708eacaba0f55759cd",
-      "head": "ae6dd37680e3a00618d6c8a3e522f0ee4eeba1a4"
+      "head": "3419113b48e034fdcf8fa6bd3be3da7b3d0d758f",
+      "expected": {
+        "label": "INTERNAL",
+        "symbol": "calculateRetryTimingDelay",
+        "reason": "The PR adds calculateRetryTimingDelay and getRetryTimingHeader in source/core/retry-timing.ts, used internally by Ky. Neither helper is re-exported by source/index.ts; other changed public declarations retain their signatures."
+      }
     },
     {
       "repo": "pallets/click",
       "language": "python",
       "pr": 3764,
       "base": "150d1071d69c5cdad7de78590013ffe56cf9e3bb",
-      "head": "1f9cd54f686eb343cec714230ad825ce972739ab"
+      "head": "fc5c7f45da0a4443f60ba2d322fe4bf829977739",
+      "expected": {
+        "label": "NO-PUBLIC-CHANGE",
+        "symbol": "_tempfilepager",
+        "reason": "Only the private _tempfilepager cleanup body changes, alongside tests and release notes. Its signature and all public exports remain unchanged; this is an internal-implementation control."
+      }
     },
     {
       "repo": "psf/requests",
       "language": "python",
       "pr": 7505,
       "base": "6f205ff422bccd5e4c4fc0b64c5f3e7df5181db6",
-      "head": "6f66281a1d6326b1b9c4ac09ca30de0fc4e6ef43"
+      "head": "6f66281a1d6326b1b9c4ac09ca30de0fc4e6ef43",
+      "expected": {
+        "label": "INTERNAL",
+        "symbol": "has_read",
+        "reason": "The PR adds has_read in requests._types, whose module explicitly excludes its types from the public API. It is absent from the root exports and __all__; other source edits only replace internal calls."
+      }
     }
   ]
 }

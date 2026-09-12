@@ -24,15 +24,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: mr-min-max/staledocs@v0.3.0-beta.1
+      - uses: mr-min-max/staledocs@v0.4.0-beta.1
         with:
           mode: review
           fail-on: none
 ```
 
-The review workflow is pinned to the current release candidate. The moving `@v0`
-major convenience pin is available after publication and may move to a later
-release. The check and generate examples below use the same release candidate.
+The examples are pinned to the `0.4.0-beta.1` release candidate, whose tag and npm
+package are not published yet. Before publication, use the published
+`@v0.3.0-beta.1`. The existing moving `@v0` tag remains on the published release
+until the owner advances it after publication.
 
 The comment starts with a hidden marker and lists changed signatures, affected
 sections, and whether each section changed in the pull request:
@@ -118,7 +119,7 @@ Check mode is provider-free and reports only whether selected documents changed 
 public symbols they directly mention. It does not compare prose correctness.
 
 ```yaml
-- uses: mr-min-max/staledocs@v0.3.0-beta.1
+- uses: mr-min-max/staledocs@v0.4.0-beta.1
   with:
     mode: check
     since: ${{ github.event.pull_request.base.sha }}
@@ -133,7 +134,7 @@ The `commands` input is a comma-separated list of `readme`, `api`, `changelog`, 
 Generate mode remains available for provider-backed documentation creation:
 
 ```yaml
-- uses: mr-min-max/staledocs@v0.3.0-beta.1
+- uses: mr-min-max/staledocs@v0.4.0-beta.1
   with:
     mode: generate
     provider: openai
