@@ -147,6 +147,7 @@ export interface ImpactPlan {
       path: string;
       reason: "commonjs" | "unsupported";
     }[];
+    documentationLimitReached?: boolean;
   };
   boundary?: BoundaryReport;
   digest: string;

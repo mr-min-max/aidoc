@@ -72,11 +72,28 @@ interface LanguageBoundaryResolution {
   report: LanguageBoundaryReport;
   base: ResolvedBoundary;
   head: ResolvedBoundary;
+  documentationDirectories: string[];
+}
+
+interface DocumentationDiscovery {
+  files: DocumentationFile[];
+  limitReached: boolean;
+}
+
+interface DocumentationCandidateBudget {
+  paths: Set<string>;
+  files: Set<string>;
+  directories: Set<string>;
+  walkedEntries: number;
+  limitReached: boolean;
 }
 
 const execFile = promisify(execFileCallback);
 const DOCUMENTATION_READ_TIMEOUT_MS = 5_000;
 const DOCUMENTATION_READ_MAX_BUFFER = 10 * 1024 * 1024;
+const DOCUMENTATION_WALK_ENTRY_LIMIT = 10_000;
+const ROOT_MARKDOWN_LIMIT = 30;
+const DOCUMENTATION_DISCOVERY_LIMIT = 2000;
 const DOCUMENTATION_READER_SCRIPT = String.raw`
 const fs = require("node:fs");
 const [
@@ -266,11 +283,17 @@ export async function createImpactPlan(
     });
     return false;
   });
-  const documentationFiles = await loadDocumentationFiles(
+  const documentationDiscovery = await loadDocumentationFiles(
     root,
     config.outputDir,
+    config.docs,
+    [
+      ...(typeScriptBoundary?.documentationDirectories ?? []),
+      ...(pythonBoundary?.documentationDirectories ?? []),
+    ],
     config.exclude,
   );
+  const documentationFiles = documentationDiscovery.files;
   const filteredDocumentationFiles = documentationFiles.filter(
     (file) =>
       matchingSuppression(file.path, suppressions.docPaths) === undefined,
@@ -297,6 +320,9 @@ export async function createImpactPlan(
     ...ignored,
     suppressed: suppressed.length,
     ...(notAnalyzed.length === 0 ? {} : { notAnalyzed }),
+    ...(documentationDiscovery.limitReached
+      ? { documentationLimitReached: true }
+      : {}),
   };
   const digest = digestImpactPayload({
     base,
@@ -407,17 +433,25 @@ async function resolveTypeScriptBoundary(
   reader: GitSnapshotReader,
   configuredEntries: readonly string[] | undefined,
 ): Promise<LanguageBoundaryResolution> {
-  const [baseBoundary, headBoundary] = await Promise.all(
+  const manifests = await Promise.all(
     (["base", "head"] as const).map((revision) =>
+      reader.listPackageManifests(revision),
+    ),
+  );
+  const [baseBoundary, headBoundary] = await Promise.all(
+    (["base", "head"] as const).map((revision, index) =>
       resolveBoundary({
         readFile: (path) => reader.readAt(revision, path),
-        listPackageJson: () => reader.listPackageManifests(revision),
+        listPackageJson: () => Promise.resolve(manifests[index] ?? []),
         snapshot: (path, source) => snapshotSource(path, source, false),
         ...(configuredEntries === undefined ? {} : { configuredEntries }),
       }),
     ),
   );
-  return mergeBoundaryReports(baseBoundary, headBoundary);
+  return {
+    ...mergeBoundaryReports(baseBoundary, headBoundary),
+    documentationDirectories: packageDirectories(manifests[1] ?? []),
+  };
 }
 
 async function resolveProjectPythonBoundary(
@@ -427,11 +461,16 @@ async function resolveProjectPythonBoundary(
   const pythonEntries = configuredEntries?.filter((path) =>
     path.endsWith("__init__.py"),
   );
-  const [baseBoundary, headBoundary] = await Promise.all(
+  const listedEntries = await Promise.all(
     (["base", "head"] as const).map((revision) =>
+      reader.listPythonPackageEntries(revision),
+    ),
+  );
+  const [baseBoundary, headBoundary] = await Promise.all(
+    (["base", "head"] as const).map((revision, index) =>
       resolvePythonBoundary({
         readFile: (path) => reader.readAt(revision, path),
-        listPackageEntries: () => reader.listPythonPackageEntries(revision),
+        listPackageEntries: () => Promise.resolve(listedEntries[index] ?? []),
         snapshot: (path, source) => snapshotSource(path, source, false),
         ...(pythonEntries === undefined || pythonEntries.length === 0
           ? {}
@@ -439,7 +478,13 @@ async function resolveProjectPythonBoundary(
       }),
     ),
   );
-  return mergeBoundaryReports(baseBoundary, headBoundary);
+  return {
+    ...mergeBoundaryReports(baseBoundary, headBoundary),
+    documentationDirectories:
+      headBoundary.report.mode === "entry"
+        ? packageDirectories(headBoundary.report.entries)
+        : [],
+  };
 }
 
 function mergeBoundaryReports(
@@ -478,6 +523,7 @@ function mergeBoundaryReports(
         },
     base: baseBoundary,
     head: headBoundary,
+    documentationDirectories: [],
   };
 }
 async function applyBoundary(
@@ -643,34 +689,87 @@ function isJavaScriptPath(path: string): boolean {
 async function loadDocumentationFiles(
   root: string,
   configuredOutputDir: string,
+  configuredDocs: readonly string[] | undefined,
+  packageDocumentationDirectories: readonly string[],
   exclude: string[],
-): Promise<DocumentationFile[]> {
-  const candidates = new Set<string>(await rootMarkdownFiles(root));
-  for (const directory of ["docs", normalizeOutputDir(configuredOutputDir)]) {
-    if (directory === undefined) continue;
-    for (const path of await markdownFilesUnder(root, directory)) {
-      candidates.add(path);
+): Promise<DocumentationDiscovery> {
+  const rootCandidates = await rootMarkdownFiles(root, {
+    limit: ROOT_MARKDOWN_LIMIT,
+    exclude,
+  });
+  const budget: DocumentationCandidateBudget = {
+    paths: new Set<string>(),
+    files: new Set<string>(),
+    directories: new Set<string>(),
+    walkedEntries: 0,
+    limitReached: false,
+  };
+  for (const directory of [
+    "docs",
+    "doc",
+    "documentation",
+    "guide",
+    "guides",
+    normalizeOutputDir(configuredOutputDir),
+  ]) {
+    if (directory === undefined || budget.limitReached) continue;
+    await markdownFilesUnder(root, directory, exclude, budget);
+  }
+  for (const directory of [...new Set(packageDocumentationDirectories)]
+    .filter((candidate) => candidate !== ".")
+    .sort(compareStrings)) {
+    if (budget.limitReached) break;
+    await markdownFilesBeside(root, directory, exclude, budget);
+  }
+  for (const configured of [...new Set(configuredDocs ?? [])].sort(
+    compareStrings,
+  )) {
+    if (budget.limitReached) break;
+    const path = normalizeDocumentationPath(configured);
+    if (path === undefined) continue;
+    const validated = await safeExistingAbsolutePath(root, path);
+    if (validated === undefined) continue;
+    if (validated.stat.isDirectory() && !validated.stat.isSymbolicLink()) {
+      await markdownFilesUnder(root, path, exclude, budget);
+    } else if (
+      validated.stat.isFile() &&
+      !validated.stat.isSymbolicLink() &&
+      path.toLowerCase().endsWith(".md")
+    ) {
+      if (!recordDocumentationFile(path, budget)) break;
+      addDocumentationCandidate(path, exclude, budget);
     }
   }
 
+  const candidates = new Set([...rootCandidates, ...budget.paths]);
   const files: DocumentationFile[] = [];
   for (const path of [...candidates].sort(compareStrings)) {
-    if (matchesAny(path, exclude)) continue;
     const content = await readSafeDocumentationFile(root, path);
     if (content !== undefined) files.push({ path, content });
   }
-  return files;
+  return { files, limitReached: budget.limitReached };
 }
 
 /** Returns the repository-relative README path as it exists on disk, if any. */
 export async function discoverReadme(
   root: string,
 ): Promise<string | undefined> {
-  const files = await rootMarkdownFiles(root);
-  return files.find((file) => file.toLowerCase() === "readme.md");
+  const files = await rootMarkdownFiles(root, {
+    limit: 1,
+    basename: "readme.md",
+    exclude: [],
+  });
+  return files[0];
 }
 
-async function rootMarkdownFiles(root: string): Promise<string[]> {
+async function rootMarkdownFiles(
+  root: string,
+  options: {
+    limit: number;
+    basename?: string;
+    exclude: string[];
+  },
+): Promise<string[]> {
   let entries;
   try {
     const rootStat = await fs.lstat(root, { bigint: true });
@@ -685,10 +784,13 @@ async function rootMarkdownFiles(root: string): Promise<string[]> {
       (entry) =>
         entry.isFile() &&
         !entry.isSymbolicLink() &&
-        (entry.name.toLowerCase() === "readme.md" ||
-          entry.name.toLowerCase() === "changelog.md") &&
-        isSafeRelativePath(entry.name),
+        entry.name.toLowerCase().endsWith(".md") &&
+        (options.basename === undefined ||
+          entry.name.toLowerCase() === options.basename) &&
+        isSafeRelativePath(entry.name) &&
+        !matchesAny(entry.name, options.exclude),
     )
+    .slice(0, options.limit)
     .map((entry) => entry.name);
 }
 
@@ -753,38 +855,138 @@ function parseDocumentationRead(value: string): string | undefined {
 async function markdownFilesUnder(
   root: string,
   directory: string,
-): Promise<string[]> {
+  exclude: string[],
+  budget: DocumentationCandidateBudget,
+): Promise<void> {
   const validated = await safeExistingAbsolutePath(root, directory);
-  if (validated === undefined) return [];
-  const { absolute } = validated;
-  const result: string[] = [];
+  if (
+    validated === undefined ||
+    !validated.stat.isDirectory() ||
+    validated.stat.isSymbolicLink()
+  ) {
+    return;
+  }
   const walk = async (current: string): Promise<void> => {
+    const currentRelative = relative(root, current).split(sep).join("/");
+    if (budget.directories.has(currentRelative)) return;
+    if (budget.directories.size >= DOCUMENTATION_DISCOVERY_LIMIT) {
+      budget.limitReached = true;
+      return;
+    }
+    budget.directories.add(currentRelative);
     let entries;
     try {
       entries = await fs.readdir(current, { withFileTypes: true });
     } catch {
       return;
     }
-    for (const entry of entries.sort((a, b) =>
-      compareStrings(a.name, b.name),
+    for (const entry of entries.sort((left, right) =>
+      compareStrings(left.name, right.name),
     )) {
+      if (budget.walkedEntries >= DOCUMENTATION_WALK_ENTRY_LIMIT) {
+        budget.limitReached = true;
+        return;
+      }
+      budget.walkedEntries += 1;
+      if (budget.limitReached) return;
       const child = resolve(current, entry.name);
       const childRelative = relative(root, child).split(sep).join("/");
-      if (!isSafeRelativePath(childRelative)) continue;
-      if (entry.isDirectory() && !entry.isSymbolicLink()) {
+      if (!isSafeRelativePath(childRelative) || entry.isSymbolicLink()) continue;
+      if (entry.isDirectory()) {
         await walk(child);
       } else if (
         entry.isFile() &&
-        !entry.isSymbolicLink() &&
         childRelative.toLowerCase().endsWith(".md")
       ) {
-        result.push(childRelative);
+        if (!recordDocumentationFile(childRelative, budget)) return;
+        addDocumentationCandidate(childRelative, exclude, budget);
       }
     }
   };
-  if (validated.stat.isDirectory() && !validated.stat.isSymbolicLink())
-    await walk(absolute);
-  return result;
+  await walk(validated.absolute);
+}
+
+async function markdownFilesBeside(
+  root: string,
+  directory: string,
+  exclude: string[],
+  budget: DocumentationCandidateBudget,
+): Promise<void> {
+  const validated = await safeExistingAbsolutePath(root, directory);
+  if (
+    validated === undefined ||
+    !validated.stat.isDirectory() ||
+    validated.stat.isSymbolicLink()
+  ) {
+    return;
+  }
+  const directoryRelative = relative(root, validated.absolute)
+    .split(sep)
+    .join("/");
+  if (budget.directories.has(directoryRelative)) return;
+  if (budget.directories.size >= DOCUMENTATION_DISCOVERY_LIMIT) {
+    budget.limitReached = true;
+    return;
+  }
+  budget.directories.add(directoryRelative);
+  let entries;
+  try {
+    entries = await fs.readdir(validated.absolute, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries.sort((left, right) =>
+    compareStrings(left.name, right.name),
+  )) {
+    if (budget.walkedEntries >= DOCUMENTATION_WALK_ENTRY_LIMIT) {
+      budget.limitReached = true;
+      return;
+    }
+    budget.walkedEntries += 1;
+    if (budget.limitReached) return;
+    const path = posix.join(directory, entry.name);
+    if (
+      entry.isFile() &&
+      !entry.isSymbolicLink() &&
+      path.toLowerCase().endsWith(".md")
+    ) {
+      if (!recordDocumentationFile(path, budget)) return;
+      addDocumentationCandidate(path, exclude, budget);
+    }
+  }
+}
+
+function recordDocumentationFile(
+  path: string,
+  budget: DocumentationCandidateBudget,
+): boolean {
+  if (budget.files.has(path)) return true;
+  if (budget.files.size >= DOCUMENTATION_DISCOVERY_LIMIT) {
+    budget.limitReached = true;
+    return false;
+  }
+  budget.files.add(path);
+  return true;
+}
+
+function addDocumentationCandidate(
+  path: string,
+  exclude: string[],
+  budget: DocumentationCandidateBudget,
+): void {
+  if (!isSafeRelativePath(path) || matchesAny(path, exclude)) return;
+  budget.paths.add(path);
+}
+
+function packageDirectories(paths: readonly string[]): string[] {
+  return [...new Set(paths.map((path) => posix.dirname(path)))].sort(
+    compareStrings,
+  );
+}
+
+function normalizeDocumentationPath(value: string): string | undefined {
+  const normalized = posix.normalize(value.replaceAll("\\", "/"));
+  return isSafeRelativePath(normalized) ? normalized : undefined;
 }
 
 function normalizeOutputDir(value: string): string | undefined {

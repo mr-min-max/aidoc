@@ -107,12 +107,13 @@ describe("MCP scoped configuration", () => {
     );
     writeFileSync(
       join(value.selected, ".staledocsrc.yaml"),
-      "model: selected-model\ninclude:\n  - '**/*.tsx'\n",
+      "model: selected-model\ninclude:\n  - '**/*.tsx'\ndocs:\n  - handbook\n",
     );
 
     const loader = new MCPScopedConfigLoader(value.scope, Object.create(null));
     await expect(loader.loadPlanning(value.directory)).resolves.toMatchObject({
       include: ["**/*.tsx"],
+      docs: ["handbook"],
     });
   });
 

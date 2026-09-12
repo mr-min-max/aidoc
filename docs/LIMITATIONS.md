@@ -20,7 +20,7 @@ CommonJS modules (`module.exports`, `exports.x`) are not enumerated; they are li
 
 ## Documentation discovery
 
-The planner recognizes root `README.md` and `CHANGELOG.md` names without case sensitivity. It recursively scans files with a case-insensitive `.md` extension under `docs` and under a configured output directory. Planning exclusion globs are applied while selecting candidates. After discovery, `.staledocsignore` removes documentation through case-sensitive path patterns whose literal suffix is `.md`, such as `docs/legacy/*.md`.
+The planner discovers up to 30 case-insensitive `*.md` files at the repository root. It recursively scans `docs`, `doc`, `documentation`, `guide`, `guides`, the configured output directory, and repository-relative files or directories listed in `docs` configuration. It also scans `*.md` files non-recursively beside discovered JavaScript or TypeScript package manifests and Python package roots. Directory discovery stops after 2000 unique Markdown files; traversal also stops after 2000 directories or 10000 filesystem entries. Reaching any of these ceilings sets the optional `ignored.documentationLimitReached` plan field. The `docs` array accepts at most 100 entries. Planning exclusion globs and repository-relative path safety apply to every candidate, and symlinks are skipped. After discovery, `.staledocsignore` removes documentation through case-sensitive path patterns whose literal suffix is `.md`, such as `docs/legacy/*.md`.
 
 Changelog-style files (`CHANGELOG.md`, `CHANGES.md`, `HISTORY.md`, `NEWS.md`, `RELEASES.md`) are read for recommendations only; their entries are history and are never reported as stale.
 

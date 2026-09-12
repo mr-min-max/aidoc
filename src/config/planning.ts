@@ -6,6 +6,7 @@ export interface PlanningConfig {
   outputDir: string;
   maxContextBytes: number;
   entry?: string[];
+  docs?: string[];
 }
 
 const DEFAULT_INCLUDE = [
@@ -62,6 +63,16 @@ function safeOwnValue(config: object, key: string): unknown {
   return descriptor && "value" in descriptor ? descriptor.value : undefined;
 }
 
+/** Checks repository-relative entry and documentation configuration paths. */
+export function isSafePlanningPath(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    !value.startsWith("/") &&
+    !value.split(/[\\/]/u).includes("..")
+  );
+}
+
 /** Parses planning fields defensively and fills omitted fields from defaults. */
 export function parsePlanningConfig(value: unknown): PlanningConfig {
   const result = defaultPlanningConfig();
@@ -71,6 +82,7 @@ export function parsePlanningConfig(value: unknown): PlanningConfig {
 
   const entry = safeOwnValue(value, "entry");
   const include = safeOwnValue(value, "include");
+  const docs = safeOwnValue(value, "docs");
   const exclude = safeOwnValue(value, "exclude");
   const outputDir = safeOwnValue(value, "outputDir");
   const budget = safeOwnValue(value, "maxContextBytes");
@@ -103,17 +115,22 @@ export function parsePlanningConfig(value: unknown): PlanningConfig {
     if (
       !Array.isArray(entry) ||
       entry.length === 0 ||
-      !entry.every(
-        (item) =>
-          typeof item === "string" &&
-          item.length > 0 &&
-          !item.startsWith("/") &&
-          !item.split(/[\\/]/u).includes(".."),
-      )
+      !entry.every(isSafePlanningPath)
     ) {
       throw new Error("invalid planning config");
     }
     result.entry = [...entry];
+  }
+  if (docs !== undefined) {
+    if (
+      !Array.isArray(docs) ||
+      docs.length === 0 ||
+      docs.length > 100 ||
+      !docs.every(isSafePlanningPath)
+    ) {
+      throw new Error("invalid planning config");
+    }
+    result.docs = [...docs];
   }
   if (budget !== undefined) result.maxContextBytes = parseContextBudget(budget);
   return result;
