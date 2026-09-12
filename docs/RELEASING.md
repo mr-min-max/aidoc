@@ -13,8 +13,9 @@ Trusted Publisher setup are already complete. Use the existing OIDC workflow,
 not a reusable npm credential or another bootstrap placeholder.
 
 1. Merge the reviewed PR A only after `npm run verify:release` and
-   `npm run test:public-beta` pass and the owner supplies the private live Codex
-   check record. A recorded failure is acceptable; an unrun success claim is not.
+   `npm run test:public-beta` pass. The private live Codex check record is
+   already supplied for this version; a recorded failure is acceptable, an
+   unrun success claim is not.
 2. Fetch `origin/main`, pin its exact SHA, install with `npm ci`, and repeat the
    release gates at that clean commit with hosted Node 22 and 24 CI green. Use
    `scripts/verify-release-candidate.mjs` with tag `v0.4.0-beta.1` and the pinned
