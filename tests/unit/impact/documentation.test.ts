@@ -336,19 +336,22 @@ describe("documentation impact mapping", () => {
       qualifiedName: undefined,
     });
     const impacts = new Map(
-      mapDocumentationImpact([entrypoint, dependency], [
-        { path: "README.md", content: "# Root\n" },
-        { path: "packages/README.md", content: "# Packages\n" },
-        { path: "packages/core/README.md", content: "# Core\n" },
-        {
-          path: "packages/core/examples/README.md",
-          content: "# Examples\n",
-        },
-        {
-          path: "docs/architecture.md",
-          content: "# Architecture\n",
-        },
-      ]).map((impact) => [impact.changeId, impact]),
+      mapDocumentationImpact(
+        [entrypoint, dependency],
+        [
+          { path: "README.md", content: "# Root\n" },
+          { path: "packages/README.md", content: "# Packages\n" },
+          { path: "packages/core/README.md", content: "# Core\n" },
+          {
+            path: "packages/core/examples/README.md",
+            content: "# Examples\n",
+          },
+          {
+            path: "docs/architecture.md",
+            content: "# Architecture\n",
+          },
+        ],
+      ).map((impact) => [impact.changeId, impact]),
     );
 
     expect(impacts.get("package-entrypoint")?.recommendations).toEqual([
